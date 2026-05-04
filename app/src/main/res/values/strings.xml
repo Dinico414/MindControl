@@ -1,0 +1,4 @@
+<resources>
+    <string name="app_name">MindControll</string>
+    <string name="accessibility_service_description">Interprets and remaps iKKO MindOne hardware buttons for custom actions.</string>
+</resources>
