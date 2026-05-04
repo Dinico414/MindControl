@@ -2,7 +2,6 @@ package com.xenonware.mindcontroll
 
 import android.accessibilityservice.AccessibilityService
 import android.app.KeyguardManager
-import android.content.Context
 import android.content.Intent
 import android.hardware.camera2.CameraManager
 import android.media.AudioManager
@@ -16,15 +15,15 @@ import android.view.accessibility.AccessibilityEvent
 
 class ButtonMapperService : AccessibilityService() {
 
-    private val TAG = "ButtonMapper"
-    private val handler = Handler(Looper.getMainLooper())
+    private val tag = "ButtonMapper"
     private var clickCount = 0
-    private var lastKeyCode = -1
-    private val CLICK_DELAY = 350L
+    private val clickDelay = 350L
 
     private var isCameraInUse = false
     private var isLongPress = false
     private var isFlashlightOn = false
+    private var lastPackageName: String? = null
+    private var lastKeyCode: Int = -1
 
     private lateinit var audioManager: AudioManager
     private lateinit var cameraManager: CameraManager
@@ -36,74 +35,95 @@ class ButtonMapperService : AccessibilityService() {
     }
 
     override fun onServiceConnected() {
-        Log.d(TAG, "Service Connected")
-        cameraManager = getSystemService(Context.CAMERA_SERVICE) as CameraManager
-        audioManager = getSystemService(Context.AUDIO_SERVICE) as AudioManager
-        powerManager = getSystemService(Context.POWER_SERVICE) as PowerManager
+        Log.d(tag, "Service Connected")
+        cameraManager = getSystemService(CAMERA_SERVICE) as CameraManager
+        audioManager = getSystemService(AUDIO_SERVICE) as AudioManager
+        powerManager = getSystemService(POWER_SERVICE) as PowerManager
         cameraManager.registerAvailabilityCallback(cameraCallback, handler)
     }
 
-    override fun onAccessibilityEvent(event: AccessibilityEvent?) {}
+    override fun onAccessibilityEvent(event: AccessibilityEvent?) {
+        if (event?.eventType == AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED) {
+            lastPackageName = event.packageName?.toString()
+        }
+    }
     override fun onInterrupt() {}
+
+    private val handler = Handler(Looper.getMainLooper())
+    private val longPressRunnables = mutableMapOf<Int, Runnable>()
+    private var pendingMultiClick: Runnable? = null
 
     override fun onKeyEvent(event: KeyEvent): Boolean {
         val keyCode = event.keyCode
         val action = event.action
 
-        // Only handle specific keys requested by user
-        val isTargetKey = when (keyCode) {
-            134, 27, 25, 24, 131 -> true
-            else -> false
-        }
+        if (event.repeatCount > 0) return true
+
+        val isTargetKey = keyCode in setOf(134, 27, 25, 24, 131)
         if (!isTargetKey) return false
 
-        val km = getSystemService(Context.KEYGUARD_SERVICE) as KeyguardManager
+        val km = getSystemService(KEYGUARD_SERVICE) as KeyguardManager
         val isLocked = km.isKeyguardLocked
         val isInteractive = powerManager.isInteractive
-        
-        // Use "OFF" mapping if locked or screen is off
         val state = if (isInteractive && !isLocked) "ON" else "OFF"
 
-        // Handle camera-in-use override
-        if (isCameraInUse && SettingsManager.isDisableInCamera(this)) {
-            Log.d(TAG, "Camera is in use and override enabled. Passing through key $keyCode.")
-            return false // Let system handle the key (e.g., shutter button)
+        Log.v(tag, "RAW KEY: $keyCode ${if (action == 0) "DOWN" else "UP"} " +
+                "[Interactive=$isInteractive, Locked=$isLocked, State=$state]")
+
+        val currentPackage = rootInActiveWindow?.packageName?.toString() ?: lastPackageName
+        val isCameraApp = currentPackage?.contains("camera", ignoreCase = true) == true
+        if (isCameraInUse && SettingsManager.isDisableInCamera(this) && isCameraApp) {
+            return false
         }
 
         if (action == KeyEvent.ACTION_DOWN) {
-            Log.d(TAG, "onKeyDown: $keyCode (State: $state, Locked: $isLocked)")
             isLongPress = false
-            handler.removeCallbacksAndMessages("longPress")
-            
-            handler.postAtTime({
+            if (keyCode != lastKeyCode) {
+                clickCount = 0
+                pendingMultiClick?.let { handler.removeCallbacks(it) }
+            }
+            lastKeyCode = keyCode
+
+            // Alten Long-Press-Runnable für genau diesen keyCode entfernen
+            longPressRunnables.remove(keyCode)?.let { handler.removeCallbacks(it) }
+
+            val capturedState = state
+            val longPressRunnable = Runnable {
                 if (clickCount == 0) {
                     isLongPress = true
-                    performAction(keyCode, state, "LONG")
+                    Log.d(tag, "Long Press triggered for $keyCode (state=$capturedState)")
+                    performAction(keyCode, capturedState, "LONG")
                 }
-            }, "longPress", android.os.SystemClock.uptimeMillis() + 500L)
+            }
+            longPressRunnables[keyCode] = longPressRunnable
+            handler.postDelayed(longPressRunnable, 500L)
             return true
+
         } else if (action == KeyEvent.ACTION_UP) {
-            Log.d(TAG, "onKeyUp: $keyCode")
-            handler.removeCallbacksAndMessages("longPress")
-            
+            longPressRunnables.remove(keyCode)?.let { handler.removeCallbacks(it) }
+
             if (isLongPress) {
                 isLongPress = false
+                clickCount = 0
                 return true
             }
 
             clickCount++
-            lastKeyCode = keyCode
-            handler.removeCallbacksAndMessages("multiClick")
-            handler.postAtTime({
+            val capturedKeyCode = keyCode
+            val capturedState = state
+
+            pendingMultiClick?.let { handler.removeCallbacks(it) }
+            val multiClickRunnable = Runnable {
                 val type = when (clickCount) {
-                    1 -> "SINGLE"
-                    2 -> "DOUBLE"
-                    3 -> "TRIPLE"
-                    else -> "MULTI"
+                    1 -> "SINGLE"; 2 -> "DOUBLE"; 3 -> "TRIPLE"; else -> "MULTI"
                 }
-                performAction(lastKeyCode, state, type)
+                Log.d(tag, "Multi-click triggered: $type for $capturedKeyCode (state=$capturedState)")
+                performAction(capturedKeyCode, capturedState, type)
                 clickCount = 0
-            }, "multiClick", android.os.SystemClock.uptimeMillis() + CLICK_DELAY)
+                pendingMultiClick = null
+            }
+            pendingMultiClick = multiClickRunnable
+            handler.postDelayed(multiClickRunnable, clickDelay)
             return true
         }
         return false
@@ -111,16 +131,16 @@ class ButtonMapperService : AccessibilityService() {
 
     private fun performAction(keyCode: Int, state: String, type: String) {
         val action = SettingsManager.getAction(this, keyCode, state, type)
-        Log.i(TAG, "Executing Action: $action for Key: $keyCode, State: $state, Type: $type")
+        Log.i(tag, ">>>> EXECUTING: $action [Key: $keyCode, State: $state, Type: $type, Locked: ${powerManager.isInteractive}] <<<<")
 
-        when (action) {
-            SettingsManager.ACTION_DEFAULT -> simulateDefaultBehavior(keyCode)
-            SettingsManager.ACTION_PLAY_PAUSE -> dispatchMediaKey(KeyEvent.KEYCODE_MEDIA_PLAY_PAUSE)
-            SettingsManager.ACTION_NEXT -> dispatchMediaKey(KeyEvent.KEYCODE_MEDIA_NEXT)
-            SettingsManager.ACTION_PREVIOUS -> dispatchMediaKey(KeyEvent.KEYCODE_MEDIA_PREVIOUS)
-            SettingsManager.ACTION_VOLUME_UP -> adjustVolume(AudioManager.ADJUST_RAISE)
-            SettingsManager.ACTION_VOLUME_DOWN -> adjustVolume(AudioManager.ADJUST_LOWER)
-            SettingsManager.ACTION_FLASHLIGHT -> toggleFlashlight()
+        val success = when (action) {
+            SettingsManager.ACTION_DEFAULT -> { simulateDefaultBehavior(keyCode); true }
+            SettingsManager.ACTION_PLAY_PAUSE -> { dispatchMediaKey(KeyEvent.KEYCODE_MEDIA_PLAY_PAUSE); true }
+            SettingsManager.ACTION_NEXT -> { dispatchMediaKey(KeyEvent.KEYCODE_MEDIA_NEXT); true }
+            SettingsManager.ACTION_PREVIOUS -> { dispatchMediaKey(KeyEvent.KEYCODE_MEDIA_PREVIOUS); true }
+            SettingsManager.ACTION_VOLUME_UP -> { adjustVolume(AudioManager.ADJUST_RAISE); true }
+            SettingsManager.ACTION_VOLUME_DOWN -> { adjustVolume(AudioManager.ADJUST_LOWER); true }
+            SettingsManager.ACTION_FLASHLIGHT -> { toggleFlashlight(); true }
             SettingsManager.ACTION_SCREENSHOT -> performGlobalAction(GLOBAL_ACTION_TAKE_SCREENSHOT)
             SettingsManager.ACTION_LOCK -> performGlobalAction(GLOBAL_ACTION_LOCK_SCREEN)
             SettingsManager.ACTION_HOME -> performGlobalAction(GLOBAL_ACTION_HOME)
@@ -128,30 +148,27 @@ class ButtonMapperService : AccessibilityService() {
             SettingsManager.ACTION_RECENTS -> performGlobalAction(GLOBAL_ACTION_RECENTS)
             SettingsManager.ACTION_NOTIFICATIONS -> performGlobalAction(GLOBAL_ACTION_NOTIFICATIONS)
             SettingsManager.ACTION_QUICK_SETTINGS -> performGlobalAction(GLOBAL_ACTION_QUICK_SETTINGS)
-            SettingsManager.ACTION_ASSISTANT -> launchAssistant()
-            SettingsManager.ACTION_BRIGHTNESS_UP -> adjustBrightness(20)
-            SettingsManager.ACTION_BRIGHTNESS_DOWN -> adjustBrightness(-20)
-            SettingsManager.ACTION_NONE -> Log.d(TAG, "Action is NONE, blocking button.")
+            SettingsManager.ACTION_ASSISTANT -> { launchAssistant(); true }
+            SettingsManager.ACTION_BRIGHTNESS_UP -> { adjustBrightness(20); true }
+            SettingsManager.ACTION_BRIGHTNESS_DOWN -> { adjustBrightness(-20); true }
+            SettingsManager.ACTION_ROTATE_TOGGLE -> { toggleRotation(); true }
+            SettingsManager.ACTION_NONE -> { Log.d(tag, "Action is NONE, key blocked."); true }
+            else -> false
+        }
+        
+        if (!success) {
+            Log.e(tag, "FAILED to execute action: $action (This often happens on Lock Screens for Home/Recents/Screenshot)")
         }
     }
 
     private fun simulateDefaultBehavior(keyCode: Int) {
-        Log.d(TAG, "Simulating default behavior for $keyCode")
+        Log.d(tag, "Simulating default for $keyCode")
         when (keyCode) {
-            24 -> adjustVolume(AudioManager.ADJUST_RAISE)
-            25 -> adjustVolume(AudioManager.ADJUST_LOWER)
-            27 -> {
-                // Usually camera shutter
-                dispatchMediaKey(KeyEvent.KEYCODE_CAMERA)
-            }
-            134 -> {
-                // Focus button - might be hard to simulate perfectly
-                dispatchMediaKey(KeyEvent.KEYCODE_FOCUS)
-            }
-            131 -> {
-                // AI button - usually assistant
-                launchAssistant()
-            }
+            24 -> audioManager.adjustVolume(AudioManager.ADJUST_RAISE, AudioManager.FLAG_SHOW_UI)
+            25 -> audioManager.adjustVolume(AudioManager.ADJUST_LOWER, AudioManager.FLAG_SHOW_UI)
+            27 -> dispatchMediaKey(KeyEvent.KEYCODE_CAMERA)
+            134 -> dispatchMediaKey(KeyEvent.KEYCODE_FOCUS)
+            131 -> launchAssistant()
         }
     }
 
@@ -170,7 +187,7 @@ class ButtonMapperService : AccessibilityService() {
             isFlashlightOn = !isFlashlightOn
             cameraManager.setTorchMode(cameraId, isFlashlightOn)
         } catch (e: Exception) {
-            Log.e(TAG, "Flashlight error", e)
+            Log.e(tag, "Flashlight error", e)
         }
     }
 
@@ -180,7 +197,7 @@ class ButtonMapperService : AccessibilityService() {
         try {
             startActivity(intent)
         } catch (e: Exception) {
-            Log.e(TAG, "Assistant error", e)
+            Log.e(tag, "Assistant error", e)
         }
     }
 
@@ -190,7 +207,22 @@ class ButtonMapperService : AccessibilityService() {
             val newBrightness = (currentBrightness + delta).coerceIn(0, 255)
             Settings.System.putInt(contentResolver, Settings.System.SCREEN_BRIGHTNESS, newBrightness)
         } catch (e: Exception) {
-            Log.e(TAG, "Brightness error. Needs WRITE_SETTINGS permission?", e)
+            Log.e(tag, "Brightness error. Needs WRITE_SETTINGS permission?", e)
+        }
+    }
+
+    private fun toggleRotation() {
+        try {
+            // Disable autorotation first
+            Settings.System.putInt(contentResolver, Settings.System.ACCELEROMETER_ROTATION, 0)
+            
+            val currentRotation = Settings.System.getInt(contentResolver, Settings.System.USER_ROTATION)
+            val newRotation = if (currentRotation == 0) 1 else 0 // Toggle between Portrait (0) and Landscape (1)
+            
+            Settings.System.putInt(contentResolver, Settings.System.USER_ROTATION, newRotation)
+            Log.d(tag, "Rotation toggled to $newRotation")
+        } catch (e: Exception) {
+            Log.e(tag, "Rotation toggle error", e)
         }
     }
 

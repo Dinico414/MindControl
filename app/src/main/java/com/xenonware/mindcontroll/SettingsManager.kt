@@ -1,6 +1,7 @@
 package com.xenonware.mindcontroll
 
 import android.content.Context
+import androidx.core.content.edit
 
 object SettingsManager {
     private const val PREFS_NAME = "MindControllPrefs"
@@ -23,6 +24,7 @@ object SettingsManager {
     const val ACTION_NOTIFICATIONS = "NOTIFICATIONS"
     const val ACTION_QUICK_SETTINGS = "QUICK_SETTINGS"
     const val ACTION_ASSISTANT = "ASSISTANT"
+    const val ACTION_ROTATE_TOGGLE = "ROTATE_TOGGLE"
     
     private const val KEY_DISABLE_IN_CAMERA = "disable_in_camera"
 
@@ -33,7 +35,7 @@ object SettingsManager {
 
     fun setAction(context: Context, keyCode: Int, state: String, type: String, action: String) {
         val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
-        prefs.edit().putString("btn_${keyCode}_${state}_${type}", action).apply()
+        prefs.edit { putString("btn_${keyCode}_${state}_${type}", action) }
     }
 
     fun isDisableInCamera(context: Context): Boolean {
@@ -43,6 +45,6 @@ object SettingsManager {
 
     fun setDisableInCamera(context: Context, disabled: Boolean) {
         val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
-        prefs.edit().putBoolean(KEY_DISABLE_IN_CAMERA, disabled).apply()
+        prefs.edit { putBoolean(KEY_DISABLE_IN_CAMERA, disabled) }
     }
 }

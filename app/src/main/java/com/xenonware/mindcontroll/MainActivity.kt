@@ -19,6 +19,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import com.xenonware.mindcontroll.ui.theme.MindControllTheme
+import androidx.core.net.toUri
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -40,9 +41,9 @@ class MainActivity : ComponentActivity() {
 fun MindControllMainScreen(modifier: Modifier = Modifier) {
     val context = LocalContext.current
     val scrollState = rememberScrollState()
-    
+
     val accessibilityManager = context.getSystemService(Context.ACCESSIBILITY_SERVICE) as AccessibilityManager
-    var isServiceEnabled by remember { 
+    var isServiceEnabled by remember {
         mutableStateOf(accessibilityManager.getEnabledAccessibilityServiceList(AccessibilityServiceInfo.FEEDBACK_GENERIC)
             .any { it.resolveInfo.serviceInfo.packageName == context.packageName })
     }
@@ -60,7 +61,7 @@ fun MindControllMainScreen(modifier: Modifier = Modifier) {
 
     Column(modifier = modifier.padding(16.dp).verticalScroll(scrollState)) {
         Text(text = "MindControll Settings", style = MaterialTheme.typography.headlineMedium)
-        
+
         Card(
             modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp),
             colors = CardDefaults.cardColors(
@@ -91,7 +92,7 @@ fun MindControllMainScreen(modifier: Modifier = Modifier) {
             }
             Switch(
                 checked = disableInCamera,
-                onCheckedChange = { 
+                onCheckedChange = {
                     disableInCamera = it
                     SettingsManager.setDisableInCamera(context, it)
                 }
@@ -99,7 +100,7 @@ fun MindControllMainScreen(modifier: Modifier = Modifier) {
         }
 
         Spacer(modifier = Modifier.height(8.dp))
-        
+
         Button(
             onClick = {
                 val intent = Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS)
@@ -115,7 +116,7 @@ fun MindControllMainScreen(modifier: Modifier = Modifier) {
             Button(
                 onClick = {
                     val intent = Intent(Settings.ACTION_MANAGE_WRITE_SETTINGS)
-                    intent.data = android.net.Uri.parse("package:" + context.packageName)
+                    intent.data = ("package:" + context.packageName).toUri()
                     context.startActivity(intent)
                 },
                 modifier = Modifier.fillMaxWidth(),
@@ -124,9 +125,9 @@ fun MindControllMainScreen(modifier: Modifier = Modifier) {
                 Text("Allow System Settings (for Brightness)")
             }
         }
-        
+
         Spacer(modifier = Modifier.height(16.dp))
-        
+
         val buttons = listOf(
             134 to "Focus Button",
             27 to "Camera Button",
@@ -134,7 +135,7 @@ fun MindControllMainScreen(modifier: Modifier = Modifier) {
             24 to "Volume Up",
             131 to "AI Button"
         )
-        
+
         buttons.forEach { (code, name) ->
             MindControllButtonConfig(code, name)
             HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
@@ -145,15 +146,15 @@ fun MindControllMainScreen(modifier: Modifier = Modifier) {
 @Composable
 fun MindControllButtonConfig(keyCode: Int, name: String) {
     var expanded by remember { mutableStateOf(false) }
-    
+
     Column {
         Text(text = name, style = MaterialTheme.typography.titleLarge)
         Text(text = "Key Code: $keyCode", style = MaterialTheme.typography.bodySmall)
-        
+
         Button(onClick = { expanded = !expanded }) {
             Text(if (expanded) "Hide Configuration" else "Configure Actions")
         }
-        
+
         if (expanded) {
             MindControllStateConfig(keyCode, "ON", "Screen On")
             Spacer(modifier = Modifier.height(8.dp))
@@ -177,7 +178,7 @@ fun MindControllStateConfig(keyCode: Int, state: String, label: String) {
 fun MindControllActionSelector(keyCode: Int, state: String, type: String) {
     val context = LocalContext.current
     val currentAction = remember { mutableStateOf(SettingsManager.getAction(context, keyCode, state, type)) }
-    
+
     val actions = listOf(
         SettingsManager.ACTION_DEFAULT,
         SettingsManager.ACTION_NONE,
@@ -196,9 +197,10 @@ fun MindControllActionSelector(keyCode: Int, state: String, type: String) {
         SettingsManager.ACTION_QUICK_SETTINGS,
         SettingsManager.ACTION_ASSISTANT,
         SettingsManager.ACTION_BRIGHTNESS_UP,
-        SettingsManager.ACTION_BRIGHTNESS_DOWN
+        SettingsManager.ACTION_BRIGHTNESS_DOWN,
+        SettingsManager.ACTION_ROTATE_TOGGLE
     )
-    
+
     var showMenu by remember { mutableStateOf(false) }
 
     Row(verticalAlignment = androidx.compose.ui.Alignment.CenterVertically, modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp)) {
