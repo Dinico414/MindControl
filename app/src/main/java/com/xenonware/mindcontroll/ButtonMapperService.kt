@@ -28,6 +28,11 @@ class ButtonMapperService : AccessibilityService() {
     private var isFlashlightOn = false
     private var lastPackageName: String? = null
     private var lastKeyCode: Int = -1
+    
+    // Track shutter button state to filter out 134 (focus) events
+    private var isShutterKeyPressed = false
+    private var ignoreNextFocusUp = false
+    private var pendingFocusDown: Runnable? = null
 
     private lateinit var audioManager: AudioManager
     private lateinit var cameraManager: CameraManager
@@ -108,6 +113,9 @@ class ButtonMapperService : AccessibilityService() {
     private val handler = Handler(Looper.getMainLooper())
     private val longPressRunnables = mutableMapOf<Int, Runnable>()
     private var pendingMultiClick: Runnable? = null
+    
+    // Track physical key state to deduplicate events from Shizuku and AccessibilityService
+    private val keyStates = mutableMapOf<Int, Boolean>()
 
     override fun onKeyEvent(event: KeyEvent): Boolean {
         if (event.repeatCount > 0) return true
@@ -123,25 +131,7 @@ class ButtonMapperService : AccessibilityService() {
         return handleKeyEvent(keyCode, isDown, fromShizuku = false)
     }
 
-    private fun handleKeyEvent(keyCode: Int, isDown: Boolean, fromShizuku: Boolean): Boolean {
-        val km = getSystemService(KEYGUARD_SERVICE) as KeyguardManager
-        val isLocked = km.isKeyguardLocked
-        val isInteractive = powerManager.isInteractive
-        val state = if (isInteractive && !isLocked) "ON" else "OFF"
-
-        if (fromShizuku) {
-            Log.v(tag, "SHIZUKU KEY: $keyCode ${if (isDown) "DOWN" else "UP"} [Locked=$isLocked, State=$state]")
-        } else {
-            Log.v(tag, "ACCESSIBILITY KEY: $keyCode ${if (isDown) "DOWN" else "UP"} [Locked=$isLocked, State=$state]")
-        }
-
-        // Camera override check
-        val currentPackage = rootInActiveWindow?.packageName?.toString() ?: lastPackageName
-        val isCameraApp = currentPackage?.contains("camera", ignoreCase = true) == true
-        if (isCameraInUse && SettingsManager.isDisableInCamera(this) && isCameraApp) {
-            return false
-        }
-
+    private fun processKeyEvent(keyCode: Int, isDown: Boolean, state: String) {
         if (isDown) {
             isLongPress = false
             if (keyCode != lastKeyCode) {
@@ -162,15 +152,13 @@ class ButtonMapperService : AccessibilityService() {
             }
             longPressRunnables[keyCode] = longPressRunnable
             handler.postDelayed(longPressRunnable, 500L)
-            return true
-
         } else {
             longPressRunnables.remove(keyCode)?.let { handler.removeCallbacks(it) }
 
             if (isLongPress) {
                 isLongPress = false
                 clickCount = 0
-                return true
+                return
             }
 
             clickCount++
@@ -189,8 +177,105 @@ class ButtonMapperService : AccessibilityService() {
             }
             pendingMultiClick = multiClickRunnable
             handler.postDelayed(multiClickRunnable, clickDelay)
+        }
+    }
+
+    private fun handleKeyEvent(keyCode: Int, isDown: Boolean, fromShizuku: Boolean): Boolean {
+        val km = getSystemService(KEYGUARD_SERVICE) as KeyguardManager
+        val isLocked = km.isKeyguardLocked
+        val isInteractive = powerManager.isInteractive
+        val state = if (isInteractive && !isLocked) "ON" else "OFF"
+
+        // Hardcoded behavior for Camera and Focus buttons when screen is OFF/Locked
+        if (state == "OFF") {
+            if (keyCode == 27) {
+                // Camera button: Let system handle it (Default behavior, wakes screen)
+                return false 
+            }
+            if (keyCode == 134) {
+                // Focus button: Block the key (None)
+                return true 
+            }
+        }
+
+        if (fromShizuku) {
+            Log.v(tag, "SHIZUKU KEY: $keyCode ${if (isDown) "DOWN" else "UP"} [Locked=$isLocked, State=$state]")
+        } else {
+            Log.v(tag, "ACCESSIBILITY KEY: $keyCode ${if (isDown) "DOWN" else "UP"} [Locked=$isLocked, State=$state]")
+        }
+
+        // Deduplicate events since both Shizuku and Accessibility can trigger for the same physical press
+        val isDuplicate = keyStates[keyCode] == isDown
+        keyStates[keyCode] = isDown
+        
+        // Camera override check
+        val currentPackage = rootInActiveWindow?.packageName?.toString() ?: lastPackageName
+        val isCameraApp = currentPackage?.contains("camera", ignoreCase = true) == true
+        if (isCameraInUse && SettingsManager.isDisableInCamera(this) && isCameraApp) {
+            return false
+        }
+
+        if (isDuplicate) {
+            return true // It's blocked by the app so we return true to consume it, but we skip processing
+        }
+
+        // --- Hardware button sequence logic for 134 (Focus) and 27 (Shutter) ---
+        if (keyCode == 27) {
+            if (isDown) {
+                isShutterKeyPressed = true
+                pendingFocusDown?.let {
+                    handler.removeCallbacks(it)
+                    pendingFocusDown = null
+                }
+                // Cancel any pending long press for 134 if we interrupted it
+                longPressRunnables.remove(134)?.let { handler.removeCallbacks(it) }
+                ignoreNextFocusUp = true
+            } else {
+                isShutterKeyPressed = false
+            }
+            processKeyEvent(keyCode, isDown, state)
             return true
         }
+
+        if (keyCode == 134) {
+            if (isDown) {
+                if (isShutterKeyPressed) {
+                    ignoreNextFocusUp = true
+                    return true
+                }
+                
+                // If a 27 click is pending, we might be in the middle of a double tap.
+                // We should ignore the 134 down so we don't interrupt the 27 sequence.
+                if (lastKeyCode == 27 && pendingMultiClick != null) {
+                    ignoreNextFocusUp = true
+                    return true
+                }
+
+                ignoreNextFocusUp = false
+                val focusDownTask = Runnable {
+                    processKeyEvent(134, true, state)
+                    pendingFocusDown = null
+                }
+                pendingFocusDown = focusDownTask
+                handler.postDelayed(focusDownTask, 75L)
+            } else {
+                if (ignoreNextFocusUp) {
+                    ignoreNextFocusUp = false
+                    longPressRunnables.remove(134)?.let { handler.removeCallbacks(it) }
+                    return true
+                }
+                pendingFocusDown?.let {
+                    // Fast tap of 134, process the down immediately before the up
+                    handler.removeCallbacks(it)
+                    it.run()
+                }
+                processKeyEvent(134, false, state)
+            }
+            return true
+        }
+
+        processKeyEvent(keyCode, isDown, state)
+        return true
     }
 
     private fun performAction(keyCode: Int, state: String, type: String) {

@@ -197,8 +197,12 @@ fun MindControllButtonConfig(keyCode: Int, name: String) {
 
         if (expanded) {
             MindControllStateConfig(keyCode, "ON", "Screen On")
-            Spacer(modifier = Modifier.height(8.dp))
-            MindControllStateConfig(keyCode, "OFF", "Screen Off")
+            
+            // Camera (27) and Focus (134) buttons do not have Screen Off configuration
+            if (keyCode != 27 && keyCode != 134) {
+                Spacer(modifier = Modifier.height(8.dp))
+                MindControllStateConfig(keyCode, "OFF", "Screen Off")
+            }
         }
     }
 }
