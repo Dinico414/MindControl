@@ -52,6 +52,7 @@ fun MindControllMainScreen(modifier: Modifier = Modifier) {
     }
 
     var disableInCamera by remember { mutableStateOf(SettingsManager.isDisableInCamera(context)) }
+    var defaultWhenVolumeVisible by remember { mutableStateOf(SettingsManager.isDefaultWhenVolumeVisible(context)) }
 
     var shizukuPermission by remember { mutableStateOf(false) }
     var shizukuAvailable by remember { mutableStateOf(false) }
@@ -135,6 +136,25 @@ fun MindControllMainScreen(modifier: Modifier = Modifier) {
                 onCheckedChange = {
                     disableInCamera = it
                     SettingsManager.setDisableInCamera(context, it)
+                }
+            )
+        }
+
+        Spacer(modifier = Modifier.height(8.dp))
+
+        Row(
+            modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp),
+            verticalAlignment = androidx.compose.ui.Alignment.CenterVertically
+        ) {
+            Column(modifier = Modifier.weight(1f)) {
+                Text("Default behavior if volume slider is visible", style = MaterialTheme.typography.titleMedium)
+                Text("Volume buttons act normally while the volume panel is shown", style = MaterialTheme.typography.bodySmall)
+            }
+            Switch(
+                checked = defaultWhenVolumeVisible,
+                onCheckedChange = {
+                    defaultWhenVolumeVisible = it
+                    SettingsManager.setDefaultWhenVolumeVisible(context, it)
                 }
             )
         }

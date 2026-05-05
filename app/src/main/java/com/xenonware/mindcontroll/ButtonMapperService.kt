@@ -30,6 +30,8 @@ class ButtonMapperService : AccessibilityService() {
     private var isLongPress = false
     private var isFlashlightOn = false
     private var lastPackageName: String? = null
+    private var isVolumePanelVisibleState = false
+    private var volumePanelTimeoutRunnable: Runnable? = null
     private var lastKeyCode: Int = -1
     
     // Track shutter button state to filter out 134 (focus) events
@@ -107,8 +109,27 @@ class ButtonMapperService : AccessibilityService() {
     }
 
     override fun onAccessibilityEvent(event: AccessibilityEvent?) {
-        if (event?.eventType == AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED) {
-            lastPackageName = event.packageName?.toString()
+        if (event == null) return
+        if (event.eventType == AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED) {
+            val pkg = event.packageName?.toString()
+            val className = event.className?.toString()
+            lastPackageName = pkg
+
+            if (pkg == "com.android.systemui") {
+                // Heuristic: Volume dialog in SystemUI often uses these class names or contains volume in view IDs
+                // We'll mark it visible and set a timeout since we can't easily detect when it closes
+                val isVolumeDialog = className?.contains("Volume", ignoreCase = true) == true || 
+                                     className?.contains("Dialog", ignoreCase = true) == true
+
+                if (isVolumeDialog) {
+                    isVolumePanelVisibleState = true
+                    volumePanelTimeoutRunnable?.let { handler.removeCallbacks(it) }
+                    
+                    // Volume panel typically auto-dismisses after 3 seconds
+                    volumePanelTimeoutRunnable = Runnable { isVolumePanelVisibleState = false }
+                    handler.postDelayed(volumePanelTimeoutRunnable!!, 3500L)
+                }
+            }
         }
     }
     override fun onInterrupt() {}
@@ -194,6 +215,16 @@ class ButtonMapperService : AccessibilityService() {
         val isLocked = km.isKeyguardLocked
         val isInteractive = powerManager.isInteractive
         val state = if (isInteractive && !isLocked) "ON" else "OFF"
+
+        // Check for Volume Panel
+        val isVolumeKey = keyCode == 24 || keyCode == 25
+        if (isVolumeKey && isInteractive && SettingsManager.isDefaultWhenVolumeVisible(this)) {
+            if (isVolumePanelVisibleState) {
+                // Keep the volume panel alive longer since the user is actively interacting with it
+                markVolumePanelVisible()
+                return false // Let the system handle the volume key natively
+            }
+        }
 
         // Hardcoded behavior for Camera and Focus buttons when screen is OFF/Locked
         if (state == "OFF") {
@@ -353,8 +384,14 @@ class ButtonMapperService : AccessibilityService() {
     private fun simulateDefaultBehavior(keyCode: Int) {
         Log.d(tag, "Simulating default for $keyCode")
         when (keyCode) {
-            24 -> audioManager.adjustVolume(AudioManager.ADJUST_RAISE, AudioManager.FLAG_SHOW_UI)
-            25 -> audioManager.adjustVolume(AudioManager.ADJUST_LOWER, AudioManager.FLAG_SHOW_UI)
+            24 -> {
+                audioManager.adjustVolume(AudioManager.ADJUST_RAISE, AudioManager.FLAG_SHOW_UI)
+                markVolumePanelVisible()
+            }
+            25 -> {
+                audioManager.adjustVolume(AudioManager.ADJUST_LOWER, AudioManager.FLAG_SHOW_UI)
+                markVolumePanelVisible()
+            }
             27 -> dispatchMediaKey(KeyEvent.KEYCODE_CAMERA)
             134 -> dispatchMediaKey(KeyEvent.KEYCODE_FOCUS)
             131 -> launchAssistant()
@@ -368,6 +405,14 @@ class ButtonMapperService : AccessibilityService() {
 
     private fun adjustVolume(direction: Int) {
         audioManager.adjustStreamVolume(AudioManager.STREAM_MUSIC, direction, AudioManager.FLAG_SHOW_UI)
+        markVolumePanelVisible()
+    }
+
+    private fun markVolumePanelVisible() {
+        isVolumePanelVisibleState = true
+        volumePanelTimeoutRunnable?.let { handler.removeCallbacks(it) }
+        volumePanelTimeoutRunnable = Runnable { isVolumePanelVisibleState = false }
+        handler.postDelayed(volumePanelTimeoutRunnable!!, 3500L)
     }
 
     private fun toggleFlashlight() {

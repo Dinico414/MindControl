@@ -29,6 +29,7 @@ object SettingsManager {
     const val ACTION_SCROLL_DOWN = "SCROLL_DOWN"
     
     private const val KEY_DISABLE_IN_CAMERA = "disable_in_camera"
+    private const val KEY_DEFAULT_WHEN_VOLUME_VISIBLE = "default_when_volume_visible"
 
     fun getAction(context: Context, keyCode: Int, state: String, type: String): String {
         val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
@@ -48,5 +49,15 @@ object SettingsManager {
     fun setDisableInCamera(context: Context, disabled: Boolean) {
         val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
         prefs.edit { putBoolean(KEY_DISABLE_IN_CAMERA, disabled) }
+    }
+
+    fun isDefaultWhenVolumeVisible(context: Context): Boolean {
+        val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+        return prefs.getBoolean(KEY_DEFAULT_WHEN_VOLUME_VISIBLE, true)
+    }
+
+    fun setDefaultWhenVolumeVisible(context: Context, enabled: Boolean) {
+        val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+        prefs.edit { putBoolean(KEY_DEFAULT_WHEN_VOLUME_VISIBLE, enabled) }
     }
 }
