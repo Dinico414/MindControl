@@ -2,6 +2,9 @@ package com.xenonware.mindcontroll
 
 import android.accessibilityservice.AccessibilityService
 import android.app.KeyguardManager
+import android.app.Notification
+import android.app.NotificationChannel
+import android.app.NotificationManager
 import android.content.Intent
 import android.hardware.camera2.CameraManager
 import android.media.AudioManager
@@ -12,6 +15,7 @@ import android.provider.Settings
 import android.util.Log
 import android.view.KeyEvent
 import android.view.accessibility.AccessibilityEvent
+import rikka.shizuku.Shizuku
 
 class ButtonMapperService : AccessibilityService() {
 
@@ -28,6 +32,7 @@ class ButtonMapperService : AccessibilityService() {
     private lateinit var audioManager: AudioManager
     private lateinit var cameraManager: CameraManager
     private lateinit var powerManager: PowerManager
+    private var wakeLock: PowerManager.WakeLock? = null
 
     private val cameraCallback = object : CameraManager.AvailabilityCallback() {
         override fun onCameraAvailable(cameraId: String) { isCameraInUse = false }
@@ -36,10 +41,61 @@ class ButtonMapperService : AccessibilityService() {
 
     override fun onServiceConnected() {
         Log.d(tag, "Service Connected")
+        
+        // Android 15 Foreground Requirement
+        createNotificationChannel()
+        val notification = Notification.Builder(this, "service_channel")
+            .setContentTitle("MindControll Active")
+            .setContentText("Monitoring hardware buttons...")
+            .setSmallIcon(android.R.drawable.ic_menu_preferences)
+            .build()
+        startForeground(1, notification)
+
         cameraManager = getSystemService(CAMERA_SERVICE) as CameraManager
         audioManager = getSystemService(AUDIO_SERVICE) as AudioManager
         powerManager = getSystemService(POWER_SERVICE) as PowerManager
         cameraManager.registerAvailabilityCallback(cameraCallback, handler)
+
+        // WakeLock to keep service alive when screen is off
+        wakeLock = powerManager.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "MindControll:KeyCaptureLock")
+        wakeLock?.acquire()
+
+        // Listen for Shizuku Binder
+        Shizuku.addBinderReceivedListenerSticky(binderListener)
+        Shizuku.addRequestPermissionResultListener(permissionListener)
+        
+        tryStartShizuku()
+    }
+
+    private fun createNotificationChannel() {
+        val channel = NotificationChannel("service_channel", "MindControll Service", NotificationManager.IMPORTANCE_LOW)
+        val manager = getSystemService(NOTIFICATION_SERVICE) as NotificationManager
+        manager.createNotificationChannel(channel)
+    }
+
+    private val binderListener = Shizuku.OnBinderReceivedListener {
+        Log.d(tag, "Shizuku Binder Received")
+        tryStartShizuku()
+    }
+
+    private val permissionListener = Shizuku.OnRequestPermissionResultListener { _, result ->
+        if (result == android.content.pm.PackageManager.PERMISSION_GRANTED) {
+            Log.d(tag, "Shizuku Permission Granted")
+            tryStartShizuku()
+        }
+    }
+
+    private fun tryStartShizuku() {
+        try {
+            if (Shizuku.pingBinder() && 
+                Shizuku.checkSelfPermission() == android.content.pm.PackageManager.PERMISSION_GRANTED) {
+                ShizukuManager.startMonitoring { keyCode, isDown ->
+                    handler.post { handleKeyEvent(keyCode, isDown, fromShizuku = true) }
+                }
+            }
+        } catch (e: Exception) {
+            Log.e(tag, "Shizuku start error", e)
+        }
     }
 
     override fun onAccessibilityEvent(event: AccessibilityEvent?) {
@@ -54,29 +110,39 @@ class ButtonMapperService : AccessibilityService() {
     private var pendingMultiClick: Runnable? = null
 
     override fun onKeyEvent(event: KeyEvent): Boolean {
-        val keyCode = event.keyCode
-        val action = event.action
-
         if (event.repeatCount > 0) return true
+        val keyCode = event.keyCode
+        val isDown = event.action == KeyEvent.ACTION_DOWN
+        
+        // DEBUG: Log EVERY key to see if the service is alive
+        Log.v(tag, "ACCESSIBILITY RAW: keyCode=$keyCode action=${if(isDown) "DOWN" else "UP"}")
 
         val isTargetKey = keyCode in setOf(134, 27, 25, 24, 131)
         if (!isTargetKey) return false
 
+        return handleKeyEvent(keyCode, isDown, fromShizuku = false)
+    }
+
+    private fun handleKeyEvent(keyCode: Int, isDown: Boolean, fromShizuku: Boolean): Boolean {
         val km = getSystemService(KEYGUARD_SERVICE) as KeyguardManager
         val isLocked = km.isKeyguardLocked
         val isInteractive = powerManager.isInteractive
         val state = if (isInteractive && !isLocked) "ON" else "OFF"
 
-        Log.v(tag, "RAW KEY: $keyCode ${if (action == 0) "DOWN" else "UP"} " +
-                "[Interactive=$isInteractive, Locked=$isLocked, State=$state]")
+        if (fromShizuku) {
+            Log.v(tag, "SHIZUKU KEY: $keyCode ${if (isDown) "DOWN" else "UP"} [Locked=$isLocked, State=$state]")
+        } else {
+            Log.v(tag, "ACCESSIBILITY KEY: $keyCode ${if (isDown) "DOWN" else "UP"} [Locked=$isLocked, State=$state]")
+        }
 
+        // Camera override check
         val currentPackage = rootInActiveWindow?.packageName?.toString() ?: lastPackageName
         val isCameraApp = currentPackage?.contains("camera", ignoreCase = true) == true
         if (isCameraInUse && SettingsManager.isDisableInCamera(this) && isCameraApp) {
             return false
         }
 
-        if (action == KeyEvent.ACTION_DOWN) {
+        if (isDown) {
             isLongPress = false
             if (keyCode != lastKeyCode) {
                 clickCount = 0
@@ -84,7 +150,6 @@ class ButtonMapperService : AccessibilityService() {
             }
             lastKeyCode = keyCode
 
-            // Alten Long-Press-Runnable für genau diesen keyCode entfernen
             longPressRunnables.remove(keyCode)?.let { handler.removeCallbacks(it) }
 
             val capturedState = state
@@ -99,7 +164,7 @@ class ButtonMapperService : AccessibilityService() {
             handler.postDelayed(longPressRunnable, 500L)
             return true
 
-        } else if (action == KeyEvent.ACTION_UP) {
+        } else {
             longPressRunnables.remove(keyCode)?.let { handler.removeCallbacks(it) }
 
             if (isLongPress) {
@@ -126,7 +191,6 @@ class ButtonMapperService : AccessibilityService() {
             handler.postDelayed(multiClickRunnable, clickDelay)
             return true
         }
-        return false
     }
 
     private fun performAction(keyCode: Int, state: String, type: String) {
@@ -229,5 +293,11 @@ class ButtonMapperService : AccessibilityService() {
     override fun onDestroy() {
         super.onDestroy()
         cameraManager.unregisterAvailabilityCallback(cameraCallback)
+        wakeLock?.let {
+            if (it.isHeld) it.release()
+        }
+        Shizuku.removeBinderReceivedListener(binderListener)
+        Shizuku.removeRequestPermissionResultListener(permissionListener)
+        ShizukuManager.stopMonitoring()
     }
 }

@@ -20,6 +20,9 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import com.xenonware.mindcontroll.ui.theme.MindControllTheme
 import androidx.core.net.toUri
+import rikka.shizuku.Shizuku
+import android.content.pm.PackageManager
+import android.util.Log
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -50,11 +53,22 @@ fun MindControllMainScreen(modifier: Modifier = Modifier) {
 
     var disableInCamera by remember { mutableStateOf(SettingsManager.isDisableInCamera(context)) }
 
+    var shizukuPermission by remember { mutableStateOf(false) }
+    var shizukuAvailable by remember { mutableStateOf(false) }
+
     // Refresh status when returning to app
     LaunchedEffect(Unit) {
         while(true) {
             isServiceEnabled = accessibilityManager.getEnabledAccessibilityServiceList(AccessibilityServiceInfo.FEEDBACK_GENERIC)
                 .any { it.resolveInfo.serviceInfo.packageName == context.packageName }
+            
+            shizukuAvailable = try { Shizuku.pingBinder() } catch (e: Exception) { false }
+            if (shizukuAvailable) {
+                shizukuPermission = try { 
+                    Shizuku.checkSelfPermission() == PackageManager.PERMISSION_GRANTED 
+                } catch (e: Exception) { false }
+            }
+            
             kotlinx.coroutines.delay(2000)
         }
     }
@@ -70,12 +84,38 @@ fun MindControllMainScreen(modifier: Modifier = Modifier) {
         ) {
             Column(modifier = Modifier.padding(16.dp)) {
                 Text(
-                    text = if (isServiceEnabled) "Service is ACTIVE" else "Service is INACTIVE",
+                    text = if (isServiceEnabled) "Accessibility: ACTIVE" else "Accessibility: INACTIVE",
                     color = if (isServiceEnabled) Color(0xFF2E7D32) else Color(0xFFC62828),
                     style = MaterialTheme.typography.titleMedium
                 )
-                if (!isServiceEnabled) {
-                    Text("Please enable MindControll in Accessibility Settings to map buttons.")
+            }
+        }
+
+        Card(
+            modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp),
+            colors = CardDefaults.cardColors(
+                containerColor = if (shizukuAvailable && shizukuPermission) Color(0xFFE8F5E9) else Color(0xFFFFEBEE)
+            )
+        ) {
+            Column(modifier = Modifier.padding(16.dp)) {
+                Text(
+                    text = if (shizukuAvailable) {
+                        if (shizukuPermission) "Shizuku: AUTHORIZED" else "Shizuku: UNAUTHORIZED"
+                    } else "Shizuku: NOT RUNNING",
+                    color = if (shizukuAvailable && shizukuPermission) Color(0xFF2E7D32) else Color(0xFFC62828),
+                    style = MaterialTheme.typography.titleMedium
+                )
+                if (shizukuAvailable && !shizukuPermission) {
+                    Button(onClick = { 
+                        try { Shizuku.requestPermission(0) } catch (e: Exception) {
+                            Log.e("MainActivity", "Shizuku request error", e)
+                        }
+                    }) {
+                        Text("Authorize Shizuku")
+                    }
+                }
+                if (!shizukuAvailable) {
+                    Text("Shizuku allows capturing keys while the screen is off (Android 15+).", style = MaterialTheme.typography.bodySmall)
                 }
             }
         }
