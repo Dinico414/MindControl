@@ -15,6 +15,9 @@ import android.provider.Settings
 import android.util.Log
 import android.view.KeyEvent
 import android.view.accessibility.AccessibilityEvent
+import android.accessibilityservice.GestureDescription
+import android.graphics.Path
+import android.view.WindowManager
 import rikka.shizuku.Shizuku
 
 class ButtonMapperService : AccessibilityService() {
@@ -114,6 +117,9 @@ class ButtonMapperService : AccessibilityService() {
     private val longPressRunnables = mutableMapOf<Int, Runnable>()
     private var pendingMultiClick: Runnable? = null
     
+    // Continuous action state
+    private var continuousActionTask: Runnable? = null
+    
     // Track physical key state to deduplicate events from Shizuku and AccessibilityService
     private val keyStates = mutableMapOf<Int, Boolean>()
 
@@ -137,6 +143,7 @@ class ButtonMapperService : AccessibilityService() {
             if (keyCode != lastKeyCode) {
                 clickCount = 0
                 pendingMultiClick?.let { handler.removeCallbacks(it) }
+                stopContinuousAction()
             }
             lastKeyCode = keyCode
 
@@ -148,6 +155,7 @@ class ButtonMapperService : AccessibilityService() {
                     isLongPress = true
                     Log.d(tag, "Long Press triggered for $keyCode (state=$capturedState)")
                     performAction(keyCode, capturedState, "LONG")
+                    startContinuousAction(keyCode, capturedState, "LONG")
                 }
             }
             longPressRunnables[keyCode] = longPressRunnable
@@ -158,6 +166,7 @@ class ButtonMapperService : AccessibilityService() {
             if (isLongPress) {
                 isLongPress = false
                 clickCount = 0
+                stopContinuousAction()
                 return
             }
 
@@ -278,6 +287,35 @@ class ButtonMapperService : AccessibilityService() {
         return true
     }
 
+    private fun startContinuousAction(keyCode: Int, state: String, type: String) {
+        val action = SettingsManager.getAction(this, keyCode, state, type)
+        val isContinuous = (action == SettingsManager.ACTION_DEFAULT && (keyCode == 24 || keyCode == 25)) || 
+                           action == SettingsManager.ACTION_VOLUME_UP || 
+                           action == SettingsManager.ACTION_VOLUME_DOWN ||
+                           action == SettingsManager.ACTION_SCROLL_UP ||
+                           action == SettingsManager.ACTION_SCROLL_DOWN ||
+                           action == SettingsManager.ACTION_BRIGHTNESS_UP ||
+                           action == SettingsManager.ACTION_BRIGHTNESS_DOWN
+
+        if (!isContinuous) return
+
+        val isScroll = action == SettingsManager.ACTION_SCROLL_UP || action == SettingsManager.ACTION_SCROLL_DOWN
+        val delay = if (isScroll) 250L else 150L
+
+        continuousActionTask = object : Runnable {
+            override fun run() {
+                performAction(keyCode, state, type)
+                handler.postDelayed(this, delay) // Repeat
+            }
+        }
+        handler.postDelayed(continuousActionTask!!, delay)
+    }
+
+    private fun stopContinuousAction() {
+        continuousActionTask?.let { handler.removeCallbacks(it) }
+        continuousActionTask = null
+    }
+
     private fun performAction(keyCode: Int, state: String, type: String) {
         val action = SettingsManager.getAction(this, keyCode, state, type)
         Log.i(tag, ">>>> EXECUTING: $action [Key: $keyCode, State: $state, Type: $type, Locked: ${powerManager.isInteractive}] <<<<")
@@ -301,6 +339,8 @@ class ButtonMapperService : AccessibilityService() {
             SettingsManager.ACTION_BRIGHTNESS_UP -> { adjustBrightness(20); true }
             SettingsManager.ACTION_BRIGHTNESS_DOWN -> { adjustBrightness(-20); true }
             SettingsManager.ACTION_ROTATE_TOGGLE -> { toggleRotation(); true }
+            SettingsManager.ACTION_SCROLL_UP -> { performScroll(true); true }
+            SettingsManager.ACTION_SCROLL_DOWN -> { performScroll(false); true }
             SettingsManager.ACTION_NONE -> { Log.d(tag, "Action is NONE, key blocked."); true }
             else -> false
         }
@@ -373,6 +413,32 @@ class ButtonMapperService : AccessibilityService() {
         } catch (e: Exception) {
             Log.e(tag, "Rotation toggle error", e)
         }
+    }
+
+    private fun performScroll(up: Boolean) {
+        val wm = getSystemService(WINDOW_SERVICE) as WindowManager
+        val bounds = wm.currentWindowMetrics.bounds
+        val centerX = bounds.width() / 2f
+        val centerY = bounds.height() / 2f
+
+        val path = Path()
+        // A smaller distance (150px total) and a longer duration (200ms)
+        // ensures the velocity is low, preventing the view from flinging to the top/bottom.
+        val distance = 75f
+        if (up) {
+            // Scroll up means finger moves down
+            path.moveTo(centerX, centerY - distance)
+            path.lineTo(centerX, centerY + distance)
+        } else {
+            // Scroll down means finger moves up
+            path.moveTo(centerX, centerY + distance)
+            path.lineTo(centerX, centerY - distance)
+        }
+
+        // 200ms duration for a slow, smooth swipe that won't trigger a fast fling
+        val stroke = GestureDescription.StrokeDescription(path, 0, 200)
+        val gesture = GestureDescription.Builder().addStroke(stroke).build()
+        dispatchGesture(gesture, null, null)
     }
 
     override fun onDestroy() {

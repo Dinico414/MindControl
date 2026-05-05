@@ -242,7 +242,9 @@ fun MindControllActionSelector(keyCode: Int, state: String, type: String) {
         SettingsManager.ACTION_ASSISTANT,
         SettingsManager.ACTION_BRIGHTNESS_UP,
         SettingsManager.ACTION_BRIGHTNESS_DOWN,
-        SettingsManager.ACTION_ROTATE_TOGGLE
+        SettingsManager.ACTION_ROTATE_TOGGLE,
+        SettingsManager.ACTION_SCROLL_UP,
+        SettingsManager.ACTION_SCROLL_DOWN
     )
 
     var showMenu by remember { mutableStateOf(false) }

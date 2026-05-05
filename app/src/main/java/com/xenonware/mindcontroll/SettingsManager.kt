@@ -25,6 +25,8 @@ object SettingsManager {
     const val ACTION_QUICK_SETTINGS = "QUICK_SETTINGS"
     const val ACTION_ASSISTANT = "ASSISTANT"
     const val ACTION_ROTATE_TOGGLE = "ROTATE_TOGGLE"
+    const val ACTION_SCROLL_UP = "SCROLL_UP"
+    const val ACTION_SCROLL_DOWN = "SCROLL_DOWN"
     
     private const val KEY_DISABLE_IN_CAMERA = "disable_in_camera"
 
