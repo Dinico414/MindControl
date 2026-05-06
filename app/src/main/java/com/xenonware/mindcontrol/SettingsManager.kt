@@ -27,6 +27,8 @@ object SettingsManager {
     const val ACTION_ROTATE_TOGGLE = "ROTATE_TOGGLE"
     const val ACTION_SCROLL_UP = "SCROLL_UP"
     const val ACTION_SCROLL_DOWN = "SCROLL_DOWN"
+    const val ACTION_SCROLL_UP_SMOOTH = "SCROLL_UP_SMOOTH"
+    const val ACTION_SCROLL_DOWN_SMOOTH = "SCROLL_DOWN_SMOOTH"
     
     private const val KEY_DISABLE_IN_CAMERA = "disable_in_camera"
     private const val KEY_DEFAULT_WHEN_VOLUME_VISIBLE = "default_when_volume_visible"

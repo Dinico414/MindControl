@@ -122,11 +122,15 @@ class ButtonMapperService : AccessibilityService() {
                                      className?.contains("Dialog", ignoreCase = true) == true
 
                 if (isVolumeDialog) {
+                    if (!isVolumePanelVisibleState) Log.d(tag, "Volume Panel Visible (detected via AccessibilityEvent)")
                     isVolumePanelVisibleState = true
                     volumePanelTimeoutRunnable?.let { handler.removeCallbacks(it) }
                     
                     // Volume panel typically auto-dismisses after 3 seconds
-                    volumePanelTimeoutRunnable = Runnable { isVolumePanelVisibleState = false }
+                    volumePanelTimeoutRunnable = Runnable { 
+                        Log.d(tag, "Volume Panel Invisible (timeout)")
+                        isVolumePanelVisibleState = false 
+                    }
                     handler.postDelayed(volumePanelTimeoutRunnable!!, 3500L)
                 }
             }
@@ -142,7 +146,8 @@ class ButtonMapperService : AccessibilityService() {
     private var continuousActionTask: Runnable? = null
     
     // Track physical key state to deduplicate events from Shizuku and AccessibilityService
-    private val keyStates = mutableMapOf<Int, Boolean>()
+    private val lastEventTimes = mutableMapOf<Pair<Int, Boolean>, Long>()
+    private val lastEventSources = mutableMapOf<Pair<Int, Boolean>, Boolean>() // true = Shizuku, false = Accessibility
 
     override fun onKeyEvent(event: KeyEvent): Boolean {
         if (event.repeatCount > 0) return true
@@ -230,9 +235,23 @@ class ButtonMapperService : AccessibilityService() {
         val isVolumeKey = keyCode == 24 || keyCode == 25
         if (isVolumeKey && isInteractive && SettingsManager.isDefaultWhenVolumeVisible(this)) {
             if (isVolumePanelVisibleState) {
-                // Keep the volume panel alive longer since the user is actively interacting with it
-                markVolumePanelVisible()
-                return false // Let the system handle the volume key natively
+                // Determine what action we are dealing with. If any action is mapped to something
+                // other than DEFAULT, we should probably still let the custom mapper handle it
+                // and simulate the default behavior if needed.
+                val singleAction = SettingsManager.getAction(this, keyCode, state, "SINGLE")
+                val doubleAction = SettingsManager.getAction(this, keyCode, state, "DOUBLE")
+                val multiAction = SettingsManager.getAction(this, keyCode, state, "MULTI")
+                val longAction = SettingsManager.getAction(this, keyCode, state, "LONG")
+                
+                val hasCustomMapping = singleAction != SettingsManager.ACTION_DEFAULT ||
+                                       doubleAction != SettingsManager.ACTION_DEFAULT ||
+                                       multiAction != SettingsManager.ACTION_DEFAULT ||
+                                       longAction != SettingsManager.ACTION_DEFAULT
+
+                if (!hasCustomMapping) {
+                    markVolumePanelVisible()
+                    return false
+                }
             }
         }
 
@@ -255,8 +274,19 @@ class ButtonMapperService : AccessibilityService() {
         }
 
         // Deduplicate events since both Shizuku and Accessibility can trigger for the same physical press
-        val isDuplicate = keyStates[keyCode] == isDown
-        keyStates[keyCode] = isDown
+        val eventKey = Pair(keyCode, isDown)
+        val now = System.currentTimeMillis()
+        val lastTime = lastEventTimes[eventKey] ?: 0L
+        val lastSource = lastEventSources[eventKey]
+
+        var isDuplicate = false
+        if (now - lastTime < 300L && lastSource != null && lastSource != fromShizuku) {
+            isDuplicate = true
+            Log.v(tag, "Duplicate event detected and ignored: $keyCode ${if (isDown) "DOWN" else "UP"} fromShizuku=$fromShizuku")
+        } else {
+            lastEventTimes[eventKey] = now
+            lastEventSources[eventKey] = fromShizuku
+        }
         
         // Camera override check
         val currentPackage = rootInActiveWindow?.packageName?.toString() ?: lastPackageName
@@ -333,18 +363,28 @@ class ButtonMapperService : AccessibilityService() {
         val isContinuous = (action == SettingsManager.ACTION_DEFAULT && (keyCode == 24 || keyCode == 25)) || 
                            action == SettingsManager.ACTION_VOLUME_UP || 
                            action == SettingsManager.ACTION_VOLUME_DOWN ||
-                           action == SettingsManager.ACTION_SCROLL_UP ||
-                           action == SettingsManager.ACTION_SCROLL_DOWN ||
+                           action == SettingsManager.ACTION_SCROLL_UP_SMOOTH ||
+                           action == SettingsManager.ACTION_SCROLL_DOWN_SMOOTH ||
+                           action == "TAP_SCROLL_UP_SMOOTH" ||
+                           action == "TAP_SCROLL_DOWN_SMOOTH" ||
                            action == SettingsManager.ACTION_BRIGHTNESS_UP ||
                            action == SettingsManager.ACTION_BRIGHTNESS_DOWN
+                           
+        val actualIsContinuous = if (SettingsManager.isDefaultWhenVolumeVisible(this) && isVolumePanelVisibleState && (keyCode == 24 || keyCode == 25)) {
+            true // Default behavior for volume keys is continuous
+        } else {
+            isContinuous
+        }
 
-        if (!isContinuous) return
+        if (!actualIsContinuous) return
 
-        val isScroll = action == SettingsManager.ACTION_SCROLL_UP || action == SettingsManager.ACTION_SCROLL_DOWN
+        val isScroll = action == SettingsManager.ACTION_SCROLL_UP_SMOOTH || action == SettingsManager.ACTION_SCROLL_DOWN_SMOOTH || action == "TAP_SCROLL_UP_SMOOTH" || action == "TAP_SCROLL_DOWN_SMOOTH"
         val delay = if (isScroll) 250L else 150L
 
         continuousActionTask = object : Runnable {
             override fun run() {
+                // If it's a long press on a volume key with volume panel visible, the action might be overridden to DEFAULT.
+                // We should pass the same parameters so it's overridden correctly
                 performAction(keyCode, state, type)
                 handler.postDelayed(this, delay) // Repeat
             }
@@ -360,8 +400,19 @@ class ButtonMapperService : AccessibilityService() {
     private fun performAction(keyCode: Int, state: String, type: String) {
         val action = SettingsManager.getAction(this, keyCode, state, type)
         Log.i(tag, ">>>> EXECUTING: $action [Key: $keyCode, State: $state, Type: $type, Locked: ${powerManager.isInteractive}] <<<<")
+        
+        // If we are executing an action and it's a volume key, and the user wants default behavior when the volume panel is visible,
+        // we might want to bypass custom actions and execute DEFAULT instead if the volume panel is visible.
+        val finalAction = if (SettingsManager.isDefaultWhenVolumeVisible(this) && 
+                              isVolumePanelVisibleState && 
+                              (keyCode == 24 || keyCode == 25)) {
+            Log.d(tag, "Volume panel is visible, overriding action $action to DEFAULT")
+            SettingsManager.ACTION_DEFAULT
+        } else {
+            action
+        }
 
-        val success = when (action) {
+        val success = when (finalAction) {
             SettingsManager.ACTION_DEFAULT -> { simulateDefaultBehavior(keyCode); true }
             SettingsManager.ACTION_PLAY_PAUSE -> { dispatchMediaKey(KeyEvent.KEYCODE_MEDIA_PLAY_PAUSE); true }
             SettingsManager.ACTION_NEXT -> { dispatchMediaKey(KeyEvent.KEYCODE_MEDIA_NEXT); true }
@@ -380,14 +431,16 @@ class ButtonMapperService : AccessibilityService() {
             SettingsManager.ACTION_BRIGHTNESS_UP -> { adjustBrightness(20); true }
             SettingsManager.ACTION_BRIGHTNESS_DOWN -> { adjustBrightness(-20); true }
             SettingsManager.ACTION_ROTATE_TOGGLE -> { toggleRotation(); true }
-            SettingsManager.ACTION_SCROLL_UP -> { performScroll(true); true }
-            SettingsManager.ACTION_SCROLL_DOWN -> { performScroll(false); true }
+            SettingsManager.ACTION_SCROLL_UP, "TAP_SCROLL_UP" -> { performScroll(true); true }
+            SettingsManager.ACTION_SCROLL_DOWN, "TAP_SCROLL_DOWN" -> { performScroll(false); true }
+            SettingsManager.ACTION_SCROLL_UP_SMOOTH, "TAP_SCROLL_UP_SMOOTH" -> { performScroll(true); true }
+            SettingsManager.ACTION_SCROLL_DOWN_SMOOTH, "TAP_SCROLL_DOWN_SMOOTH" -> { performScroll(false); true }
             SettingsManager.ACTION_NONE -> { Log.d(tag, "Action is NONE, key blocked."); true }
             else -> false
         }
         
         if (!success) {
-            Log.e(tag, "FAILED to execute action: $action (This often happens on Lock Screens for Home/Recents/Screenshot)")
+            Log.e(tag, "FAILED to execute action: $finalAction (This often happens on Lock Screens for Home/Recents/Screenshot)")
         }
     }
 
@@ -419,9 +472,13 @@ class ButtonMapperService : AccessibilityService() {
     }
 
     private fun markVolumePanelVisible() {
+        if (!isVolumePanelVisibleState) Log.d(tag, "Volume Panel Visible (marked via key event)")
         isVolumePanelVisibleState = true
         volumePanelTimeoutRunnable?.let { handler.removeCallbacks(it) }
-        volumePanelTimeoutRunnable = Runnable { isVolumePanelVisibleState = false }
+        volumePanelTimeoutRunnable = Runnable { 
+            Log.d(tag, "Volume Panel Invisible (timeout)")
+            isVolumePanelVisibleState = false 
+        }
         handler.postDelayed(volumePanelTimeoutRunnable!!, 3500L)
     }
 
@@ -477,9 +534,8 @@ class ButtonMapperService : AccessibilityService() {
         val centerY = bounds.height() / 2f
 
         val path = Path()
-        // A smaller distance (150px total) and a longer duration (200ms)
-        // ensures the velocity is low, preventing the view from flinging to the top/bottom.
-        val distance = 75f
+        // 112.5f distance ensures 1.5x more scrolling (225px total) than before
+        val distance = 112.5f
         if (up) {
             // Scroll up means finger moves down
             path.moveTo(centerX, centerY - distance)

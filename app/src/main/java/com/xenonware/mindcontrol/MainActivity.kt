@@ -40,6 +40,11 @@ import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material.icons.filled.KeyboardArrowUp
 import androidx.compose.material.icons.filled.RemoveCircle
 import androidx.compose.material.icons.filled.SmartToy
+import androidx.compose.material.icons.rounded.CameraAlt
+import androidx.compose.material.icons.rounded.FilterCenterFocus
+import androidx.compose.material.icons.rounded.KeyboardArrowDown
+import androidx.compose.material.icons.rounded.KeyboardArrowUp
+import androidx.compose.material.icons.rounded.SmartToy
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
@@ -66,7 +71,9 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.painter.Painter
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.core.net.toUri
@@ -144,7 +151,7 @@ fun GridScreen(modifier: Modifier = Modifier, onButtonSelected: (Int, String) ->
                 ) {
                     Box(modifier = Modifier.weight(0.333f), contentAlignment = Alignment.Center) {
                         Icon(
-                            imageVector = Icons.Default.SmartToy,
+                            painter = painterResource(id = R.drawable.stars),
                             contentDescription = null,
                             tint = MaterialTheme.colorScheme.onPrimaryContainer
                         )
@@ -195,7 +202,7 @@ fun GridScreen(modifier: Modifier = Modifier, onButtonSelected: (Int, String) ->
                             modifier = Modifier.weight(0.333f), contentAlignment = Alignment.Center
                         ) {
                             Icon(
-                                imageVector = Icons.Default.KeyboardArrowUp,
+                                imageVector = Icons.Rounded.KeyboardArrowUp,
                                 contentDescription = null,
                                 tint = MaterialTheme.colorScheme.onPrimaryContainer
                             )
@@ -241,7 +248,7 @@ fun GridScreen(modifier: Modifier = Modifier, onButtonSelected: (Int, String) ->
                             modifier = Modifier.weight(0.333f), contentAlignment = Alignment.Center
                         ) {
                             Icon(
-                                imageVector = Icons.Default.KeyboardArrowDown,
+                                imageVector = Icons.Rounded.KeyboardArrowDown,
                                 contentDescription = null,
                                 tint = MaterialTheme.colorScheme.onPrimaryContainer
                             )
@@ -402,7 +409,7 @@ fun GridScreen(modifier: Modifier = Modifier, onButtonSelected: (Int, String) ->
                             modifier = Modifier.padding(8.dp)
                         ) {
                             Icon(
-                                imageVector = Icons.Default.CameraAlt,
+                                imageVector = Icons.Rounded.CameraAlt,
                                 contentDescription = null,
                                 tint = MaterialTheme.colorScheme.onPrimaryContainer
                             )
@@ -439,7 +446,7 @@ fun GridScreen(modifier: Modifier = Modifier, onButtonSelected: (Int, String) ->
                             modifier = Modifier.padding(8.dp)
                         ) {
                             Icon(
-                                imageVector = Icons.Default.FilterCenterFocus,
+                                imageVector = Icons.Rounded.FilterCenterFocus,
                                 contentDescription = null,
                                 tint = MaterialTheme.colorScheme.onPrimaryContainer
                             )
@@ -530,7 +537,9 @@ fun TogglesContainer(modifier: Modifier = Modifier) {
 
             Spacer(modifier = Modifier.height(8.dp))
             Row(
-                modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp)
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(bottom = 8.dp)
                 ,
                 verticalAlignment = Alignment.CenterVertically
             ) {
@@ -798,7 +807,7 @@ fun MindControlActionSelector(keyCode: Int, state: String, type: String) {
         )
     }
 
-    val actions = listOf(
+    val actions = mutableListOf(
         SettingsManager.ACTION_DEFAULT,
         SettingsManager.ACTION_NONE,
         SettingsManager.ACTION_PLAY_PAUSE,
@@ -821,6 +830,11 @@ fun MindControlActionSelector(keyCode: Int, state: String, type: String) {
         SettingsManager.ACTION_SCROLL_UP,
         SettingsManager.ACTION_SCROLL_DOWN
     )
+
+    if (type == "LONG") {
+        actions.add(SettingsManager.ACTION_SCROLL_UP_SMOOTH)
+        actions.add(SettingsManager.ACTION_SCROLL_DOWN_SMOOTH)
+    }
 
     var showMenu by remember { mutableStateOf(false) }
 
