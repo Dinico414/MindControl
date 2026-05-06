@@ -1,4 +1,4 @@
-package com.xenonware.mindcontroll.ui.theme
+package com.xenonware.mindcontrol.ui.theme
 
 import androidx.compose.material3.Typography
 import androidx.compose.ui.text.TextStyle

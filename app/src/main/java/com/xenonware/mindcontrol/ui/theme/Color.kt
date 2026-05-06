@@ -1,4 +1,4 @@
-package com.xenonware.mindcontroll.ui.theme
+package com.xenonware.mindcontrol.ui.theme
 
 import androidx.compose.ui.graphics.Color
 

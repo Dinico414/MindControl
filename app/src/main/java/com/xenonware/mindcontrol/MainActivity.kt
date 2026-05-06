@@ -1,4 +1,4 @@
-package com.xenonware.mindcontroll
+package com.xenonware.mindcontrol
 
 import android.accessibilityservice.AccessibilityServiceInfo
 import android.content.Context
@@ -18,7 +18,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
-import com.xenonware.mindcontroll.ui.theme.MindControllTheme
+import com.xenonware.mindcontrol.ui.theme.MindControlTheme
 import androidx.core.net.toUri
 import rikka.shizuku.Shizuku
 import android.content.pm.PackageManager
@@ -29,9 +29,9 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
         setContent {
-            MindControllTheme {
+            MindControlTheme {
                 Scaffold(modifier = Modifier.fillMaxSize()) { innerPadding ->
-                    MindControllMainScreen(
+                    MindControlMainScreen(
                         modifier = Modifier.padding(innerPadding)
                     )
                 }
@@ -41,7 +41,7 @@ class MainActivity : ComponentActivity() {
 }
 
 @Composable
-fun MindControllMainScreen(modifier: Modifier = Modifier) {
+fun MindControlMainScreen(modifier: Modifier = Modifier) {
     val context = LocalContext.current
     val scrollState = rememberScrollState()
 
@@ -75,7 +75,7 @@ fun MindControllMainScreen(modifier: Modifier = Modifier) {
     }
 
     Column(modifier = modifier.padding(16.dp).verticalScroll(scrollState)) {
-        Text(text = "MindControll Settings", style = MaterialTheme.typography.headlineMedium)
+        Text(text = "MindControl Settings", style = MaterialTheme.typography.headlineMedium)
 
         Card(
             modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp),
@@ -189,22 +189,24 @@ fun MindControllMainScreen(modifier: Modifier = Modifier) {
         Spacer(modifier = Modifier.height(16.dp))
 
         val buttons = listOf(
-            134 to "Focus Button",
-            27 to "Camera Button",
-            25 to "Volume Down",
+            131 to "AI Button",
+            133 to "Camera Up",
+            132 to "Camera Down",
             24 to "Volume Up",
-            131 to "AI Button"
+            25 to "Volume Down",
+            27 to "Camera Button",
+            134 to "Focus Button",
         )
 
         buttons.forEach { (code, name) ->
-            MindControllButtonConfig(code, name)
+            MindControlButtonConfig(code, name)
             HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
         }
     }
 }
 
 @Composable
-fun MindControllButtonConfig(keyCode: Int, name: String) {
+fun MindControlButtonConfig(keyCode: Int, name: String) {
     var expanded by remember { mutableStateOf(false) }
 
     Column {
@@ -216,30 +218,37 @@ fun MindControllButtonConfig(keyCode: Int, name: String) {
         }
 
         if (expanded) {
-            MindControllStateConfig(keyCode, "ON", "Screen On")
+            MindControlStateConfig(keyCode, "ON", "Screen On")
             
             // Camera (27) and Focus (134) buttons do not have Screen Off configuration
             if (keyCode != 27 && keyCode != 134) {
                 Spacer(modifier = Modifier.height(8.dp))
-                MindControllStateConfig(keyCode, "OFF", "Screen Off")
+                MindControlStateConfig(keyCode, "OFF", "Screen Off")
             }
         }
     }
 }
 
 @Composable
-fun MindControllStateConfig(keyCode: Int, state: String, label: String) {
+fun MindControlStateConfig(keyCode: Int, state: String, label: String) {
     Column(modifier = Modifier.padding(start = 16.dp)) {
         Text(text = label, style = MaterialTheme.typography.titleMedium)
-        listOf("SINGLE", "DOUBLE", "TRIPLE", "LONG").forEach { type ->
-            MindControllActionSelector(keyCode, state, type)
+        
+        val types = if (keyCode == 132 || keyCode == 133) {
+            listOf("SINGLE")
+        } else {
+            listOf("SINGLE", "DOUBLE", "TRIPLE", "LONG")
+        }
+        
+        types.forEach { type ->
+            MindControlActionSelector(keyCode, state, type)
         }
     }
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun MindControllActionSelector(keyCode: Int, state: String, type: String) {
+fun MindControlActionSelector(keyCode: Int, state: String, type: String) {
     val context = LocalContext.current
     val currentAction = remember { mutableStateOf(SettingsManager.getAction(context, keyCode, state, type)) }
 

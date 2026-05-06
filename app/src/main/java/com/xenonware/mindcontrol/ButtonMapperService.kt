@@ -1,4 +1,4 @@
-package com.xenonware.mindcontroll
+package com.xenonware.mindcontrol
 
 import android.accessibilityservice.AccessibilityService
 import android.app.KeyguardManager
@@ -55,7 +55,7 @@ class ButtonMapperService : AccessibilityService() {
         // Android 15 Foreground Requirement
         createNotificationChannel()
         val notification = Notification.Builder(this, "service_channel")
-            .setContentTitle("MindControll Active")
+            .setContentTitle("MindControl Active")
             .setContentText("Monitoring hardware buttons...")
             .setSmallIcon(android.R.drawable.ic_menu_preferences)
             .build()
@@ -67,7 +67,7 @@ class ButtonMapperService : AccessibilityService() {
         cameraManager.registerAvailabilityCallback(cameraCallback, handler)
 
         // WakeLock to keep service alive when screen is off
-        wakeLock = powerManager.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "MindControll:KeyCaptureLock")
+        wakeLock = powerManager.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "MindControl:KeyCaptureLock")
         wakeLock?.acquire()
 
         // Listen for Shizuku Binder
@@ -78,7 +78,7 @@ class ButtonMapperService : AccessibilityService() {
     }
 
     private fun createNotificationChannel() {
-        val channel = NotificationChannel("service_channel", "MindControll Service", NotificationManager.IMPORTANCE_LOW)
+        val channel = NotificationChannel("service_channel", "MindControl Service", NotificationManager.IMPORTANCE_LOW)
         val manager = getSystemService(NOTIFICATION_SERVICE) as NotificationManager
         manager.createNotificationChannel(channel)
     }
@@ -152,7 +152,7 @@ class ButtonMapperService : AccessibilityService() {
         // DEBUG: Log EVERY key to see if the service is alive
         Log.v(tag, "ACCESSIBILITY RAW: keyCode=$keyCode action=${if(isDown) "DOWN" else "UP"}")
 
-        val isTargetKey = keyCode in setOf(134, 27, 25, 24, 131)
+        val isTargetKey = keyCode in setOf(134, 27, 25, 24, 131, 132, 133)
         if (!isTargetKey) return false
 
         return handleKeyEvent(keyCode, isDown, fromShizuku = false)
@@ -169,6 +169,10 @@ class ButtonMapperService : AccessibilityService() {
             lastKeyCode = keyCode
 
             longPressRunnables.remove(keyCode)?.let { handler.removeCallbacks(it) }
+
+            if (keyCode == 132 || keyCode == 133) {
+                return
+            }
 
             val capturedState = state
             val longPressRunnable = Runnable {
@@ -188,6 +192,12 @@ class ButtonMapperService : AccessibilityService() {
                 isLongPress = false
                 clickCount = 0
                 stopContinuousAction()
+                return
+            }
+
+            if (keyCode == 132 || keyCode == 133) {
+                Log.d(tag, "Single-click triggered for $keyCode (state=$state)")
+                performAction(keyCode, state, "SINGLE")
                 return
             }
 

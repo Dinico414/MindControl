@@ -22,6 +22,6 @@ dependencyResolutionManagement {
     }
 }
 
-rootProject.name = "MindControll"
+rootProject.name = "MindControl"
 include(":app")
  

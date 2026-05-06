@@ -1,10 +1,10 @@
-package com.xenonware.mindcontroll
+package com.xenonware.mindcontrol
 
 import android.content.Context
 import androidx.core.content.edit
 
 object SettingsManager {
-    private const val PREFS_NAME = "MindControllPrefs"
+    private const val PREFS_NAME = "MindControlPrefs"
     
     const val ACTION_DEFAULT = "DEFAULT"
     const val ACTION_NONE = "NONE"

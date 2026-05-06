@@ -1,4 +1,4 @@
-package com.xenonware.mindcontroll
+package com.xenonware.mindcontrol
 
 import org.junit.Test
 

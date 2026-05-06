@@ -1,4 +1,4 @@
-package com.xenonware.mindcontroll
+package com.xenonware.mindcontrol
 
 import android.os.ParcelFileDescriptor
 import android.util.Log
