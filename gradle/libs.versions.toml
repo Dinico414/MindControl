@@ -10,6 +10,7 @@ kotlin = "2.3.21"
 composeBom = "2026.04.01"
 shizuku = "13.1.5"
 xenonCommons = "2.4.8"
+foundationLayout = "1.11.0"
 
 
 [libraries]
@@ -31,6 +32,7 @@ androidx-compose-material-icons-extended = { group = "androidx.compose.material"
 shizuku-api = { group = "dev.rikka.shizuku", name = "api", version.ref = "shizuku" }
 shizuku-provider = { group = "dev.rikka.shizuku", name = "provider", version.ref = "shizuku" }
 xenon-commons = { module = "com.github.Dinico414:Xenon-Commons", version.ref = "xenonCommons" }
+androidx-compose-foundation-layout = { group = "androidx.compose.foundation", name = "foundation-layout", version.ref = "foundationLayout" }
 
 
 [plugins]

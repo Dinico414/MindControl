@@ -11,7 +11,7 @@ import android.view.accessibility.AccessibilityManager
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.setContent
-import androidx.compose.foundation.background
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -20,16 +20,26 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.asPaddingValues
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.safeDrawing
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.ArrowBack
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.AddCircle
+import androidx.compose.material.icons.filled.CameraAlt
+import androidx.compose.material.icons.filled.FilterCenterFocus
+import androidx.compose.material.icons.filled.KeyboardArrowDown
+import androidx.compose.material.icons.filled.KeyboardArrowUp
+import androidx.compose.material.icons.filled.RemoveCircle
+import androidx.compose.material.icons.filled.SmartToy
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
@@ -43,16 +53,8 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
-import androidx.compose.material3.PrimaryTabRow
-import android.view.Surface
-import android.view.WindowManager
-import androidx.compose.ui.platform.LocalConfiguration
-import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Switch
-import androidx.compose.ui.draw.clip
-import androidx.compose.material3.Switch
-import androidx.compose.material3.TextButton
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -69,8 +71,6 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.core.net.toUri
 import androidx.core.view.WindowCompat
-import androidx.core.view.WindowInsetsCompat
-import androidx.core.view.WindowInsetsControllerCompat
 import com.xenon.mylibrary.theme.QuicksandTitleVariable
 import com.xenonware.mindcontrol.ui.theme.MindControlTheme
 import rikka.shizuku.Shizuku
@@ -78,19 +78,19 @@ import rikka.shizuku.Shizuku
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        
+
         WindowCompat.setDecorFitsSystemWindows(window, false)
-        val windowInsetsController = WindowCompat.getInsetsController(window, window.decorView)
-        windowInsetsController.systemBarsBehavior = WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
-        windowInsetsController.hide(WindowInsetsCompat.Type.systemBars())
 
         setContent {
             MindControlTheme {
                 Surface(
-                    modifier = Modifier.fillMaxSize(),
-                    color = Color.Black
+                    color = Color.Black,
                 ) {
-                    MindControlMainScreen()
+                    MindControlMainScreen(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .padding(WindowInsets.safeDrawing.asPaddingValues()),
+                    )
                 }
             }
         }
@@ -117,8 +117,7 @@ fun MindControlMainScreen(modifier: Modifier = Modifier) {
 @Composable
 fun GridScreen(modifier: Modifier = Modifier, onButtonSelected: (Int, String) -> Unit) {
     Column(
-        modifier = modifier
-            .fillMaxSize()
+        modifier = modifier.fillMaxSize()
     ) {
         // Top Part (Weight 2f) -> represents 2 rows out of 6
         Row(
@@ -137,14 +136,29 @@ fun GridScreen(modifier: Modifier = Modifier, onButtonSelected: (Int, String) ->
                     .clickable { onButtonSelected(131, "AI Button") },
                 contentAlignment = Alignment.Center
             ) {
-                Text(
-                    text = "AI Button",
-                    style = MaterialTheme.typography.titleMedium,
-                    textAlign = TextAlign.Center,
-                    fontFamily = QuicksandTitleVariable,
-                    color = MaterialTheme.colorScheme.onPrimaryContainer,
-                    modifier = Modifier.padding(8.dp)
-                )
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .padding(8.dp)
+                ) {
+                    Box(modifier = Modifier.weight(0.333f), contentAlignment = Alignment.Center) {
+                        Icon(
+                            imageVector = Icons.Default.SmartToy,
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.onPrimaryContainer
+                        )
+                    }
+                    Box(modifier = Modifier.weight(0.667f), contentAlignment = Alignment.Center) {
+                        Text(
+                            text = "AI Button",
+                            style = MaterialTheme.typography.titleMedium,
+                            textAlign = TextAlign.Center,
+                            fontFamily = QuicksandTitleVariable,
+                            color = MaterialTheme.colorScheme.onPrimaryContainer
+                        )
+                    }
+                }
             }
 
             // Right Top Column (Weight 1f out of 2 -> 2 columns out of 4)
@@ -159,19 +173,45 @@ fun GridScreen(modifier: Modifier = Modifier, onButtonSelected: (Int, String) ->
                         .weight(1f)
                         .fillMaxWidth()
                         .padding(start = 4.dp, bottom = 1.dp)
-                        .clip(RoundedCornerShape(topStart = 16.dp, topEnd = 16.dp, bottomStart = 4.dp, bottomEnd = 4.dp))
+                        .clip(
+                            RoundedCornerShape(
+                                topStart = 16.dp,
+                                topEnd = 16.dp,
+                                bottomStart = 4.dp,
+                                bottomEnd = 4.dp
+                            )
+                        )
                         .background(MaterialTheme.colorScheme.primaryContainer)
                         .clickable { onButtonSelected(133, "Camera Up") },
                     contentAlignment = Alignment.Center
                 ) {
-                    Text(
-                        text = "Camera Up",
-                        style = MaterialTheme.typography.titleMedium,
-                        textAlign = TextAlign.Center,
-                        color = MaterialTheme.colorScheme.onPrimaryContainer,
-                        modifier = Modifier.padding(8.dp),
-                        fontFamily = QuicksandTitleVariable
-                    )
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .padding(8.dp)
+                    ) {
+                        Box(
+                            modifier = Modifier.weight(0.333f), contentAlignment = Alignment.Center
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.KeyboardArrowUp,
+                                contentDescription = null,
+                                tint = MaterialTheme.colorScheme.onPrimaryContainer
+                            )
+                        }
+                        Box(
+                            modifier = Modifier.weight(0.667f), contentAlignment = Alignment.Center
+                        ) {
+                            Text(
+                                text = "Camera Up",
+                                style = MaterialTheme.typography.titleMedium,
+                                textAlign = TextAlign.Center,
+                                color = MaterialTheme.colorScheme.onPrimaryContainer,
+                                fontFamily = QuicksandTitleVariable
+                            )
+                        }
+                    }
                 }
                 // Camera Down
                 Box(
@@ -179,19 +219,45 @@ fun GridScreen(modifier: Modifier = Modifier, onButtonSelected: (Int, String) ->
                         .weight(1f)
                         .fillMaxWidth()
                         .padding(start = 4.dp, top = 1.dp, bottom = 4.dp)
-                        .clip(RoundedCornerShape(topStart = 4.dp, topEnd = 4.dp, bottomStart = 16.dp, bottomEnd = 16.dp))
+                        .clip(
+                            RoundedCornerShape(
+                                topStart = 4.dp,
+                                topEnd = 4.dp,
+                                bottomStart = 16.dp,
+                                bottomEnd = 16.dp
+                            )
+                        )
                         .background(MaterialTheme.colorScheme.primaryContainer)
                         .clickable { onButtonSelected(132, "Camera Down") },
                     contentAlignment = Alignment.Center
                 ) {
-                    Text(
-                        text = "Camera Down",
-                        style = MaterialTheme.typography.titleMedium,
-                        textAlign = TextAlign.Center,
-                        color = MaterialTheme.colorScheme.onPrimaryContainer,
-                        modifier = Modifier.padding(8.dp),
-                        fontFamily = QuicksandTitleVariable
-                    )
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .padding(8.dp)
+                    ) {
+                        Box(
+                            modifier = Modifier.weight(0.333f), contentAlignment = Alignment.Center
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.KeyboardArrowDown,
+                                contentDescription = null,
+                                tint = MaterialTheme.colorScheme.onPrimaryContainer
+                            )
+                        }
+                        Box(
+                            modifier = Modifier.weight(0.667f), contentAlignment = Alignment.Center
+                        ) {
+                            Text(
+                                text = "Camera Down",
+                                style = MaterialTheme.typography.titleMedium,
+                                textAlign = TextAlign.Center,
+                                color = MaterialTheme.colorScheme.onPrimaryContainer,
+                                fontFamily = QuicksandTitleVariable
+                            )
+                        }
+                    }
                 }
             }
         }
@@ -221,19 +287,45 @@ fun GridScreen(modifier: Modifier = Modifier, onButtonSelected: (Int, String) ->
                         .weight(1f)
                         .fillMaxWidth()
                         .padding(start = 4.dp, top = 4.dp, bottom = 1.dp)
-                        .clip(RoundedCornerShape(topStart = 16.dp, topEnd = 16.dp, bottomStart = 4.dp, bottomEnd = 4.dp))
+                        .clip(
+                            RoundedCornerShape(
+                                topStart = 16.dp,
+                                topEnd = 16.dp,
+                                bottomStart = 4.dp,
+                                bottomEnd = 4.dp
+                            )
+                        )
                         .background(MaterialTheme.colorScheme.primaryContainer)
                         .clickable { onButtonSelected(24, "Volume Up") },
                     contentAlignment = Alignment.Center
                 ) {
-                    Text(
-                        text = "Volume Up",
-                        style = MaterialTheme.typography.titleMedium,
-                        textAlign = TextAlign.Center,
-                        color = MaterialTheme.colorScheme.onPrimaryContainer,
-                        modifier = Modifier.padding(8.dp),
-                        fontFamily = QuicksandTitleVariable
-                    )
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .padding(8.dp)
+                    ) {
+                        Box(
+                            modifier = Modifier.weight(0.333f), contentAlignment = Alignment.Center
+                        ) {
+                            Icon(
+                                imageVector = Icons.Filled.AddCircle,
+                                contentDescription = null,
+                                tint = MaterialTheme.colorScheme.onPrimaryContainer
+                            )
+                        }
+                        Box(
+                            modifier = Modifier.weight(0.667f), contentAlignment = Alignment.Center
+                        ) {
+                            Text(
+                                text = "Volume Up",
+                                style = MaterialTheme.typography.titleMedium,
+                                textAlign = TextAlign.Center,
+                                color = MaterialTheme.colorScheme.onPrimaryContainer,
+                                fontFamily = QuicksandTitleVariable
+                            )
+                        }
+                    }
                 }
                 // Volume Down (Weight 1f out of 4 -> 1 row out of 4)
                 Box(
@@ -241,19 +333,45 @@ fun GridScreen(modifier: Modifier = Modifier, onButtonSelected: (Int, String) ->
                         .weight(1f)
                         .fillMaxWidth()
                         .padding(start = 4.dp, top = 1.dp, bottom = 4.dp)
-                        .clip(RoundedCornerShape(topStart = 4.dp, topEnd = 4.dp, bottomStart = 16.dp, bottomEnd = 16.dp))
+                        .clip(
+                            RoundedCornerShape(
+                                topStart = 4.dp,
+                                topEnd = 4.dp,
+                                bottomStart = 16.dp,
+                                bottomEnd = 16.dp
+                            )
+                        )
                         .background(MaterialTheme.colorScheme.primaryContainer)
                         .clickable { onButtonSelected(25, "Volume Down") },
                     contentAlignment = Alignment.Center
                 ) {
-                    Text(
-                        text = "Volume Down",
-                        style = MaterialTheme.typography.titleMedium,
-                        textAlign = TextAlign.Center,
-                        color = MaterialTheme.colorScheme.onPrimaryContainer,
-                        modifier = Modifier.padding(8.dp),
-                        fontFamily = QuicksandTitleVariable
-                    )
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .padding(8.dp)
+                    ) {
+                        Box(
+                            modifier = Modifier.weight(0.333f), contentAlignment = Alignment.Center
+                        ) {
+                            Icon(
+                                imageVector = Icons.Filled.RemoveCircle,
+                                contentDescription = null,
+                                tint = MaterialTheme.colorScheme.onPrimaryContainer
+                            )
+                        }
+                        Box(
+                            modifier = Modifier.weight(0.667f), contentAlignment = Alignment.Center
+                        ) {
+                            Text(
+                                text = "Volume Down",
+                                style = MaterialTheme.typography.titleMedium,
+                                textAlign = TextAlign.Center,
+                                color = MaterialTheme.colorScheme.onPrimaryContainer,
+                                fontFamily = QuicksandTitleVariable
+                            )
+                        }
+                    }
                 }
                 // Row for Camera and Focus (Weight 2f out of 4 -> 2 rows out of 4)
                 Row(
@@ -267,19 +385,36 @@ fun GridScreen(modifier: Modifier = Modifier, onButtonSelected: (Int, String) ->
                             .weight(1f)
                             .fillMaxHeight()
                             .padding(start = 4.dp, end = 1.dp, top = 4.dp)
-                            .clip(RoundedCornerShape(topStart = 16.dp, topEnd = 4.dp, bottomStart = 16.dp, bottomEnd = 4.dp))
+                            .clip(
+                                RoundedCornerShape(
+                                    topStart = 16.dp,
+                                    topEnd = 4.dp,
+                                    bottomStart = 16.dp,
+                                    bottomEnd = 4.dp
+                                )
+                            )
                             .background(MaterialTheme.colorScheme.primaryContainer)
                             .clickable { onButtonSelected(27, "Camera Button") },
                         contentAlignment = Alignment.Center
                     ) {
-                        Text(
-                            text = "Camera\nButton",
-                            style = MaterialTheme.typography.titleMedium,
-                            textAlign = TextAlign.Center,
-                            color = MaterialTheme.colorScheme.onPrimaryContainer,
-                            modifier = Modifier.padding(8.dp),
-                            fontFamily = QuicksandTitleVariable
-                        )
+                        Column(
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                            modifier = Modifier.padding(8.dp)
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.CameraAlt,
+                                contentDescription = null,
+                                tint = MaterialTheme.colorScheme.onPrimaryContainer
+                            )
+                            Spacer(modifier = Modifier.height(4.dp))
+                            Text(
+                                text = "Camera\nButton",
+                                style = MaterialTheme.typography.titleMedium,
+                                textAlign = TextAlign.Center,
+                                color = MaterialTheme.colorScheme.onPrimaryContainer,
+                                fontFamily = QuicksandTitleVariable
+                            )
+                        }
                     }
                     // Focus Button (Weight 1f out of 2 -> 1 column out of 2)
                     Box(
@@ -287,19 +422,36 @@ fun GridScreen(modifier: Modifier = Modifier, onButtonSelected: (Int, String) ->
                             .weight(1f)
                             .fillMaxHeight()
                             .padding(start = 1.dp, top = 4.dp)
-                            .clip(RoundedCornerShape(topStart = 4.dp, topEnd = 16.dp, bottomStart = 4.dp, bottomEnd = 16.dp))
+                            .clip(
+                                RoundedCornerShape(
+                                    topStart = 4.dp,
+                                    topEnd = 16.dp,
+                                    bottomStart = 4.dp,
+                                    bottomEnd = 16.dp
+                                )
+                            )
                             .background(MaterialTheme.colorScheme.primaryContainer)
                             .clickable { onButtonSelected(134, "Focus Button") },
                         contentAlignment = Alignment.Center
                     ) {
-                        Text(
-                            text = "Focus\nButton",
-                            style = MaterialTheme.typography.titleMedium,
-                            textAlign = TextAlign.Center,
-                            color = MaterialTheme.colorScheme.onPrimaryContainer,
-                            modifier = Modifier.padding(8.dp),
-                            fontFamily = QuicksandTitleVariable
-                        )
+                        Column(
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                            modifier = Modifier.padding(8.dp)
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.FilterCenterFocus,
+                                contentDescription = null,
+                                tint = MaterialTheme.colorScheme.onPrimaryContainer
+                            )
+                            Spacer(modifier = Modifier.height(4.dp))
+                            Text(
+                                text = "Focus\nButton",
+                                style = MaterialTheme.typography.titleMedium,
+                                textAlign = TextAlign.Center,
+                                color = MaterialTheme.colorScheme.onPrimaryContainer,
+                                fontFamily = QuicksandTitleVariable
+                            )
+                        }
                     }
                 }
             }
@@ -341,13 +493,13 @@ fun TogglesContainer(modifier: Modifier = Modifier) {
 
             shizukuAvailable = try {
                 Shizuku.pingBinder()
-            } catch (e: Exception) {
+            } catch (_: Exception) {
                 false
             }
             if (shizukuAvailable) {
                 shizukuPermission = try {
                     Shizuku.checkSelfPermission() == PackageManager.PERMISSION_GRANTED
-                } catch (e: Exception) {
+                } catch (_: Exception) {
                     false
                 }
             }
@@ -357,31 +509,59 @@ fun TogglesContainer(modifier: Modifier = Modifier) {
     }
 
     Card(
-        modifier = modifier.padding(top = 4.dp, end = 4.dp).clip(RoundedCornerShape(16.dp)), colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.surfaceVariant,
+        modifier = modifier
+            .padding(top = 4.dp, end = 4.dp)
+            .clip(RoundedCornerShape(16.dp)),
+        colors = CardDefaults.cardColors(
+            containerColor = MaterialTheme.colorScheme.surfaceContainerHighest,
         )
     ) {
         Column(
             modifier = Modifier
                 .fillMaxSize()
-                .padding(8.dp)
+                .padding(horizontal = 8.dp)
                 .verticalScroll(scrollState)
         ) {
-            Text(
-                text = "Settings",
-                textAlign = TextAlign.Center,
-                modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp),
-                style = MaterialTheme.typography.titleLarge,
-                fontFamily = QuicksandTitleVariable
-            )
+            val versionName = try {
+                context.packageManager.getPackageInfo(context.packageName, 0).versionName
+            } catch (e: Exception) {
+                "Unknown"
+            }
+
+            Spacer(modifier = Modifier.height(8.dp))
+            Row(
+                modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp)
+                ,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Spacer(modifier = Modifier.weight(0.25f))
+                Text(
+                    text = "Settings",
+                    textAlign = TextAlign.Center,
+                    modifier = Modifier
+                        .weight(0.5f),
+                    style = MaterialTheme.typography.titleLarge,
+                    fontFamily = QuicksandTitleVariable
+                )
+                Text(
+                    text = "v$versionName",
+                    textAlign = TextAlign.Center,
+                    modifier = Modifier
+                        .weight(0.25f),
+                    style = MaterialTheme.typography.labelSmall,
+                    fontFamily = QuicksandTitleVariable
+                )
+            }
 
             Card(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(vertical = 4.dp)
-                ,
+                    .padding(vertical = 4.dp),
                 colors = CardDefaults.cardColors(
                     containerColor = if (isServiceEnabled) Color(0xFFE8F5E9) else Color(0xFFFFEBEE)
+                ),
+                border = BorderStroke(
+                    1.dp, if (isServiceEnabled) Color(0xFF2E7D32) else Color(0xFFC62828)
                 )
             ) {
                 Column(modifier = Modifier.padding(12.dp)) {
@@ -400,6 +580,11 @@ fun TogglesContainer(modifier: Modifier = Modifier) {
                 colors = CardDefaults.cardColors(
                     containerColor = if (shizukuAvailable && shizukuPermission) Color(0xFFE8F5E9) else Color(
                         0xFFFFEBEE
+                    )
+                ),
+                border = BorderStroke(
+                    1.dp, if (shizukuAvailable && shizukuPermission) Color(0xFF2E7D32) else Color(
+                        0xFFC62828
                     )
                 )
             ) {
@@ -427,9 +612,35 @@ fun TogglesContainer(modifier: Modifier = Modifier) {
                     }
                 }
             }
+            if (!isServiceEnabled) {
+                Spacer(modifier = Modifier.height(8.dp))
 
+                Button(
+                    onClick = {
+                        val intent = Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS)
+                        context.startActivity(intent)
+                    }, modifier = Modifier.fillMaxWidth(), contentPadding = PaddingValues(8.dp)
+                ) {
+                    Text("Accessibility Settings", style = MaterialTheme.typography.bodySmall)
+                }
+            }
+
+            if (!Settings.System.canWrite(context)) {
+                Spacer(modifier = Modifier.height(4.dp))
+                Button(
+                    onClick = {
+                        val intent = Intent(Settings.ACTION_MANAGE_WRITE_SETTINGS)
+                        intent.data = ("package:" + context.packageName).toUri()
+                        context.startActivity(intent)
+                    },
+                    modifier = Modifier.fillMaxWidth(),
+                    colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.secondary),
+                    contentPadding = PaddingValues(8.dp)
+                ) {
+                    Text("Allow Sys Settings", style = MaterialTheme.typography.bodySmall)
+                }
+            }
             Spacer(modifier = Modifier.height(8.dp))
-
             Row(
                 verticalAlignment = Alignment.CenterVertically,
                 modifier = Modifier
@@ -467,31 +678,6 @@ fun TogglesContainer(modifier: Modifier = Modifier) {
             }
 
             Spacer(modifier = Modifier.height(8.dp))
-
-            Button(
-                onClick = {
-                    val intent = Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS)
-                    context.startActivity(intent)
-                }, modifier = Modifier.fillMaxWidth(), contentPadding = PaddingValues(8.dp)
-            ) {
-                Text("Accessibility Settings", style = MaterialTheme.typography.bodySmall)
-            }
-
-            if (!Settings.System.canWrite(context)) {
-                Spacer(modifier = Modifier.height(4.dp))
-                Button(
-                    onClick = {
-                        val intent = Intent(Settings.ACTION_MANAGE_WRITE_SETTINGS)
-                        intent.data = ("package:" + context.packageName).toUri()
-                        context.startActivity(intent)
-                    },
-                    modifier = Modifier.fillMaxWidth(),
-                    colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.secondary),
-                    contentPadding = PaddingValues(8.dp)
-                ) {
-                    Text("Allow Sys Settings", style = MaterialTheme.typography.bodySmall)
-                }
-            }
         }
     }
 }
@@ -510,35 +696,64 @@ fun ButtonConfigScreen(
     Column(
         modifier = modifier
             .fillMaxSize()
-            .padding(16.dp)
     ) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             IconButton(onClick = onBack) {
-                Icon(Icons.Default.ArrowBack, contentDescription = "Back", tint = Color.White)
+                Icon(
+                    Icons.AutoMirrored.Filled.ArrowBack,
+                    contentDescription = "Back",
+                    tint = Color.White
+                )
             }
-            Text(text = "$name Configuration", style = MaterialTheme.typography.titleLarge, color = Color.White)
+            Text(
+                text = "$name Configuration",
+                style = MaterialTheme.typography.titleLarge,
+                color = Color.White
+            )
         }
 
         Spacer(modifier = Modifier.height(16.dp))
 
         if (keyCode != 27 && keyCode != 134) {
-            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceEvenly) {
+            Row(
+                modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceEvenly
+            ) {
                 if (!isScreenOff) {
-                    FilledTonalButton(onClick = { isScreenOff = false }, colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary, contentColor = MaterialTheme.colorScheme.onPrimary)) {
+                    FilledTonalButton(
+                        onClick = { isScreenOff = false }, colors = ButtonDefaults.buttonColors(
+                            containerColor = MaterialTheme.colorScheme.primary,
+                            contentColor = MaterialTheme.colorScheme.onPrimary
+                        )
+                    ) {
                         Text("Screen On")
                     }
                 } else {
-                    FilledTonalButton(onClick = { isScreenOff = false }, colors = ButtonDefaults.buttonColors(containerColor = Color.Transparent, contentColor = MaterialTheme.colorScheme.onPrimary)) {
+                    FilledTonalButton(
+                        onClick = { isScreenOff = false }, colors = ButtonDefaults.buttonColors(
+                            containerColor = Color.Transparent,
+                            contentColor = MaterialTheme.colorScheme.onPrimary
+                        )
+                    ) {
                         Text("Screen On", color = Color.White)
                     }
                 }
 
                 if (isScreenOff) {
-                    FilledTonalButton(onClick = { isScreenOff = true }, colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary, contentColor = MaterialTheme.colorScheme.onPrimary)) {
+                    FilledTonalButton(
+                        onClick = { isScreenOff = true }, colors = ButtonDefaults.buttonColors(
+                            containerColor = MaterialTheme.colorScheme.primary,
+                            contentColor = MaterialTheme.colorScheme.onPrimary
+                        )
+                    ) {
                         Text("Screen Off")
                     }
                 } else {
-                    FilledTonalButton(onClick = { isScreenOff = true }, colors = ButtonDefaults.buttonColors(containerColor = Color.Transparent, contentColor = MaterialTheme.colorScheme.onPrimary)) {
+                    FilledTonalButton(
+                        onClick = { isScreenOff = true }, colors = ButtonDefaults.buttonColors(
+                            containerColor = Color.Transparent,
+                            contentColor = MaterialTheme.colorScheme.onPrimary
+                        )
+                    ) {
                         Text("Screen Off", color = Color.White)
                     }
                 }
@@ -575,8 +790,13 @@ fun ButtonConfigScreen(
 @Composable
 fun MindControlActionSelector(keyCode: Int, state: String, type: String) {
     val context = LocalContext.current
-    val currentAction =
-        remember(keyCode, state, type) { mutableStateOf(SettingsManager.getAction(context, keyCode, state, type)) }
+    val currentAction = remember(keyCode, state, type) {
+        mutableStateOf(
+            SettingsManager.getAction(
+                context, keyCode, state, type
+            )
+        )
+    }
 
     val actions = listOf(
         SettingsManager.ACTION_DEFAULT,
