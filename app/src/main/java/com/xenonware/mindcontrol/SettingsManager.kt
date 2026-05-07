@@ -2,10 +2,11 @@ package com.xenonware.mindcontrol
 
 import android.content.Context
 import androidx.core.content.edit
+import com.xenonware.mindcontrol.ui.theme.Palette
 
 object SettingsManager {
     private const val PREFS_NAME = "MindControlPrefs"
-    
+
     const val ACTION_DEFAULT = "DEFAULT"
     const val ACTION_NONE = "NONE"
     const val ACTION_PLAY_PAUSE = "PLAY_PAUSE"
@@ -29,37 +30,49 @@ object SettingsManager {
     const val ACTION_SCROLL_DOWN = "SCROLL_DOWN"
     const val ACTION_SCROLL_UP_SMOOTH = "SCROLL_UP_SMOOTH"
     const val ACTION_SCROLL_DOWN_SMOOTH = "SCROLL_DOWN_SMOOTH"
-    
+
     private const val KEY_DISABLE_IN_CAMERA = "disable_in_camera"
     private const val KEY_DEFAULT_WHEN_VOLUME_VISIBLE = "default_when_volume_visible"
+    private const val KEY_DEVICE_PALETTE = "device_palette"
+    private const val KEY_KEYBOARD_PALETTE = "keyboard_palette"
+
+    private fun prefs(context: Context) =
+        context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
 
     fun getAction(context: Context, keyCode: Int, state: String, type: String): String {
-        val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
-        return prefs.getString("btn_${keyCode}_${state}_${type}", ACTION_DEFAULT) ?: ACTION_DEFAULT
+        return prefs(context).getString("btn_${keyCode}_${state}_${type}", ACTION_DEFAULT)
+            ?: ACTION_DEFAULT
     }
 
     fun setAction(context: Context, keyCode: Int, state: String, type: String, action: String) {
-        val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
-        prefs.edit { putString("btn_${keyCode}_${state}_${type}", action) }
+        prefs(context).edit { putString("btn_${keyCode}_${state}_${type}", action) }
     }
 
-    fun isDisableInCamera(context: Context): Boolean {
-        val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
-        return prefs.getBoolean(KEY_DISABLE_IN_CAMERA, true)
-    }
+    fun isDisableInCamera(context: Context): Boolean =
+        prefs(context).getBoolean(KEY_DISABLE_IN_CAMERA, true)
 
     fun setDisableInCamera(context: Context, disabled: Boolean) {
-        val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
-        prefs.edit { putBoolean(KEY_DISABLE_IN_CAMERA, disabled) }
+        prefs(context).edit { putBoolean(KEY_DISABLE_IN_CAMERA, disabled) }
     }
 
-    fun isDefaultWhenVolumeVisible(context: Context): Boolean {
-        val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
-        return prefs.getBoolean(KEY_DEFAULT_WHEN_VOLUME_VISIBLE, true)
-    }
+    fun isDefaultWhenVolumeVisible(context: Context): Boolean =
+        prefs(context).getBoolean(KEY_DEFAULT_WHEN_VOLUME_VISIBLE, true)
 
     fun setDefaultWhenVolumeVisible(context: Context, enabled: Boolean) {
-        val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
-        prefs.edit { putBoolean(KEY_DEFAULT_WHEN_VOLUME_VISIBLE, enabled) }
+        prefs(context).edit { putBoolean(KEY_DEFAULT_WHEN_VOLUME_VISIBLE, enabled) }
+    }
+
+    fun getDevicePalette(context: Context): Palette =
+        Palette.fromKey(prefs(context).getString(KEY_DEVICE_PALETTE, Palette.Black.name))
+
+    fun setDevicePalette(context: Context, palette: Palette) {
+        prefs(context).edit { putString(KEY_DEVICE_PALETTE, palette.name) }
+    }
+
+    fun getKeyboardPalette(context: Context): Palette =
+        Palette.fromKey(prefs(context).getString(KEY_KEYBOARD_PALETTE, Palette.Black.name))
+
+    fun setKeyboardPalette(context: Context, palette: Palette) {
+        prefs(context).edit { putString(KEY_KEYBOARD_PALETTE, palette.name) }
     }
 }

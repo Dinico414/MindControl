@@ -12,6 +12,12 @@ import android.view.accessibility.AccessibilityManager
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.setContent
+import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.slideInVertically
+import androidx.compose.animation.slideOutVertically
+import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -78,7 +84,9 @@ import androidx.core.view.WindowCompat
 import com.xenon.mylibrary.theme.QuicksandTitleVariable
 import com.xenonware.mindcontrol.ui.theme.BlueTheme
 import com.xenonware.mindcontrol.ui.theme.GreenTheme
-import com.xenonware.mindcontrol.ui.theme.MindControlTheme
+import com.xenonware.mindcontrol.ui.theme.Palette
+import com.xenonware.mindcontrol.ui.theme.PaletteRow
+import com.xenonware.mindcontrol.ui.theme.PaletteTheme
 import com.xenonware.mindcontrol.ui.theme.RedTheme
 import com.xenonware.mindcontrol.ui.theme.YellowTheme
 import rikka.shizuku.Shizuku
@@ -86,18 +94,35 @@ import rikka.shizuku.Shizuku
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-
         WindowCompat.setDecorFitsSystemWindows(window, false)
 
         setContent {
-            MindControlTheme {
-                Surface(
-                    color = Color.Black,
-                ) {
+            val context = LocalContext.current
+            var devicePalette by remember { mutableStateOf(SettingsManager.getDevicePalette(context)) }
+            var keyboardPalette by remember {
+                mutableStateOf(
+                    SettingsManager.getKeyboardPalette(
+                        context
+                    )
+                )
+            }
+
+            PaletteTheme(palette = devicePalette) {
+                Surface(color = Color.Black) {
                     MindControlMainScreen(
                         modifier = Modifier
                             .fillMaxSize()
                             .padding(WindowInsets.safeDrawing.asPaddingValues()),
+                        devicePalette = devicePalette,
+                        keyboardPalette = keyboardPalette,
+                        onDevicePaletteChange = {
+                            devicePalette = it
+                            SettingsManager.setDevicePalette(context, it)
+                        },
+                        onKeyboardPaletteChange = {
+                            keyboardPalette = it
+                            SettingsManager.setKeyboardPalette(context, it)
+                        },
                     )
                 }
             }
@@ -106,36 +131,99 @@ class MainActivity : ComponentActivity() {
 }
 
 @Composable
-fun MindControlMainScreen(modifier: Modifier = Modifier) {
+fun MindControlMainScreen(
+    modifier: Modifier = Modifier,
+    devicePalette: Palette,
+    keyboardPalette: Palette,
+    onDevicePaletteChange: (Palette) -> Unit,
+    onKeyboardPaletteChange: (Palette) -> Unit,
+) {
     var selectedButton by remember { mutableStateOf<Pair<Int, String>?>(null) }
+    var showKeyboard by remember { mutableStateOf(false) }
+    var configFromKeyboard by remember { mutableStateOf(false) }
 
-    if (selectedButton != null) {
-        ButtonConfigScreen(
-            keyCode = selectedButton!!.first,
-            name = selectedButton!!.second,
-            modifier = modifier,
-            onBack = { selectedButton = null })
-    } else {
-        GridScreen(
-            modifier = modifier,
-            onButtonSelected = { code, name -> selectedButton = Pair(code, name) })
+    val state = when {
+        selectedButton != null -> "config"
+        showKeyboard -> "keyboard"
+        else -> "grid"
+    }
+
+    AnimatedContent(
+        targetState = state, transitionSpec = {
+            when {
+                targetState == "keyboard" -> slideInVertically { it } + fadeIn() togetherWith slideOutVertically { -it } + fadeOut()
+
+                initialState == "keyboard" && targetState == "grid" -> slideInVertically { -it } + fadeIn() togetherWith slideOutVertically { it } + fadeOut()
+
+                else -> fadeIn() togetherWith fadeOut()
+            }
+        }, label = "ScreenTransition"
+    ) { s ->
+        when (s) {
+            "keyboard" -> PaletteTheme(palette = keyboardPalette) {
+                CustomKeyboardScreen(
+                    modifier = modifier,
+                    devicePalette = devicePalette,
+                    onBack = { showKeyboard = false },
+                    onKeySelected = { code, name ->
+                        configFromKeyboard = true
+                        selectedButton = code to name
+                    })
+            }
+
+            "config" -> {
+                val button = selectedButton
+                if (button != null) {
+                    ButtonConfigScreen(
+                        keyCode = button.first,
+                        name = button.second,
+                        modifier = modifier,
+                        onBack = {
+                            val cameFromKeyboard = configFromKeyboard
+                            selectedButton = null
+                            configFromKeyboard = false
+                            if (!cameFromKeyboard) showKeyboard = false
+                        }
+                    )
+                } else {
+                    // Fallback to prevent crash during transition
+                    Box(modifier.fillMaxSize())
+                }
+            }
+
+            else -> GridScreen(
+                modifier = modifier,
+                devicePalette = devicePalette,
+                keyboardPalette = keyboardPalette,
+                onDevicePaletteChange = onDevicePaletteChange,
+                onKeyboardPaletteChange = onKeyboardPaletteChange,
+                onButtonSelected = { code, name ->
+                    if (code == 111) showKeyboard = true
+                    else selectedButton = code to name
+                })
+        }
     }
 }
 
 @Composable
-fun GridScreen(modifier: Modifier = Modifier, onButtonSelected: (Int, String) -> Unit) {
+fun GridScreen(
+    modifier: Modifier = Modifier,
+    devicePalette: Palette,
+    keyboardPalette: Palette,
+    onDevicePaletteChange: (Palette) -> Unit,
+    onKeyboardPaletteChange: (Palette) -> Unit,
+    onButtonSelected: (Int, String) -> Unit,
+) {
     val pressedKeys by ButtonState.pressedKeys.collectAsState()
 
-    Column(
-        modifier = modifier.fillMaxSize()
-    ) {
-        // Top Part (Weight 2f) -> represents 2 rows out of 6
+    Column(modifier = modifier.fillMaxSize()) {
+        // Top Part (Weight 2f)
         Row(
             modifier = Modifier
                 .weight(2f)
                 .fillMaxWidth()
         ) {
-            // AI Button (Weight 1f out of 2 -> 2 columns out of 4)
+            // AI Button
             RedTheme {
                 Box(
                     modifier = Modifier
@@ -154,8 +242,7 @@ fun GridScreen(modifier: Modifier = Modifier, onButtonSelected: (Int, String) ->
                             .padding(8.dp)
                     ) {
                         Box(
-                            modifier = Modifier.weight(0.333f),
-                            contentAlignment = Alignment.Center
+                            modifier = Modifier.weight(0.333f), contentAlignment = Alignment.Center
                         ) {
                             Icon(
                                 painter = painterResource(id = R.drawable.stars),
@@ -164,8 +251,7 @@ fun GridScreen(modifier: Modifier = Modifier, onButtonSelected: (Int, String) ->
                             )
                         }
                         Box(
-                            modifier = Modifier.weight(0.667f),
-                            contentAlignment = Alignment.Center
+                            modifier = Modifier.weight(0.667f), contentAlignment = Alignment.Center
                         ) {
                             Text(
                                 text = "AI Button",
@@ -179,7 +265,7 @@ fun GridScreen(modifier: Modifier = Modifier, onButtonSelected: (Int, String) ->
                 }
             }
 
-            // Right Top Column (Weight 1f out of 2 -> 2 columns out of 4)
+            // Right Top Column
             Column(
                 modifier = Modifier
                     .weight(1f)
@@ -286,13 +372,12 @@ fun GridScreen(modifier: Modifier = Modifier, onButtonSelected: (Int, String) ->
             }
         }
 
-        // Bottom Part (Weight 4f) -> represents 4 rows out of 6
+        // Bottom Part (Weight 4f)
         Row(
             modifier = Modifier
                 .weight(4f)
                 .fillMaxWidth()
         ) {
-            // Left Bottom Column (Weight 1f out of 2 -> 2 columns out of 4)
             val configuration = LocalConfiguration.current
             val hasKeyboard = configuration.keyboard != Configuration.KEYBOARD_NOKEYS
 
@@ -305,61 +390,69 @@ fun GridScreen(modifier: Modifier = Modifier, onButtonSelected: (Int, String) ->
                     modifier = Modifier
                         .weight(if (hasKeyboard) 3f else 4f)
                         .fillMaxWidth(),
-                    hasKeyboard = hasKeyboard
+                    hasKeyboard = hasKeyboard,
+                    devicePalette = devicePalette,
+                    keyboardPalette = keyboardPalette,
+                    onDevicePaletteChange = onDevicePaletteChange,
+                    onKeyboardPaletteChange = onKeyboardPaletteChange,
                 )
 
                 if (hasKeyboard) {
-                    Box(
-                        modifier = Modifier
-                            .weight(1f)
-                            .fillMaxWidth()
-                            .padding(end = 4.dp, top = 4.dp)
-                            .clip(RoundedCornerShape(16.dp))
-                            .background(if (pressedKeys.contains(111)) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.primaryContainer)
-                            .clickable { onButtonSelected(111, "Keyboard Button") },
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Row(
-                            verticalAlignment = Alignment.CenterVertically,
+                    PaletteTheme(palette = keyboardPalette) {
+                        Box(
                             modifier = Modifier
-                                .fillMaxSize()
-                                .padding(8.dp)
+                                .weight(1f)
+                                .fillMaxWidth()
+                                .padding(end = 4.dp, top = 4.dp)
+                                .clip(RoundedCornerShape(16.dp))
+                                // Now uses the primary color from keyboardPalette
+                                .background(if (pressedKeys.contains(111)) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.primaryContainer)
+                                .clickable { onButtonSelected(111, "Keyboard Button") },
+                            contentAlignment = Alignment.Center
                         ) {
-                            Box(
-                                modifier = Modifier.weight(0.333f),
-                                contentAlignment = Alignment.Center
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                modifier = Modifier
+                                    .fillMaxSize()
+                                    .padding(8.dp)
                             ) {
-                                Icon(
-                                    imageVector = Icons.Rounded.Keyboard,
-                                    contentDescription = null,
-                                    tint = if (pressedKeys.contains(111)) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onPrimaryContainer
-                                )
-                            }
-                            Box(
-                                modifier = Modifier.weight(0.667f),
-                                contentAlignment = Alignment.Center
-                            ) {
-                                Text(
-                                    text = "Keyboard",
-                                    style = MaterialTheme.typography.titleMedium,
-                                    textAlign = TextAlign.Center,
-                                    color = if (pressedKeys.contains(111)) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onPrimaryContainer,
-                                    fontFamily = QuicksandTitleVariable
-                                )
+                                Box(
+                                    modifier = Modifier.weight(0.333f),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Rounded.Keyboard,
+                                        contentDescription = null,
+                                        // Now uses the onPrimary color from keyboardPalette
+                                        tint = if (pressedKeys.contains(111)) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onPrimaryContainer
+                                    )
+                                }
+                                Box(
+                                    modifier = Modifier.weight(0.667f),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    Text(
+                                        text = "Keyboard",
+                                        style = MaterialTheme.typography.titleMedium,
+                                        textAlign = TextAlign.Center,
+                                        color = if (pressedKeys.contains(111)) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onPrimaryContainer,
+                                        fontFamily = QuicksandTitleVariable
+                                    )
+                                }
                             }
                         }
                     }
                 }
             }
 
-            // Right Bottom Column (Weight 1f out of 2 -> 2 columns out of 4)
+            // Right Bottom Column
             Column(
                 modifier = Modifier
                     .weight(1f)
                     .fillMaxHeight()
             ) {
                 GreenTheme {
-                    // Volume Up (Weight 1f out of 4 -> 1 row out of 4)
+                    // Volume Up
                     Box(
                         modifier = Modifier
                             .weight(1f)
@@ -407,7 +500,7 @@ fun GridScreen(modifier: Modifier = Modifier, onButtonSelected: (Int, String) ->
                             }
                         }
                     }
-                    // Volume Down (Weight 1f out of 4 -> 1 row out of 4)
+                    // Volume Down
                     Box(
                         modifier = Modifier
                             .weight(1f)
@@ -456,14 +549,14 @@ fun GridScreen(modifier: Modifier = Modifier, onButtonSelected: (Int, String) ->
                         }
                     }
                 }
-                // Row for Camera and Focus (Weight 2f out of 4 -> 2 rows out of 4)
+                // Camera + Focus row
                 Row(
                     modifier = Modifier
                         .weight(2f)
                         .fillMaxWidth()
                 ) {
                     BlueTheme {
-                        // Camera Button (Weight 1f out of 2 -> 1 column out of 2)
+                        // Camera Button
                         Box(
                             modifier = Modifier
                                 .weight(1f)
@@ -500,8 +593,7 @@ fun GridScreen(modifier: Modifier = Modifier, onButtonSelected: (Int, String) ->
                                 )
                             }
                         }
-
-                        // Focus Button (Weight 1f out of 2 -> 1 column out of 2)
+                        // Focus Button
                         Box(
                             modifier = Modifier
                                 .weight(1f)
@@ -546,7 +638,14 @@ fun GridScreen(modifier: Modifier = Modifier, onButtonSelected: (Int, String) ->
 }
 
 @Composable
-fun TogglesContainer(modifier: Modifier = Modifier, hasKeyboard: Boolean = false) {
+fun TogglesContainer(
+    modifier: Modifier = Modifier,
+    hasKeyboard: Boolean = false,
+    devicePalette: Palette,
+    keyboardPalette: Palette,
+    onDevicePaletteChange: (Palette) -> Unit,
+    onKeyboardPaletteChange: (Palette) -> Unit,
+) {
     val context = LocalContext.current
     val scrollState = rememberScrollState()
 
@@ -570,7 +669,6 @@ fun TogglesContainer(modifier: Modifier = Modifier, hasKeyboard: Boolean = false
     var shizukuPermission by remember { mutableStateOf(false) }
     var shizukuAvailable by remember { mutableStateOf(false) }
 
-    // Refresh status when returning to app
     LaunchedEffect(Unit) {
         while (true) {
             isServiceEnabled =
@@ -596,11 +694,11 @@ fun TogglesContainer(modifier: Modifier = Modifier, hasKeyboard: Boolean = false
 
     Card(
         modifier = modifier
-            .padding(top = 4.dp, end = 4.dp, bottom = if (hasKeyboard) 4.dp else 0.dp)
+            .padding(
+                top = 4.dp, end = 4.dp, bottom = if (hasKeyboard) 4.dp else 0.dp
+            )
             .clip(RoundedCornerShape(16.dp)),
-        colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.surfaceContainerHighest,
-        )
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerHighest)
     ) {
         Column(
             modifier = Modifier
@@ -625,16 +723,14 @@ fun TogglesContainer(modifier: Modifier = Modifier, hasKeyboard: Boolean = false
                 Text(
                     text = "Settings",
                     textAlign = TextAlign.Center,
-                    modifier = Modifier
-                        .weight(0.5f),
+                    modifier = Modifier.weight(0.5f),
                     style = MaterialTheme.typography.titleLarge,
                     fontFamily = QuicksandTitleVariable
                 )
                 Text(
                     text = "v$versionName",
                     textAlign = TextAlign.Center,
-                    modifier = Modifier
-                        .weight(0.25f),
+                    modifier = Modifier.weight(0.25f),
                     style = MaterialTheme.typography.labelSmall,
                     fontFamily = QuicksandTitleVariable
                 )
@@ -701,7 +797,6 @@ fun TogglesContainer(modifier: Modifier = Modifier, hasKeyboard: Boolean = false
             }
             if (!isServiceEnabled) {
                 Spacer(modifier = Modifier.height(8.dp))
-
                 Button(
                     onClick = {
                         val intent = Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS)
@@ -739,11 +834,10 @@ fun TogglesContainer(modifier: Modifier = Modifier, hasKeyboard: Boolean = false
                     style = MaterialTheme.typography.bodySmall,
                     modifier = Modifier.weight(1f)
                 )
-                Switch(
-                    checked = disableInCamera, onCheckedChange = {
-                        disableInCamera = it
-                        SettingsManager.setDisableInCamera(context, it)
-                    })
+                Switch(checked = disableInCamera, onCheckedChange = {
+                    disableInCamera = it
+                    SettingsManager.setDisableInCamera(context, it)
+                })
             }
 
             Row(
@@ -757,12 +851,31 @@ fun TogglesContainer(modifier: Modifier = Modifier, hasKeyboard: Boolean = false
                     style = MaterialTheme.typography.bodySmall,
                     modifier = Modifier.weight(1f)
                 )
-                Switch(
-                    checked = defaultWhenVolumeVisible, onCheckedChange = {
-                        defaultWhenVolumeVisible = it
-                        SettingsManager.setDefaultWhenVolumeVisible(context, it)
-                    })
+                Switch(checked = defaultWhenVolumeVisible, onCheckedChange = {
+                    defaultWhenVolumeVisible = it
+                    SettingsManager.setDefaultWhenVolumeVisible(context, it)
+                })
             }
+
+            Spacer(modifier = Modifier.height(8.dp))
+            HorizontalDivider()
+            Spacer(modifier = Modifier.height(8.dp))
+
+            PaletteRow(
+                label = "Device color",
+                selected = devicePalette,
+                onSelect = onDevicePaletteChange,
+                options = listOf(Palette.Black, Palette.White, Palette.Pink, Palette.Blue),
+            )
+
+            Spacer(modifier = Modifier.height(8.dp))
+
+            PaletteRow(
+                label = "Keyboard color",
+                selected = keyboardPalette,
+                onSelect = onKeyboardPaletteChange,
+                options = Palette.entries.toList(),
+            )
 
             Spacer(modifier = Modifier.height(8.dp))
         }
@@ -780,10 +893,7 @@ fun ButtonConfigScreen(
 
     BackHandler(onBack = onBack)
 
-    Column(
-        modifier = modifier
-            .fillMaxSize()
-    ) {
+    Column(modifier = modifier.fillMaxSize()) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             IconButton(onClick = onBack) {
                 Icon(
@@ -805,45 +915,27 @@ fun ButtonConfigScreen(
             Row(
                 modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceEvenly
             ) {
-                if (!isScreenOff) {
-                    FilledTonalButton(
-                        onClick = { isScreenOff = false }, colors = ButtonDefaults.buttonColors(
-                            containerColor = MaterialTheme.colorScheme.primary,
-                            contentColor = MaterialTheme.colorScheme.onPrimary
-                        )
-                    ) {
-                        Text("Screen On")
-                    }
-                } else {
-                    FilledTonalButton(
-                        onClick = { isScreenOff = false }, colors = ButtonDefaults.buttonColors(
-                            containerColor = Color.Transparent,
-                            contentColor = MaterialTheme.colorScheme.onPrimary
-                        )
-                    ) {
-                        Text("Screen On", color = Color.White)
-                    }
-                }
+                FilledTonalButton(
+                    onClick = { isScreenOff = false },
+                    colors = if (!isScreenOff) ButtonDefaults.buttonColors(
+                        containerColor = MaterialTheme.colorScheme.primary,
+                        contentColor = MaterialTheme.colorScheme.onPrimary
+                    )
+                    else ButtonDefaults.buttonColors(
+                        containerColor = Color.Transparent, contentColor = Color.White
+                    )
+                ) { Text("Screen On") }
 
-                if (isScreenOff) {
-                    FilledTonalButton(
-                        onClick = { isScreenOff = true }, colors = ButtonDefaults.buttonColors(
-                            containerColor = MaterialTheme.colorScheme.primary,
-                            contentColor = MaterialTheme.colorScheme.onPrimary
-                        )
-                    ) {
-                        Text("Screen Off")
-                    }
-                } else {
-                    FilledTonalButton(
-                        onClick = { isScreenOff = true }, colors = ButtonDefaults.buttonColors(
-                            containerColor = Color.Transparent,
-                            contentColor = MaterialTheme.colorScheme.onPrimary
-                        )
-                    ) {
-                        Text("Screen Off", color = Color.White)
-                    }
-                }
+                FilledTonalButton(
+                    onClick = { isScreenOff = true },
+                    colors = if (isScreenOff) ButtonDefaults.buttonColors(
+                        containerColor = MaterialTheme.colorScheme.primary,
+                        contentColor = MaterialTheme.colorScheme.onPrimary
+                    )
+                    else ButtonDefaults.buttonColors(
+                        containerColor = Color.Transparent, contentColor = Color.White
+                    )
+                ) { Text("Screen Off") }
             }
         } else {
             Text(
@@ -858,11 +950,8 @@ fun ButtonConfigScreen(
 
         Spacer(modifier = Modifier.height(16.dp))
 
-        val types = if (keyCode == 132 || keyCode == 133) {
-            listOf("SINGLE")
-        } else {
-            listOf("SINGLE", "DOUBLE", "TRIPLE", "LONG")
-        }
+        val types = if (keyCode == 132 || keyCode == 133) listOf("SINGLE")
+        else listOf("SINGLE", "DOUBLE", "TRIPLE", "LONG")
 
         Column(modifier = Modifier.verticalScroll(rememberScrollState())) {
             types.forEach { type ->
@@ -878,11 +967,7 @@ fun ButtonConfigScreen(
 fun MindControlActionSelector(keyCode: Int, state: String, type: String) {
     val context = LocalContext.current
     val currentAction = remember(keyCode, state, type) {
-        mutableStateOf(
-            SettingsManager.getAction(
-                context, keyCode, state, type
-            )
-        )
+        mutableStateOf(SettingsManager.getAction(context, keyCode, state, type))
     }
 
     val actions = mutableListOf(
@@ -922,7 +1007,9 @@ fun MindControlActionSelector(keyCode: Int, state: String, type: String) {
             .fillMaxWidth()
             .padding(vertical = 4.dp)
     ) {
-        Text(text = "$type: ", modifier = Modifier.weight(1f), color = Color.White)
+        Text(
+            text = "$type: ", modifier = Modifier.weight(1f), color = Color.White
+        )
         Box {
             OutlinedButton(onClick = { showMenu = true }) {
                 Text(currentAction.value, color = Color.White)

@@ -1,11 +1,13 @@
 package com.xenonware.mindcontrol
 
 import android.accessibilityservice.AccessibilityService
+import android.accessibilityservice.GestureDescription
 import android.app.KeyguardManager
 import android.app.Notification
 import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.content.Intent
+import android.graphics.Path
 import android.hardware.camera2.CameraManager
 import android.media.AudioManager
 import android.os.Handler
@@ -14,10 +16,8 @@ import android.os.PowerManager
 import android.provider.Settings
 import android.util.Log
 import android.view.KeyEvent
-import android.view.accessibility.AccessibilityEvent
-import android.accessibilityservice.GestureDescription
-import android.graphics.Path
 import android.view.WindowManager
+import android.view.accessibility.AccessibilityEvent
 import rikka.shizuku.Shizuku
 
 class ButtonMapperService : AccessibilityService() {
@@ -33,8 +33,7 @@ class ButtonMapperService : AccessibilityService() {
     private var isVolumePanelVisibleState = false
     private var volumePanelTimeoutRunnable: Runnable? = null
     private var lastKeyCode: Int = -1
-    
-    // Track shutter button state to filter out 134 (focus) events
+
     private var isShutterKeyPressed = false
     private var ignoreNextFocusUp = false
     private var pendingFocusDown: Runnable? = null
@@ -44,6 +43,42 @@ class ButtonMapperService : AccessibilityService() {
     private lateinit var powerManager: PowerManager
     private var wakeLock: PowerManager.WakeLock? = null
 
+    private val keyboardKeyCodes = setOf(
+        29, 30, 31, 32, 33, 34, 35, 36, 37, 38, 39, 40,             // a..l
+        41, 42, 43, 44, 45, 46, 47, 48, 49, 50, 51, 52, 53, 54,     // m..z
+        55, 56, 74,                                                 // , . ;
+        59, 62, 66, 67                                              // shift, space, enter, backspace
+    )
+
+    private fun hasCustomMapping(keyCode: Int, state: String): Boolean {
+        val types = listOf("SINGLE", "DOUBLE", "TRIPLE", "LONG")
+        return types.any {
+            SettingsManager.getAction(this, keyCode, state, it) != SettingsManager.ACTION_DEFAULT
+        }
+    }
+
+    private fun isTextFieldFocused(): Boolean {
+        var focusedNode: android.view.accessibility.AccessibilityNodeInfo? = null
+        try {
+            val rootNode = rootInActiveWindow ?: return false
+            // Find the node that currently has keyboard input focus
+            focusedNode = rootNode.findFocus(android.view.accessibility.AccessibilityNodeInfo.FOCUS_INPUT)
+
+            if (focusedNode != null) {
+                // Check if the node is marked as editable or is an EditText class
+                val isEditable = focusedNode.isEditable
+                val isEditText = focusedNode.className?.toString()?.contains("EditText") == true
+                return isEditable || isEditText
+            }
+        } catch (e: Exception) {
+            Log.e(tag, "Error checking focused node", e)
+        } finally {
+            // Always recycle nodes to prevent memory leaks
+            focusedNode?.recycle()
+        }
+        return false
+    }
+
     private val cameraCallback = object : CameraManager.AvailabilityCallback() {
         override fun onCameraAvailable(cameraId: String) { isCameraInUse = false }
         override fun onCameraUnavailable(cameraId: String) { isCameraInUse = true }
@@ -51,8 +86,7 @@ class ButtonMapperService : AccessibilityService() {
 
     override fun onServiceConnected() {
         Log.d(tag, "Service Connected")
-        
-        // Android 15 Foreground Requirement
+
         createNotificationChannel()
         val notification = Notification.Builder(this, "service_channel")
             .setContentTitle("MindControl Active")
@@ -66,14 +100,11 @@ class ButtonMapperService : AccessibilityService() {
         powerManager = getSystemService(POWER_SERVICE) as PowerManager
         cameraManager.registerAvailabilityCallback(cameraCallback, handler)
 
-        // WakeLock to keep service alive when screen is off
         wakeLock = powerManager.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "MindControl:KeyCaptureLock")
         wakeLock?.acquire()
 
-        // Listen for Shizuku Binder
         Shizuku.addBinderReceivedListenerSticky(binderListener)
         Shizuku.addRequestPermissionResultListener(permissionListener)
-        
         tryStartShizuku()
     }
 
@@ -97,7 +128,7 @@ class ButtonMapperService : AccessibilityService() {
 
     private fun tryStartShizuku() {
         try {
-            if (Shizuku.pingBinder() && 
+            if (Shizuku.pingBinder() &&
                 Shizuku.checkSelfPermission() == android.content.pm.PackageManager.PERMISSION_GRANTED) {
                 ShizukuManager.startMonitoring { keyCode, isDown ->
                     handler.post { handleKeyEvent(keyCode, isDown, fromShizuku = true) }
@@ -116,50 +147,44 @@ class ButtonMapperService : AccessibilityService() {
             lastPackageName = pkg
 
             if (pkg == "com.android.systemui") {
-                // Heuristic: Volume dialog in SystemUI often uses these class names or contains volume in view IDs
-                // We'll mark it visible and set a timeout since we can't easily detect when it closes
-                val isVolumeDialog = className?.contains("Volume", ignoreCase = true) == true || 
-                                     className?.contains("Dialog", ignoreCase = true) == true
-
+                val isVolumeDialog = className?.contains("Volume", ignoreCase = true) == true ||
+                        className?.contains("Dialog", ignoreCase = true) == true
                 if (isVolumeDialog) {
                     if (!isVolumePanelVisibleState) Log.d(tag, "Volume Panel Visible (detected via AccessibilityEvent)")
                     isVolumePanelVisibleState = true
                     volumePanelTimeoutRunnable?.let { handler.removeCallbacks(it) }
-                    
-                    // Volume panel typically auto-dismisses after 3 seconds
-                    volumePanelTimeoutRunnable = Runnable { 
+                    volumePanelTimeoutRunnable = Runnable {
                         Log.d(tag, "Volume Panel Invisible (timeout)")
-                        isVolumePanelVisibleState = false 
+                        isVolumePanelVisibleState = false
                     }
                     handler.postDelayed(volumePanelTimeoutRunnable!!, 3500L)
                 }
             }
         }
     }
+
     override fun onInterrupt() {}
 
     private val handler = Handler(Looper.getMainLooper())
     private val longPressRunnables = mutableMapOf<Int, Runnable>()
     private val keyClearTasks = mutableMapOf<Int, Runnable>()
     private var pendingMultiClick: Runnable? = null
-    
-    // Continuous action state
+
     private var continuousActionTask: Runnable? = null
-    
-    // Track physical key state to deduplicate events from Shizuku and AccessibilityService
+
     private val lastEventTimes = mutableMapOf<Pair<Int, Boolean>, Long>()
-    private val lastEventSources = mutableMapOf<Pair<Int, Boolean>, Boolean>() // true = Shizuku, false = Accessibility
+    private val lastEventSources = mutableMapOf<Pair<Int, Boolean>, Boolean>()
 
     override fun onKeyEvent(event: KeyEvent): Boolean {
         if (event.repeatCount > 0) return true
         val keyCode = event.keyCode
         val isDown = event.action == KeyEvent.ACTION_DOWN
-        
-        // DEBUG: Log EVERY key to see if the service is alive
-        Log.v(tag, "ACCESSIBILITY RAW: keyCode=$keyCode action=${if(isDown) "DOWN" else "UP"}")
 
-        val isTargetKey = keyCode in setOf(134, 27, 25, 24, 131, 132, 133, 111)
-        if (!isTargetKey) return false
+        Log.v(tag, "ACCESSIBILITY RAW: keyCode=$keyCode action=${if (isDown) "DOWN" else "UP"}")
+
+        val isSpecialKey = keyCode in setOf(134, 27, 25, 24, 131, 132, 133, 111)
+        val isKeyboardKey = keyCode in keyboardKeyCodes
+        if (!isSpecialKey && !isKeyboardKey) return false
 
         return handleKeyEvent(keyCode, isDown, fromShizuku = false)
     }
@@ -176,9 +201,7 @@ class ButtonMapperService : AccessibilityService() {
 
             longPressRunnables.remove(keyCode)?.let { handler.removeCallbacks(it) }
 
-            if (keyCode == 132 || keyCode == 133) {
-                return
-            }
+            if (keyCode == 132 || keyCode == 133) return
 
             val capturedState = state
             val longPressRunnable = Runnable {
@@ -232,22 +255,40 @@ class ButtonMapperService : AccessibilityService() {
         val isInteractive = powerManager.isInteractive
         val state = if (isInteractive && !isLocked) "ON" else "OFF"
 
+        // Keyboard-key handling 
+        if (keyCode in keyboardKeyCodes) {
+            ButtonState.setKeyPressed(keyCode, isDown)
+
+            if (isTextFieldFocused()) {
+                return false
+            }
+
+            val currentPackage = rootInActiveWindow?.packageName?.toString() ?: lastPackageName
+            val isOurApp = currentPackage == packageName
+
+            if (isOurApp) {
+                return true
+            }
+
+            if (!hasCustomMapping(keyCode, state)) return false
+
+            processKeyEvent(keyCode, isDown, state)
+            return true
+        }
+
         // Check for Volume Panel
         val isVolumeKey = keyCode == 24 || keyCode == 25
         if (isVolumeKey && isInteractive && SettingsManager.isDefaultWhenVolumeVisible(this)) {
             if (isVolumePanelVisibleState) {
-                // Determine what action we are dealing with. If any action is mapped to something
-                // other than DEFAULT, we should probably still let the custom mapper handle it
-                // and simulate the default behavior if needed.
                 val singleAction = SettingsManager.getAction(this, keyCode, state, "SINGLE")
                 val doubleAction = SettingsManager.getAction(this, keyCode, state, "DOUBLE")
                 val multiAction = SettingsManager.getAction(this, keyCode, state, "MULTI")
                 val longAction = SettingsManager.getAction(this, keyCode, state, "LONG")
-                
+
                 val hasCustomMapping = singleAction != SettingsManager.ACTION_DEFAULT ||
-                                       doubleAction != SettingsManager.ACTION_DEFAULT ||
-                                       multiAction != SettingsManager.ACTION_DEFAULT ||
-                                       longAction != SettingsManager.ACTION_DEFAULT
+                        doubleAction != SettingsManager.ACTION_DEFAULT ||
+                        multiAction != SettingsManager.ACTION_DEFAULT ||
+                        longAction != SettingsManager.ACTION_DEFAULT
 
                 if (!hasCustomMapping) {
                     markVolumePanelVisible()
@@ -258,14 +299,8 @@ class ButtonMapperService : AccessibilityService() {
 
         // Hardcoded behavior for Camera and Focus buttons when screen is OFF/Locked
         if (state == "OFF") {
-            if (keyCode == 27) {
-                // Camera button: Let system handle it (Default behavior, wakes screen)
-                return false 
-            }
-            if (keyCode == 134) {
-                // Focus button: Block the key (None)
-                return true 
-            }
+            if (keyCode == 27) return false
+            if (keyCode == 134) return true
         }
 
         if (fromShizuku) {
@@ -274,7 +309,7 @@ class ButtonMapperService : AccessibilityService() {
             Log.v(tag, "ACCESSIBILITY KEY: $keyCode ${if (isDown) "DOWN" else "UP"} [Locked=$isLocked, State=$state]")
         }
 
-        // Deduplicate events since both Shizuku and Accessibility can trigger for the same physical press
+        // Deduplicate events between Shizuku and AccessibilityService
         val eventKey = Pair(keyCode, isDown)
         val now = System.currentTimeMillis()
         val lastTime = lastEventTimes[eventKey] ?: 0L
@@ -288,8 +323,7 @@ class ButtonMapperService : AccessibilityService() {
             lastEventTimes[eventKey] = now
             lastEventSources[eventKey] = fromShizuku
         }
-        
-        // Camera override check
+
         val currentPackage = rootInActiveWindow?.packageName?.toString() ?: lastPackageName
         val isCameraApp = currentPackage?.contains("camera", ignoreCase = true) == true
 
@@ -299,7 +333,7 @@ class ButtonMapperService : AccessibilityService() {
                 ButtonState.setKeyPressed(keyCode, true)
                 val task = Runnable { ButtonState.setKeyPressed(keyCode, false) }
                 keyClearTasks[keyCode] = task
-                handler.postDelayed(task, 200L)
+                handler.postDelayed(task, 500L)
             } else {
                 ButtonState.setKeyPressed(keyCode, isDown)
             }
@@ -312,12 +346,12 @@ class ButtonMapperService : AccessibilityService() {
 
         if (isDuplicate) {
             updateButtonState()
-            return true // It's blocked by the app so we return true to consume it, but we skip processing
+            return true
         }
 
         updateButtonState()
 
-        // --- Hardware button sequence logic for 134 (Focus) and 27 (Shutter) ---
+        // --- Hardware sequence logic for 134 (Focus) and 27 (Shutter) ---
         if (keyCode == 27) {
             if (isDown) {
                 isShutterKeyPressed = true
@@ -325,7 +359,6 @@ class ButtonMapperService : AccessibilityService() {
                     handler.removeCallbacks(it)
                     pendingFocusDown = null
                 }
-                // Cancel any pending long press for 134 if we interrupted it
                 longPressRunnables.remove(134)?.let { handler.removeCallbacks(it) }
                 ignoreNextFocusUp = true
             } else {
@@ -341,14 +374,10 @@ class ButtonMapperService : AccessibilityService() {
                     ignoreNextFocusUp = true
                     return true
                 }
-                
-                // If a 27 click is pending, we might be in the middle of a double tap.
-                // We should ignore the 134 down so we don't interrupt the 27 sequence.
                 if (lastKeyCode == 27 && pendingMultiClick != null) {
                     ignoreNextFocusUp = true
                     return true
                 }
-
                 ignoreNextFocusUp = false
                 val focusDownTask = Runnable {
                     processKeyEvent(134, true, state)
@@ -363,7 +392,6 @@ class ButtonMapperService : AccessibilityService() {
                     return true
                 }
                 pendingFocusDown?.let {
-                    // Fast tap of 134, process the down immediately before the up
                     handler.removeCallbacks(it)
                     it.run()
                 }
@@ -378,18 +406,18 @@ class ButtonMapperService : AccessibilityService() {
 
     private fun startContinuousAction(keyCode: Int, state: String, type: String) {
         val action = SettingsManager.getAction(this, keyCode, state, type)
-        val isContinuous = (action == SettingsManager.ACTION_DEFAULT && (keyCode == 24 || keyCode == 25)) || 
-                           action == SettingsManager.ACTION_VOLUME_UP || 
-                           action == SettingsManager.ACTION_VOLUME_DOWN ||
-                           action == SettingsManager.ACTION_SCROLL_UP_SMOOTH ||
-                           action == SettingsManager.ACTION_SCROLL_DOWN_SMOOTH ||
-                           action == "TAP_SCROLL_UP_SMOOTH" ||
-                           action == "TAP_SCROLL_DOWN_SMOOTH" ||
-                           action == SettingsManager.ACTION_BRIGHTNESS_UP ||
-                           action == SettingsManager.ACTION_BRIGHTNESS_DOWN
-                           
+        val isContinuous = (action == SettingsManager.ACTION_DEFAULT && (keyCode == 24 || keyCode == 25)) ||
+                action == SettingsManager.ACTION_VOLUME_UP ||
+                action == SettingsManager.ACTION_VOLUME_DOWN ||
+                action == SettingsManager.ACTION_SCROLL_UP_SMOOTH ||
+                action == SettingsManager.ACTION_SCROLL_DOWN_SMOOTH ||
+                action == "TAP_SCROLL_UP_SMOOTH" ||
+                action == "TAP_SCROLL_DOWN_SMOOTH" ||
+                action == SettingsManager.ACTION_BRIGHTNESS_UP ||
+                action == SettingsManager.ACTION_BRIGHTNESS_DOWN
+
         val actualIsContinuous = if (SettingsManager.isDefaultWhenVolumeVisible(this) && isVolumePanelVisibleState && (keyCode == 24 || keyCode == 25)) {
-            true // Default behavior for volume keys is continuous
+            true
         } else {
             isContinuous
         }
@@ -401,10 +429,8 @@ class ButtonMapperService : AccessibilityService() {
 
         continuousActionTask = object : Runnable {
             override fun run() {
-                // If it's a long press on a volume key with volume panel visible, the action might be overridden to DEFAULT.
-                // We should pass the same parameters so it's overridden correctly
                 performAction(keyCode, state, type)
-                handler.postDelayed(this, delay) // Repeat
+                handler.postDelayed(this, delay)
             }
         }
         handler.postDelayed(continuousActionTask!!, delay)
@@ -418,12 +444,10 @@ class ButtonMapperService : AccessibilityService() {
     private fun performAction(keyCode: Int, state: String, type: String) {
         val action = SettingsManager.getAction(this, keyCode, state, type)
         Log.i(tag, ">>>> EXECUTING: $action [Key: $keyCode, State: $state, Type: $type, Locked: ${powerManager.isInteractive}] <<<<")
-        
-        // If we are executing an action and it's a volume key, and the user wants default behavior when the volume panel is visible,
-        // we might want to bypass custom actions and execute DEFAULT instead if the volume panel is visible.
-        val finalAction = if (SettingsManager.isDefaultWhenVolumeVisible(this) && 
-                              isVolumePanelVisibleState && 
-                              (keyCode == 24 || keyCode == 25)) {
+
+        val finalAction = if (SettingsManager.isDefaultWhenVolumeVisible(this) &&
+            isVolumePanelVisibleState &&
+            (keyCode == 24 || keyCode == 25)) {
             Log.d(tag, "Volume panel is visible, overriding action $action to DEFAULT")
             SettingsManager.ACTION_DEFAULT
         } else {
@@ -456,7 +480,7 @@ class ButtonMapperService : AccessibilityService() {
             SettingsManager.ACTION_NONE -> { Log.d(tag, "Action is NONE, key blocked."); true }
             else -> false
         }
-        
+
         if (!success) {
             Log.e(tag, "FAILED to execute action: $finalAction (This often happens on Lock Screens for Home/Recents/Screenshot)")
         }
@@ -493,9 +517,9 @@ class ButtonMapperService : AccessibilityService() {
         if (!isVolumePanelVisibleState) Log.d(tag, "Volume Panel Visible (marked via key event)")
         isVolumePanelVisibleState = true
         volumePanelTimeoutRunnable?.let { handler.removeCallbacks(it) }
-        volumePanelTimeoutRunnable = Runnable { 
+        volumePanelTimeoutRunnable = Runnable {
             Log.d(tag, "Volume Panel Invisible (timeout)")
-            isVolumePanelVisibleState = false 
+            isVolumePanelVisibleState = false
         }
         handler.postDelayed(volumePanelTimeoutRunnable!!, 3500L)
     }
@@ -532,12 +556,9 @@ class ButtonMapperService : AccessibilityService() {
 
     private fun toggleRotation() {
         try {
-            // Disable autorotation first
             Settings.System.putInt(contentResolver, Settings.System.ACCELEROMETER_ROTATION, 0)
-            
             val currentRotation = Settings.System.getInt(contentResolver, Settings.System.USER_ROTATION)
-            val newRotation = if (currentRotation == 0) 1 else 0 // Toggle between Portrait (0) and Landscape (1)
-            
+            val newRotation = if (currentRotation == 0) 1 else 0
             Settings.System.putInt(contentResolver, Settings.System.USER_ROTATION, newRotation)
             Log.d(tag, "Rotation toggled to $newRotation")
         } catch (e: Exception) {
@@ -552,19 +573,15 @@ class ButtonMapperService : AccessibilityService() {
         val centerY = bounds.height() / 2f
 
         val path = Path()
-        // 112.5f distance ensures 1.5x more scrolling (225px total) than before
         val distance = 112.5f
         if (up) {
-            // Scroll up means finger moves down
             path.moveTo(centerX, centerY - distance)
             path.lineTo(centerX, centerY + distance)
         } else {
-            // Scroll down means finger moves up
             path.moveTo(centerX, centerY + distance)
             path.lineTo(centerX, centerY - distance)
         }
 
-        // 200ms duration for a slow, smooth swipe that won't trigger a fast fling
         val stroke = GestureDescription.StrokeDescription(path, 0, 200)
         val gesture = GestureDescription.Builder().addStroke(stroke).build()
         dispatchGesture(gesture, null, null)
@@ -573,9 +590,7 @@ class ButtonMapperService : AccessibilityService() {
     override fun onDestroy() {
         super.onDestroy()
         cameraManager.unregisterAvailabilityCallback(cameraCallback)
-        wakeLock?.let {
-            if (it.isHeld) it.release()
-        }
+        wakeLock?.let { if (it.isHeld) it.release() }
         Shizuku.removeBinderReceivedListener(binderListener)
         Shizuku.removeRequestPermissionResultListener(permissionListener)
         ShizukuManager.stopMonitoring()
