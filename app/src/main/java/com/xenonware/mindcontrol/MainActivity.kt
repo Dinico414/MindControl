@@ -4,6 +4,7 @@ import android.accessibilityservice.AccessibilityServiceInfo
 import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
+import android.content.res.Configuration
 import android.os.Bundle
 import android.provider.Settings
 import android.util.Log
@@ -34,17 +35,12 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.AddCircle
-import androidx.compose.material.icons.filled.CameraAlt
-import androidx.compose.material.icons.filled.FilterCenterFocus
-import androidx.compose.material.icons.filled.KeyboardArrowDown
-import androidx.compose.material.icons.filled.KeyboardArrowUp
 import androidx.compose.material.icons.filled.RemoveCircle
-import androidx.compose.material.icons.filled.SmartToy
 import androidx.compose.material.icons.rounded.CameraAlt
 import androidx.compose.material.icons.rounded.FilterCenterFocus
+import androidx.compose.material.icons.rounded.Keyboard
 import androidx.compose.material.icons.rounded.KeyboardArrowDown
 import androidx.compose.material.icons.rounded.KeyboardArrowUp
-import androidx.compose.material.icons.rounded.SmartToy
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
@@ -63,6 +59,7 @@ import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -71,7 +68,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.painter.Painter
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.style.TextAlign
@@ -79,7 +76,11 @@ import androidx.compose.ui.unit.dp
 import androidx.core.net.toUri
 import androidx.core.view.WindowCompat
 import com.xenon.mylibrary.theme.QuicksandTitleVariable
+import com.xenonware.mindcontrol.ui.theme.BlueTheme
+import com.xenonware.mindcontrol.ui.theme.GreenTheme
 import com.xenonware.mindcontrol.ui.theme.MindControlTheme
+import com.xenonware.mindcontrol.ui.theme.RedTheme
+import com.xenonware.mindcontrol.ui.theme.YellowTheme
 import rikka.shizuku.Shizuku
 
 class MainActivity : ComponentActivity() {
@@ -123,6 +124,8 @@ fun MindControlMainScreen(modifier: Modifier = Modifier) {
 
 @Composable
 fun GridScreen(modifier: Modifier = Modifier, onButtonSelected: (Int, String) -> Unit) {
+    val pressedKeys by ButtonState.pressedKeys.collectAsState()
+
     Column(
         modifier = modifier.fillMaxSize()
     ) {
@@ -133,37 +136,45 @@ fun GridScreen(modifier: Modifier = Modifier, onButtonSelected: (Int, String) ->
                 .fillMaxWidth()
         ) {
             // AI Button (Weight 1f out of 2 -> 2 columns out of 4)
-            Box(
-                modifier = Modifier
-                    .weight(1f)
-                    .fillMaxHeight()
-                    .padding(end = 4.dp, bottom = 4.dp)
-                    .clip(RoundedCornerShape(16.dp))
-                    .background(MaterialTheme.colorScheme.primaryContainer)
-                    .clickable { onButtonSelected(131, "AI Button") },
-                contentAlignment = Alignment.Center
-            ) {
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
+            RedTheme {
+                Box(
                     modifier = Modifier
-                        .fillMaxSize()
-                        .padding(8.dp)
+                        .weight(1f)
+                        .fillMaxHeight()
+                        .padding(end = 4.dp, bottom = 4.dp)
+                        .clip(RoundedCornerShape(16.dp))
+                        .background(if (pressedKeys.contains(131)) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.primaryContainer)
+                        .clickable { onButtonSelected(131, "AI Button") },
+                    contentAlignment = Alignment.Center
                 ) {
-                    Box(modifier = Modifier.weight(0.333f), contentAlignment = Alignment.Center) {
-                        Icon(
-                            painter = painterResource(id = R.drawable.stars),
-                            contentDescription = null,
-                            tint = MaterialTheme.colorScheme.onPrimaryContainer
-                        )
-                    }
-                    Box(modifier = Modifier.weight(0.667f), contentAlignment = Alignment.Center) {
-                        Text(
-                            text = "AI Button",
-                            style = MaterialTheme.typography.titleMedium,
-                            textAlign = TextAlign.Center,
-                            fontFamily = QuicksandTitleVariable,
-                            color = MaterialTheme.colorScheme.onPrimaryContainer
-                        )
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .padding(8.dp)
+                    ) {
+                        Box(
+                            modifier = Modifier.weight(0.333f),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Icon(
+                                painter = painterResource(id = R.drawable.stars),
+                                contentDescription = null,
+                                tint = if (pressedKeys.contains(131)) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onPrimaryContainer
+                            )
+                        }
+                        Box(
+                            modifier = Modifier.weight(0.667f),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Text(
+                                text = "AI Button",
+                                style = MaterialTheme.typography.titleMedium,
+                                textAlign = TextAlign.Center,
+                                fontFamily = QuicksandTitleVariable,
+                                color = if (pressedKeys.contains(131)) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onPrimaryContainer
+                            )
+                        }
                     }
                 }
             }
@@ -174,95 +185,101 @@ fun GridScreen(modifier: Modifier = Modifier, onButtonSelected: (Int, String) ->
                     .weight(1f)
                     .fillMaxHeight()
             ) {
-                // Camera Up
-                Box(
-                    modifier = Modifier
-                        .weight(1f)
-                        .fillMaxWidth()
-                        .padding(start = 4.dp, bottom = 1.dp)
-                        .clip(
-                            RoundedCornerShape(
-                                topStart = 16.dp,
-                                topEnd = 16.dp,
-                                bottomStart = 4.dp,
-                                bottomEnd = 4.dp
-                            )
-                        )
-                        .background(MaterialTheme.colorScheme.primaryContainer)
-                        .clickable { onButtonSelected(133, "Camera Up") },
-                    contentAlignment = Alignment.Center
-                ) {
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
+                YellowTheme {
+                    // Camera Up
+                    Box(
                         modifier = Modifier
-                            .fillMaxSize()
-                            .padding(8.dp)
+                            .weight(1f)
+                            .fillMaxWidth()
+                            .padding(start = 4.dp, bottom = 1.dp)
+                            .clip(
+                                RoundedCornerShape(
+                                    topStart = 16.dp,
+                                    topEnd = 16.dp,
+                                    bottomStart = 4.dp,
+                                    bottomEnd = 4.dp
+                                )
+                            )
+                            .background(if (pressedKeys.contains(133)) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.primaryContainer)
+                            .clickable { onButtonSelected(133, "Camera Up") },
+                        contentAlignment = Alignment.Center
                     ) {
-                        Box(
-                            modifier = Modifier.weight(0.333f), contentAlignment = Alignment.Center
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            modifier = Modifier
+                                .fillMaxSize()
+                                .padding(8.dp)
                         ) {
-                            Icon(
-                                imageVector = Icons.Rounded.KeyboardArrowUp,
-                                contentDescription = null,
-                                tint = MaterialTheme.colorScheme.onPrimaryContainer
-                            )
-                        }
-                        Box(
-                            modifier = Modifier.weight(0.667f), contentAlignment = Alignment.Center
-                        ) {
-                            Text(
-                                text = "Camera Up",
-                                style = MaterialTheme.typography.titleMedium,
-                                textAlign = TextAlign.Center,
-                                color = MaterialTheme.colorScheme.onPrimaryContainer,
-                                fontFamily = QuicksandTitleVariable
-                            )
+                            Box(
+                                modifier = Modifier.weight(0.333f),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Rounded.KeyboardArrowUp,
+                                    contentDescription = null,
+                                    tint = if (pressedKeys.contains(133)) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onPrimaryContainer
+                                )
+                            }
+                            Box(
+                                modifier = Modifier.weight(0.667f),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Text(
+                                    text = "Camera Up",
+                                    style = MaterialTheme.typography.titleMedium,
+                                    textAlign = TextAlign.Center,
+                                    color = if (pressedKeys.contains(133)) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onPrimaryContainer,
+                                    fontFamily = QuicksandTitleVariable
+                                )
+                            }
                         }
                     }
-                }
-                // Camera Down
-                Box(
-                    modifier = Modifier
-                        .weight(1f)
-                        .fillMaxWidth()
-                        .padding(start = 4.dp, top = 1.dp, bottom = 4.dp)
-                        .clip(
-                            RoundedCornerShape(
-                                topStart = 4.dp,
-                                topEnd = 4.dp,
-                                bottomStart = 16.dp,
-                                bottomEnd = 16.dp
-                            )
-                        )
-                        .background(MaterialTheme.colorScheme.primaryContainer)
-                        .clickable { onButtonSelected(132, "Camera Down") },
-                    contentAlignment = Alignment.Center
-                ) {
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
+                    // Camera Down
+                    Box(
                         modifier = Modifier
-                            .fillMaxSize()
-                            .padding(8.dp)
+                            .weight(1f)
+                            .fillMaxWidth()
+                            .padding(start = 4.dp, top = 1.dp, bottom = 4.dp)
+                            .clip(
+                                RoundedCornerShape(
+                                    topStart = 4.dp,
+                                    topEnd = 4.dp,
+                                    bottomStart = 16.dp,
+                                    bottomEnd = 16.dp
+                                )
+                            )
+                            .background(if (pressedKeys.contains(132)) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.primaryContainer)
+                            .clickable { onButtonSelected(132, "Camera Down") },
+                        contentAlignment = Alignment.Center
                     ) {
-                        Box(
-                            modifier = Modifier.weight(0.333f), contentAlignment = Alignment.Center
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            modifier = Modifier
+                                .fillMaxSize()
+                                .padding(8.dp)
                         ) {
-                            Icon(
-                                imageVector = Icons.Rounded.KeyboardArrowDown,
-                                contentDescription = null,
-                                tint = MaterialTheme.colorScheme.onPrimaryContainer
-                            )
-                        }
-                        Box(
-                            modifier = Modifier.weight(0.667f), contentAlignment = Alignment.Center
-                        ) {
-                            Text(
-                                text = "Camera Down",
-                                style = MaterialTheme.typography.titleMedium,
-                                textAlign = TextAlign.Center,
-                                color = MaterialTheme.colorScheme.onPrimaryContainer,
-                                fontFamily = QuicksandTitleVariable
-                            )
+                            Box(
+                                modifier = Modifier.weight(0.333f),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Rounded.KeyboardArrowDown,
+                                    contentDescription = null,
+                                    tint = if (pressedKeys.contains(132)) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onPrimaryContainer
+                                )
+                            }
+                            Box(
+                                modifier = Modifier.weight(0.667f),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Text(
+                                    text = "Camera Down",
+                                    style = MaterialTheme.typography.titleMedium,
+                                    textAlign = TextAlign.Center,
+                                    color = if (pressedKeys.contains(132)) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onPrimaryContainer,
+                                    fontFamily = QuicksandTitleVariable
+                                )
+                            }
                         }
                     }
                 }
@@ -275,12 +292,65 @@ fun GridScreen(modifier: Modifier = Modifier, onButtonSelected: (Int, String) ->
                 .weight(4f)
                 .fillMaxWidth()
         ) {
-            // Toggles Container (Weight 1f out of 2 -> 2 columns out of 4)
-            TogglesContainer(
+            // Left Bottom Column (Weight 1f out of 2 -> 2 columns out of 4)
+            val configuration = LocalConfiguration.current
+            val hasKeyboard = configuration.keyboard != Configuration.KEYBOARD_NOKEYS
+
+            Column(
                 modifier = Modifier
                     .weight(1f)
                     .fillMaxHeight()
-            )
+            ) {
+                TogglesContainer(
+                    modifier = Modifier
+                        .weight(if (hasKeyboard) 3f else 4f)
+                        .fillMaxWidth(),
+                    hasKeyboard = hasKeyboard
+                )
+
+                if (hasKeyboard) {
+                    Box(
+                        modifier = Modifier
+                            .weight(1f)
+                            .fillMaxWidth()
+                            .padding(end = 4.dp, top = 4.dp)
+                            .clip(RoundedCornerShape(16.dp))
+                            .background(if (pressedKeys.contains(111)) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.primaryContainer)
+                            .clickable { onButtonSelected(111, "Keyboard Button") },
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            modifier = Modifier
+                                .fillMaxSize()
+                                .padding(8.dp)
+                        ) {
+                            Box(
+                                modifier = Modifier.weight(0.333f),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Rounded.Keyboard,
+                                    contentDescription = null,
+                                    tint = if (pressedKeys.contains(111)) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onPrimaryContainer
+                                )
+                            }
+                            Box(
+                                modifier = Modifier.weight(0.667f),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Text(
+                                    text = "Keyboard",
+                                    style = MaterialTheme.typography.titleMedium,
+                                    textAlign = TextAlign.Center,
+                                    color = if (pressedKeys.contains(111)) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onPrimaryContainer,
+                                    fontFamily = QuicksandTitleVariable
+                                )
+                            }
+                        }
+                    }
+                }
+            }
 
             // Right Bottom Column (Weight 1f out of 2 -> 2 columns out of 4)
             Column(
@@ -288,95 +358,101 @@ fun GridScreen(modifier: Modifier = Modifier, onButtonSelected: (Int, String) ->
                     .weight(1f)
                     .fillMaxHeight()
             ) {
-                // Volume Up (Weight 1f out of 4 -> 1 row out of 4)
-                Box(
-                    modifier = Modifier
-                        .weight(1f)
-                        .fillMaxWidth()
-                        .padding(start = 4.dp, top = 4.dp, bottom = 1.dp)
-                        .clip(
-                            RoundedCornerShape(
-                                topStart = 16.dp,
-                                topEnd = 16.dp,
-                                bottomStart = 4.dp,
-                                bottomEnd = 4.dp
-                            )
-                        )
-                        .background(MaterialTheme.colorScheme.primaryContainer)
-                        .clickable { onButtonSelected(24, "Volume Up") },
-                    contentAlignment = Alignment.Center
-                ) {
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
+                GreenTheme {
+                    // Volume Up (Weight 1f out of 4 -> 1 row out of 4)
+                    Box(
                         modifier = Modifier
-                            .fillMaxSize()
-                            .padding(8.dp)
+                            .weight(1f)
+                            .fillMaxWidth()
+                            .padding(start = 4.dp, top = 4.dp, bottom = 1.dp)
+                            .clip(
+                                RoundedCornerShape(
+                                    topStart = 16.dp,
+                                    topEnd = 16.dp,
+                                    bottomStart = 4.dp,
+                                    bottomEnd = 4.dp
+                                )
+                            )
+                            .background(if (pressedKeys.contains(24)) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.primaryContainer)
+                            .clickable { onButtonSelected(24, "Volume Up") },
+                        contentAlignment = Alignment.Center
                     ) {
-                        Box(
-                            modifier = Modifier.weight(0.333f), contentAlignment = Alignment.Center
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            modifier = Modifier
+                                .fillMaxSize()
+                                .padding(8.dp)
                         ) {
-                            Icon(
-                                imageVector = Icons.Filled.AddCircle,
-                                contentDescription = null,
-                                tint = MaterialTheme.colorScheme.onPrimaryContainer
-                            )
-                        }
-                        Box(
-                            modifier = Modifier.weight(0.667f), contentAlignment = Alignment.Center
-                        ) {
-                            Text(
-                                text = "Volume Up",
-                                style = MaterialTheme.typography.titleMedium,
-                                textAlign = TextAlign.Center,
-                                color = MaterialTheme.colorScheme.onPrimaryContainer,
-                                fontFamily = QuicksandTitleVariable
-                            )
+                            Box(
+                                modifier = Modifier.weight(0.333f),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Filled.AddCircle,
+                                    contentDescription = null,
+                                    tint = if (pressedKeys.contains(24)) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onPrimaryContainer
+                                )
+                            }
+                            Box(
+                                modifier = Modifier.weight(0.667f),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Text(
+                                    text = "Volume Up",
+                                    style = MaterialTheme.typography.titleMedium,
+                                    textAlign = TextAlign.Center,
+                                    color = if (pressedKeys.contains(24)) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onPrimaryContainer,
+                                    fontFamily = QuicksandTitleVariable
+                                )
+                            }
                         }
                     }
-                }
-                // Volume Down (Weight 1f out of 4 -> 1 row out of 4)
-                Box(
-                    modifier = Modifier
-                        .weight(1f)
-                        .fillMaxWidth()
-                        .padding(start = 4.dp, top = 1.dp, bottom = 4.dp)
-                        .clip(
-                            RoundedCornerShape(
-                                topStart = 4.dp,
-                                topEnd = 4.dp,
-                                bottomStart = 16.dp,
-                                bottomEnd = 16.dp
-                            )
-                        )
-                        .background(MaterialTheme.colorScheme.primaryContainer)
-                        .clickable { onButtonSelected(25, "Volume Down") },
-                    contentAlignment = Alignment.Center
-                ) {
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
+                    // Volume Down (Weight 1f out of 4 -> 1 row out of 4)
+                    Box(
                         modifier = Modifier
-                            .fillMaxSize()
-                            .padding(8.dp)
+                            .weight(1f)
+                            .fillMaxWidth()
+                            .padding(start = 4.dp, top = 1.dp, bottom = 4.dp)
+                            .clip(
+                                RoundedCornerShape(
+                                    topStart = 4.dp,
+                                    topEnd = 4.dp,
+                                    bottomStart = 16.dp,
+                                    bottomEnd = 16.dp
+                                )
+                            )
+                            .background(if (pressedKeys.contains(25)) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.primaryContainer)
+                            .clickable { onButtonSelected(25, "Volume Down") },
+                        contentAlignment = Alignment.Center
                     ) {
-                        Box(
-                            modifier = Modifier.weight(0.333f), contentAlignment = Alignment.Center
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            modifier = Modifier
+                                .fillMaxSize()
+                                .padding(8.dp)
                         ) {
-                            Icon(
-                                imageVector = Icons.Filled.RemoveCircle,
-                                contentDescription = null,
-                                tint = MaterialTheme.colorScheme.onPrimaryContainer
-                            )
-                        }
-                        Box(
-                            modifier = Modifier.weight(0.667f), contentAlignment = Alignment.Center
-                        ) {
-                            Text(
-                                text = "Volume Down",
-                                style = MaterialTheme.typography.titleMedium,
-                                textAlign = TextAlign.Center,
-                                color = MaterialTheme.colorScheme.onPrimaryContainer,
-                                fontFamily = QuicksandTitleVariable
-                            )
+                            Box(
+                                modifier = Modifier.weight(0.333f),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Filled.RemoveCircle,
+                                    contentDescription = null,
+                                    tint = if (pressedKeys.contains(25)) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onPrimaryContainer
+                                )
+                            }
+                            Box(
+                                modifier = Modifier.weight(0.667f),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Text(
+                                    text = "Volume Down",
+                                    style = MaterialTheme.typography.titleMedium,
+                                    textAlign = TextAlign.Center,
+                                    color = if (pressedKeys.contains(25)) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onPrimaryContainer,
+                                    fontFamily = QuicksandTitleVariable
+                                )
+                            }
                         }
                     }
                 }
@@ -386,78 +462,81 @@ fun GridScreen(modifier: Modifier = Modifier, onButtonSelected: (Int, String) ->
                         .weight(2f)
                         .fillMaxWidth()
                 ) {
-                    // Camera Button (Weight 1f out of 2 -> 1 column out of 2)
-                    Box(
-                        modifier = Modifier
-                            .weight(1f)
-                            .fillMaxHeight()
-                            .padding(start = 4.dp, end = 1.dp, top = 4.dp)
-                            .clip(
-                                RoundedCornerShape(
-                                    topStart = 16.dp,
-                                    topEnd = 4.dp,
-                                    bottomStart = 16.dp,
-                                    bottomEnd = 4.dp
+                    BlueTheme {
+                        // Camera Button (Weight 1f out of 2 -> 1 column out of 2)
+                        Box(
+                            modifier = Modifier
+                                .weight(1f)
+                                .fillMaxHeight()
+                                .padding(start = 4.dp, end = 1.dp, top = 4.dp)
+                                .clip(
+                                    RoundedCornerShape(
+                                        topStart = 16.dp,
+                                        topEnd = 4.dp,
+                                        bottomStart = 16.dp,
+                                        bottomEnd = 4.dp
+                                    )
                                 )
-                            )
-                            .background(MaterialTheme.colorScheme.primaryContainer)
-                            .clickable { onButtonSelected(27, "Camera Button") },
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Column(
-                            horizontalAlignment = Alignment.CenterHorizontally,
-                            modifier = Modifier.padding(8.dp)
+                                .background(if (pressedKeys.contains(27)) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.primaryContainer)
+                                .clickable { onButtonSelected(27, "Camera Button") },
+                            contentAlignment = Alignment.Center
                         ) {
-                            Icon(
-                                imageVector = Icons.Rounded.CameraAlt,
-                                contentDescription = null,
-                                tint = MaterialTheme.colorScheme.onPrimaryContainer
-                            )
-                            Spacer(modifier = Modifier.height(4.dp))
-                            Text(
-                                text = "Camera\nButton",
-                                style = MaterialTheme.typography.titleMedium,
-                                textAlign = TextAlign.Center,
-                                color = MaterialTheme.colorScheme.onPrimaryContainer,
-                                fontFamily = QuicksandTitleVariable
-                            )
+                            Column(
+                                horizontalAlignment = Alignment.CenterHorizontally,
+                                modifier = Modifier.padding(8.dp)
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Rounded.CameraAlt,
+                                    contentDescription = null,
+                                    tint = if (pressedKeys.contains(27)) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onPrimaryContainer
+                                )
+                                Spacer(modifier = Modifier.height(4.dp))
+                                Text(
+                                    text = "Camera\nButton",
+                                    style = MaterialTheme.typography.titleMedium,
+                                    textAlign = TextAlign.Center,
+                                    color = if (pressedKeys.contains(27)) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onPrimaryContainer,
+                                    fontFamily = QuicksandTitleVariable
+                                )
+                            }
                         }
-                    }
-                    // Focus Button (Weight 1f out of 2 -> 1 column out of 2)
-                    Box(
-                        modifier = Modifier
-                            .weight(1f)
-                            .fillMaxHeight()
-                            .padding(start = 1.dp, top = 4.dp)
-                            .clip(
-                                RoundedCornerShape(
-                                    topStart = 4.dp,
-                                    topEnd = 16.dp,
-                                    bottomStart = 4.dp,
-                                    bottomEnd = 16.dp
+
+                        // Focus Button (Weight 1f out of 2 -> 1 column out of 2)
+                        Box(
+                            modifier = Modifier
+                                .weight(1f)
+                                .fillMaxHeight()
+                                .padding(start = 1.dp, top = 4.dp)
+                                .clip(
+                                    RoundedCornerShape(
+                                        topStart = 4.dp,
+                                        topEnd = 16.dp,
+                                        bottomStart = 4.dp,
+                                        bottomEnd = 16.dp
+                                    )
                                 )
-                            )
-                            .background(MaterialTheme.colorScheme.primaryContainer)
-                            .clickable { onButtonSelected(134, "Focus Button") },
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Column(
-                            horizontalAlignment = Alignment.CenterHorizontally,
-                            modifier = Modifier.padding(8.dp)
+                                .background(if (pressedKeys.contains(134)) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.primaryContainer)
+                                .clickable { onButtonSelected(134, "Focus Button") },
+                            contentAlignment = Alignment.Center
                         ) {
-                            Icon(
-                                imageVector = Icons.Rounded.FilterCenterFocus,
-                                contentDescription = null,
-                                tint = MaterialTheme.colorScheme.onPrimaryContainer
-                            )
-                            Spacer(modifier = Modifier.height(4.dp))
-                            Text(
-                                text = "Focus\nButton",
-                                style = MaterialTheme.typography.titleMedium,
-                                textAlign = TextAlign.Center,
-                                color = MaterialTheme.colorScheme.onPrimaryContainer,
-                                fontFamily = QuicksandTitleVariable
-                            )
+                            Column(
+                                horizontalAlignment = Alignment.CenterHorizontally,
+                                modifier = Modifier.padding(8.dp)
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Rounded.FilterCenterFocus,
+                                    contentDescription = null,
+                                    tint = if (pressedKeys.contains(134)) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onPrimaryContainer
+                                )
+                                Spacer(modifier = Modifier.height(4.dp))
+                                Text(
+                                    text = "Focus\nButton",
+                                    style = MaterialTheme.typography.titleMedium,
+                                    textAlign = TextAlign.Center,
+                                    color = if (pressedKeys.contains(134)) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onPrimaryContainer,
+                                    fontFamily = QuicksandTitleVariable
+                                )
+                            }
                         }
                     }
                 }
@@ -467,7 +546,7 @@ fun GridScreen(modifier: Modifier = Modifier, onButtonSelected: (Int, String) ->
 }
 
 @Composable
-fun TogglesContainer(modifier: Modifier = Modifier) {
+fun TogglesContainer(modifier: Modifier = Modifier, hasKeyboard: Boolean = false) {
     val context = LocalContext.current
     val scrollState = rememberScrollState()
 
@@ -517,7 +596,7 @@ fun TogglesContainer(modifier: Modifier = Modifier) {
 
     Card(
         modifier = modifier
-            .padding(top = 4.dp, end = 4.dp)
+            .padding(top = 4.dp, end = 4.dp, bottom = if (hasKeyboard) 4.dp else 0.dp)
             .clip(RoundedCornerShape(16.dp)),
         colors = CardDefaults.cardColors(
             containerColor = MaterialTheme.colorScheme.surfaceContainerHighest,
@@ -539,8 +618,7 @@ fun TogglesContainer(modifier: Modifier = Modifier) {
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(bottom = 8.dp)
-                ,
+                    .padding(bottom = 8.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Spacer(modifier = Modifier.weight(0.25f))

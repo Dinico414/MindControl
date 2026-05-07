@@ -157,7 +157,7 @@ class ButtonMapperService : AccessibilityService() {
         // DEBUG: Log EVERY key to see if the service is alive
         Log.v(tag, "ACCESSIBILITY RAW: keyCode=$keyCode action=${if(isDown) "DOWN" else "UP"}")
 
-        val isTargetKey = keyCode in setOf(134, 27, 25, 24, 131, 132, 133)
+        val isTargetKey = keyCode in setOf(134, 27, 25, 24, 131, 132, 133, 111)
         if (!isTargetKey) return false
 
         return handleKeyEvent(keyCode, isDown, fromShizuku = false)
@@ -292,12 +292,16 @@ class ButtonMapperService : AccessibilityService() {
         val currentPackage = rootInActiveWindow?.packageName?.toString() ?: lastPackageName
         val isCameraApp = currentPackage?.contains("camera", ignoreCase = true) == true
         if (isCameraInUse && SettingsManager.isDisableInCamera(this) && isCameraApp) {
+            ButtonState.setKeyPressed(keyCode, isDown)
             return false
         }
 
         if (isDuplicate) {
+            ButtonState.setKeyPressed(keyCode, isDown)
             return true // It's blocked by the app so we return true to consume it, but we skip processing
         }
+
+        ButtonState.setKeyPressed(keyCode, isDown)
 
         // --- Hardware button sequence logic for 134 (Focus) and 27 (Shutter) ---
         if (keyCode == 27) {
