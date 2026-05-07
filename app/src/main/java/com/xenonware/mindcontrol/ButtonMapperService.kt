@@ -140,6 +140,7 @@ class ButtonMapperService : AccessibilityService() {
 
     private val handler = Handler(Looper.getMainLooper())
     private val longPressRunnables = mutableMapOf<Int, Runnable>()
+    private val keyClearTasks = mutableMapOf<Int, Runnable>()
     private var pendingMultiClick: Runnable? = null
     
     // Continuous action state
@@ -291,17 +292,30 @@ class ButtonMapperService : AccessibilityService() {
         // Camera override check
         val currentPackage = rootInActiveWindow?.packageName?.toString() ?: lastPackageName
         val isCameraApp = currentPackage?.contains("camera", ignoreCase = true) == true
+
+        val updateButtonState = {
+            if (keyCode == 132 || keyCode == 133) {
+                keyClearTasks[keyCode]?.let { handler.removeCallbacks(it) }
+                ButtonState.setKeyPressed(keyCode, true)
+                val task = Runnable { ButtonState.setKeyPressed(keyCode, false) }
+                keyClearTasks[keyCode] = task
+                handler.postDelayed(task, 200L)
+            } else {
+                ButtonState.setKeyPressed(keyCode, isDown)
+            }
+        }
+
         if (isCameraInUse && SettingsManager.isDisableInCamera(this) && isCameraApp) {
-            ButtonState.setKeyPressed(keyCode, isDown)
+            updateButtonState()
             return false
         }
 
         if (isDuplicate) {
-            ButtonState.setKeyPressed(keyCode, isDown)
+            updateButtonState()
             return true // It's blocked by the app so we return true to consume it, but we skip processing
         }
 
-        ButtonState.setKeyPressed(keyCode, isDown)
+        updateButtonState()
 
         // --- Hardware button sequence logic for 134 (Focus) and 27 (Shutter) ---
         if (keyCode == 27) {
