@@ -90,6 +90,29 @@ import com.xenonware.mindcontrol.ui.theme.PaletteTheme
 import com.xenonware.mindcontrol.ui.theme.RedTheme
 import com.xenonware.mindcontrol.ui.theme.YellowTheme
 import rikka.shizuku.Shizuku
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
+import androidx.compose.material3.ScrollableTabRow
+import androidx.compose.material3.Tab
+import androidx.compose.material3.TabRowDefaults
+import androidx.compose.material3.TabRowDefaults.tabIndicatorOffset
+import androidx.compose.runtime.mutableStateListOf
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.ui.graphics.asImageBitmap
+import androidx.core.graphics.drawable.toBitmap
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
+import androidx.compose.foundation.layout.size
+import androidx.compose.material3.ListItem
+import androidx.compose.material3.ListItemDefaults
+import androidx.compose.ui.graphics.ImageBitmap
+import android.content.pm.ResolveInfo
+import android.graphics.drawable.Drawable
+import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.material3.PrimaryScrollableTabRow
+import androidx.compose.material3.TabRowDefaults.SecondaryIndicator
+import androidx.compose.material3.TabRowDefaults.tabIndicatorOffset
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -130,6 +153,8 @@ class MainActivity : ComponentActivity() {
     }
 }
 
+data class ActionConfig(val keyCode: Int, val state: String, val type: String)
+
 @Composable
 fun MindControlMainScreen(
     modifier: Modifier = Modifier,
@@ -141,8 +166,10 @@ fun MindControlMainScreen(
     var selectedButton by remember { mutableStateOf<Pair<Int, String>?>(null) }
     var showKeyboard by remember { mutableStateOf(false) }
     var configFromKeyboard by remember { mutableStateOf(false) }
+    var actionSelectionConfig by remember { mutableStateOf<ActionConfig?>(null) }
 
     val state = when {
+        actionSelectionConfig != null -> "action_selection"
         selectedButton != null -> "config"
         showKeyboard -> "keyboard"
         else -> "grid"
@@ -152,14 +179,28 @@ fun MindControlMainScreen(
         targetState = state, transitionSpec = {
             when {
                 targetState == "keyboard" -> slideInVertically { it } + fadeIn() togetherWith slideOutVertically { -it } + fadeOut()
-
                 initialState == "keyboard" && targetState == "grid" -> slideInVertically { -it } + fadeIn() togetherWith slideOutVertically { it } + fadeOut()
-
+                targetState == "action_selection" -> slideInVertically { it } + fadeIn() togetherWith slideOutVertically { -it } + fadeOut()
+                initialState == "action_selection" -> slideInVertically { -it } + fadeIn() togetherWith slideOutVertically { it } + fadeOut()
                 else -> fadeIn() togetherWith fadeOut()
             }
         }, label = "ScreenTransition"
     ) { s ->
         when (s) {
+            "action_selection" -> {
+                val config = actionSelectionConfig
+                if (config != null) {
+                    ActionSelectionScreen(
+                        config = config,
+                        onBack = { actionSelectionConfig = null },
+                        onActionSelected = { _ ->
+                            actionSelectionConfig = null
+                        },
+                        modifier = modifier
+                    )
+                }
+            }
+
             "keyboard" -> PaletteTheme(palette = keyboardPalette) {
                 CustomKeyboardScreen(
                     modifier = modifier,
@@ -183,10 +224,12 @@ fun MindControlMainScreen(
                             selectedButton = null
                             configFromKeyboard = false
                             if (!cameFromKeyboard) showKeyboard = false
+                        },
+                        onSelectAction = { keyCode, stateStr, type ->
+                            actionSelectionConfig = ActionConfig(keyCode, stateStr, type)
                         }
                     )
                 } else {
-                    // Fallback to prevent crash during transition
                     Box(modifier.fillMaxSize())
                 }
             }
@@ -888,6 +931,7 @@ fun ButtonConfigScreen(
     name: String,
     modifier: Modifier = Modifier,
     onBack: () -> Unit,
+    onSelectAction: (Int, String, String) -> Unit,
 ) {
     var isScreenOff by remember { mutableStateOf(false) }
 
@@ -955,51 +999,41 @@ fun ButtonConfigScreen(
 
         Column(modifier = Modifier.verticalScroll(rememberScrollState())) {
             types.forEach { type ->
-                MindControlActionSelector(keyCode, stateStr, type)
+                MindControlActionSelector(keyCode, stateStr, type, onSelectAction)
                 HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
             }
         }
     }
 }
 
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun MindControlActionSelector(keyCode: Int, state: String, type: String) {
+fun MindControlActionSelector(
+    keyCode: Int,
+    state: String,
+    type: String,
+    onSelectAction: (Int, String, String) -> Unit
+) {
     val context = LocalContext.current
-    val currentAction = remember(keyCode, state, type) {
-        mutableStateOf(SettingsManager.getAction(context, keyCode, state, type))
+    val action = remember(keyCode, state, type) {
+        SettingsManager.getAction(context, keyCode, state, type)
     }
 
-    val actions = mutableListOf(
-        SettingsManager.ACTION_DEFAULT,
-        SettingsManager.ACTION_NONE,
-        SettingsManager.ACTION_PLAY_PAUSE,
-        SettingsManager.ACTION_NEXT,
-        SettingsManager.ACTION_PREVIOUS,
-        SettingsManager.ACTION_VOLUME_UP,
-        SettingsManager.ACTION_VOLUME_DOWN,
-        SettingsManager.ACTION_FLASHLIGHT,
-        SettingsManager.ACTION_SCREENSHOT,
-        SettingsManager.ACTION_LOCK,
-        SettingsManager.ACTION_HOME,
-        SettingsManager.ACTION_BACK,
-        SettingsManager.ACTION_RECENTS,
-        SettingsManager.ACTION_NOTIFICATIONS,
-        SettingsManager.ACTION_QUICK_SETTINGS,
-        SettingsManager.ACTION_ASSISTANT,
-        SettingsManager.ACTION_BRIGHTNESS_UP,
-        SettingsManager.ACTION_BRIGHTNESS_DOWN,
-        SettingsManager.ACTION_ROTATE_TOGGLE,
-        SettingsManager.ACTION_SCROLL_UP,
-        SettingsManager.ACTION_SCROLL_DOWN
-    )
-
-    if (type == "LONG") {
-        actions.add(SettingsManager.ACTION_SCROLL_UP_SMOOTH)
-        actions.add(SettingsManager.ACTION_SCROLL_DOWN_SMOOTH)
+    val displayAction = if (action.startsWith(SettingsManager.PREFIX_APP)) {
+        val pkg = action.removePrefix(SettingsManager.PREFIX_APP)
+        try {
+            val pm = context.packageManager
+            pm.getApplicationLabel(pm.getApplicationInfo(pkg, 0)).toString()
+        } catch (e: Exception) {
+            pkg
+        }
+    } else if (action.startsWith(SettingsManager.PREFIX_SHORTCUT)) {
+        val parts = action.removePrefix(SettingsManager.PREFIX_SHORTCUT).split("|")
+        parts.getOrNull(2) ?: action.removePrefix(SettingsManager.PREFIX_SHORTCUT)
+    } else {
+        action.split("_").joinToString(" ") { word ->
+            word.lowercase().replaceFirstChar { if (it.isLowerCase()) it.titlecase() else it.toString() }
+        }
     }
-
-    var showMenu by remember { mutableStateOf(false) }
 
     Row(
         verticalAlignment = Alignment.CenterVertically,
@@ -1010,19 +1044,250 @@ fun MindControlActionSelector(keyCode: Int, state: String, type: String) {
         Text(
             text = "$type: ", modifier = Modifier.weight(1f), color = Color.White
         )
-        Box {
-            OutlinedButton(onClick = { showMenu = true }) {
-                Text(currentAction.value, color = Color.White)
+        OutlinedButton(onClick = { onSelectAction(keyCode, state, type) }) {
+            Text(displayAction, color = Color.White)
+        }
+    }
+}
+
+@Composable
+fun ActionSelectionScreen(
+    config: ActionConfig,
+    onBack: () -> Unit,
+    onActionSelected: (String) -> Unit,
+    modifier: Modifier = Modifier
+) {
+    var selectedTabIndex by remember { mutableIntStateOf(0) }
+    val tabs = listOf("Actions", "Apps", "Shortcuts", "System", "Media")
+
+    Column(modifier = modifier
+        .fillMaxSize()
+        .background(Color.Black)) {
+        Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(8.dp)) {
+            IconButton(onClick = onBack) {
+                Icon(
+                    Icons.AutoMirrored.Filled.ArrowBack,
+                    contentDescription = "Back",
+                    tint = Color.White
+                )
             }
-            DropdownMenu(expanded = showMenu, onDismissRequest = { showMenu = false }) {
-                actions.forEach { action ->
-                    DropdownMenuItem(text = { Text(action) }, onClick = {
-                        SettingsManager.setAction(context, keyCode, state, type, action)
-                        currentAction.value = action
-                        showMenu = false
-                    })
-                }
+            Text(
+                "Select Action for ${config.type}",
+                style = MaterialTheme.typography.titleLarge,
+                color = Color.White
+            )
+        }
+
+        PrimaryScrollableTabRow(
+            selectedTabIndex = selectedTabIndex,
+            containerColor = Color.Black,
+            contentColor = Color.White,
+            edgePadding = 16.dp
+        ) {
+            tabs.forEachIndexed { index, title ->
+                Tab(
+                    selected = selectedTabIndex == index,
+                    onClick = { selectedTabIndex = index },
+                    text = { Text(title) }
+                )
             }
+        }
+
+        when (selectedTabIndex) {
+            0 -> ActionsTab(config, onActionSelected)
+            1 -> AppsTab(config, onActionSelected)
+            2 -> ShortcutsTab(config, onActionSelected)
+            3 -> SystemTab(config, onActionSelected)
+            4 -> MediaTab(config, onActionSelected)
+        }
+    }
+}
+
+@Composable
+fun ActionsTab(config: ActionConfig, onActionSelected: (String) -> Unit) {
+    val actions = listOf(
+        SettingsManager.ACTION_NONE,
+        SettingsManager.ACTION_DEFAULT,
+        SettingsManager.ACTION_HOME,
+        SettingsManager.ACTION_BACK,
+        SettingsManager.ACTION_RECENTS,
+        SettingsManager.ACTION_SHOW_MENU,
+        SettingsManager.ACTION_LOCK,
+        SettingsManager.ACTION_FLASHLIGHT,
+        SettingsManager.ACTION_SCREENSHOT,
+        SettingsManager.ACTION_QUICK_SETTINGS,
+        SettingsManager.ACTION_LAST_APP,
+        SettingsManager.ACTION_APP_INFO,
+        SettingsManager.ACTION_POWER_DIALOG,
+        SettingsManager.ACTION_GOOGLE_SEARCH,
+        SettingsManager.ACTION_ASSISTANT,
+        SettingsManager.ACTION_SCROLL_UP,
+        SettingsManager.ACTION_SCROLL_DOWN,
+        SettingsManager.ACTION_SCROLL_UP_SMOOTH,
+        SettingsManager.ACTION_SCROLL_DOWN_SMOOTH,
+        SettingsManager.ACTION_COPY,
+        SettingsManager.ACTION_CUT,
+        SettingsManager.ACTION_PASTE
+    )
+    ActionList(actions, config, onActionSelected)
+}
+
+@Composable
+fun AppsTab(config: ActionConfig, onActionSelected: (String) -> Unit) {
+    val context = LocalContext.current
+    val pm = context.packageManager
+    val scope = rememberCoroutineScope()
+    val apps = remember { mutableStateListOf<AppItem>() }
+
+    LaunchedEffect(Unit) {
+        scope.launch(Dispatchers.IO) {
+            val intent = Intent(Intent.ACTION_MAIN).apply {
+                addCategory(Intent.CATEGORY_LAUNCHER)
+            }
+            val resolveInfos = pm.queryIntentActivities(intent, PackageManager.GET_META_DATA)
+            val appList = resolveInfos.map {
+                AppItem(
+                    it.loadLabel(pm).toString(),
+                    it.activityInfo.packageName,
+                    it.loadIcon(pm)
+                )
+            }.distinctBy { it.packageName }.sortedBy { it.name }
+            withContext(Dispatchers.Main) {
+                apps.clear()
+                apps.addAll(appList)
+            }
+        }
+    }
+
+    LazyColumn(modifier = Modifier.fillMaxSize()) {
+        items(apps) { app ->
+            ListItem(
+                headlineContent = { Text(app.name, color = Color.White) },
+                supportingContent = { Text(app.packageName, color = Color.Gray, style = MaterialTheme.typography.bodySmall) },
+                leadingContent = {
+                    val bitmap = remember(app.packageName) { app.icon.toBitmap().asImageBitmap() }
+                    androidx.compose.foundation.Image(bitmap, contentDescription = null, modifier = Modifier.size(40.dp))
+                },
+                modifier = Modifier.clickable {
+                    SettingsManager.setAction(context, config.keyCode, config.state, config.type, SettingsManager.PREFIX_APP + app.packageName)
+                    onActionSelected(app.name)
+                },
+                colors = ListItemDefaults.colors(containerColor = Color.Transparent)
+            )
+            HorizontalDivider(color = Color.DarkGray)
+        }
+    }
+}
+
+data class AppItem(val name: String, val packageName: String, val icon: Drawable)
+
+@Composable
+fun ShortcutsTab(config: ActionConfig, onActionSelected: (String) -> Unit) {
+    val context = LocalContext.current
+    val pm = context.packageManager
+    val scope = rememberCoroutineScope()
+    val shortcutApps = remember { mutableStateListOf<AppItem>() }
+
+    LaunchedEffect(Unit) {
+        scope.launch(Dispatchers.IO) {
+            val intent = Intent(Intent.ACTION_CREATE_SHORTCUT)
+            val resolveInfos = pm.queryIntentActivities(intent, 0)
+            val appList = resolveInfos.map {
+                AppItem(
+                    it.loadLabel(pm).toString(),
+                    it.activityInfo.packageName,
+                    it.loadIcon(pm)
+                )
+            }.distinctBy { it.packageName }.sortedBy { it.name }
+            withContext(Dispatchers.Main) {
+                shortcutApps.clear()
+                shortcutApps.addAll(appList)
+            }
+        }
+    }
+
+    if (shortcutApps.isEmpty()) {
+        Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+            Text("No shortcut-capable apps found", color = Color.Gray)
+        }
+    } else {
+        LazyColumn(modifier = Modifier.fillMaxSize()) {
+            items(shortcutApps) { app ->
+                ListItem(
+                    headlineContent = { Text(app.name, color = Color.White) },
+                    supportingContent = { Text(app.packageName, color = Color.Gray, style = MaterialTheme.typography.bodySmall) },
+                    leadingContent = {
+                        val bitmap = remember(app.packageName) { app.icon.toBitmap().asImageBitmap() }
+                        androidx.compose.foundation.Image(bitmap, contentDescription = null, modifier = Modifier.size(40.dp))
+                    },
+                    modifier = Modifier.clickable {
+                        SettingsManager.setAction(context, config.keyCode, config.state, config.type, SettingsManager.PREFIX_SHORTCUT + app.packageName + "||" + app.name)
+                        onActionSelected(app.name)
+                    },
+                    colors = ListItemDefaults.colors(containerColor = Color.Transparent)
+                )
+                HorizontalDivider(color = Color.DarkGray)
+            }
+        }
+    }
+}
+
+@Composable
+fun SystemTab(config: ActionConfig, onActionSelected: (String) -> Unit) {
+    val actions = listOf(
+        SettingsManager.ACTION_MUTE_VIBRATE_RINGER,
+        SettingsManager.ACTION_VIBRATE_RINGER,
+        SettingsManager.ACTION_DND,
+        SettingsManager.ACTION_FAST_QUICK_SETTINGS,
+        SettingsManager.ACTION_NOTIFICATIONS,
+        SettingsManager.ACTION_BRIGHTNESS_UP,
+        SettingsManager.ACTION_BRIGHTNESS_DOWN,
+        SettingsManager.ACTION_AUTO_BRIGHTNESS_TOGGLE,
+        SettingsManager.ACTION_WIFI_TOGGLE,
+        SettingsManager.ACTION_DATA_TOGGLE,
+        SettingsManager.ACTION_NFC_TOGGLE,
+        SettingsManager.ACTION_ROTATE_TOGGLE,
+        SettingsManager.ACTION_AUTOROTATE_TOGGLE
+    )
+    ActionList(actions, config, onActionSelected)
+}
+
+@Composable
+fun MediaTab(config: ActionConfig, onActionSelected: (String) -> Unit) {
+    val actions = listOf(
+        SettingsManager.ACTION_VOLUME_UP,
+        SettingsManager.ACTION_VOLUME_DOWN,
+        SettingsManager.ACTION_MUTE_VOL,
+        SettingsManager.ACTION_MUTE_MIC_TOGGLE,
+        SettingsManager.ACTION_PREVIOUS,
+        SettingsManager.ACTION_NEXT,
+        SettingsManager.ACTION_PLAY_PAUSE,
+        SettingsManager.ACTION_STOP,
+        SettingsManager.ACTION_RECORD,
+        SettingsManager.ACTION_FAST_FORWARD,
+        SettingsManager.ACTION_FAST_BACKWARD
+    )
+    ActionList(actions, config, onActionSelected)
+}
+
+@Composable
+fun ActionList(actions: List<String>, config: ActionConfig, onActionSelected: (String) -> Unit) {
+    val context = LocalContext.current
+    LazyColumn(modifier = Modifier.fillMaxSize()) {
+        items(actions) { action ->
+            val displayName = action.split("_").joinToString(" ") { word ->
+                word.lowercase().replaceFirstChar { if (it.isLowerCase()) it.titlecase() else it.toString() }
+            }
+            
+            ListItem(
+                headlineContent = { Text(displayName, color = Color.White) },
+                modifier = Modifier.clickable {
+                    SettingsManager.setAction(context, config.keyCode, config.state, config.type, action)
+                    onActionSelected(displayName)
+                },
+                colors = ListItemDefaults.colors(containerColor = Color.Transparent)
+            )
+            HorizontalDivider(color = Color.DarkGray)
         }
     }
 }
