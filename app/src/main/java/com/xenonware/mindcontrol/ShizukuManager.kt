@@ -94,14 +94,18 @@ object ShizukuManager {
     }
 
     fun injectKey(keyCode: Int) {
+        runShellCommand("input keyevent $keyCode")
+    }
+
+    private fun runShellCommand(command: String) {
         try {
             val binder = Shizuku.getBinder()
             if (binder != null && binder.pingBinder()) {
                 val service = IShizukuService.Stub.asInterface(binder)
-                service.newProcess(arrayOf("input", "keyevent", keyCode.toString()), null, null)
+                service.newProcess(arrayOf("sh", "-c", command), null, null)
             }
         } catch (e: Exception) {
-            Log.e(TAG, "Error injecting key $keyCode", e)
+            Log.e(TAG, "Error running command: $command", e)
         }
     }
 }

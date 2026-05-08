@@ -30,6 +30,7 @@ class ButtonMapperService : AccessibilityService() {
     private var isLongPress = false
     private var isFlashlightOn = false
     private var lastPackageName: String? = null
+    private var previousPackageName: String? = null
     private var isVolumePanelVisibleState = false
     private var volumePanelTimeoutRunnable: Runnable? = null
     private var lastKeyCode: Int = -1
@@ -144,7 +145,14 @@ class ButtonMapperService : AccessibilityService() {
         if (event.eventType == AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED) {
             val pkg = event.packageName?.toString()
             val className = event.className?.toString()
-            lastPackageName = pkg
+            
+            if (pkg != null && pkg != packageName && pkg != "com.android.systemui") {
+                if (pkg != lastPackageName) {
+                    previousPackageName = lastPackageName
+                    lastPackageName = pkg
+                    Log.d(tag, "App Track: Current=$lastPackageName, Previous=$previousPackageName")
+                }
+            }
 
             if (pkg == "com.android.systemui") {
                 val isVolumeDialog = className?.contains("Volume", ignoreCase = true) == true ||
@@ -464,6 +472,8 @@ class ButtonMapperService : AccessibilityService() {
             SettingsManager.ACTION_NOTIFICATIONS -> performGlobalAction(GLOBAL_ACTION_NOTIFICATIONS)
             SettingsManager.ACTION_QUICK_SETTINGS -> performGlobalAction(GLOBAL_ACTION_QUICK_SETTINGS)
             SettingsManager.ACTION_POWER_DIALOG -> performGlobalAction(GLOBAL_ACTION_POWER_DIALOG)
+            SettingsManager.ACTION_LAST_APP -> { switchToLastApp(); true }
+            SettingsManager.ACTION_APP_INFO -> { openAppInfo(); true }
             SettingsManager.ACTION_SHOW_MENU -> { ShizukuManager.injectKey(KeyEvent.KEYCODE_MENU); true }
             SettingsManager.ACTION_ASSISTANT -> { launchAssistant(); true }
             SettingsManager.ACTION_GOOGLE_SEARCH -> { launchGoogleSearch(); true }
@@ -537,17 +547,67 @@ class ButtonMapperService : AccessibilityService() {
         try {
             startActivity(intent)
         } catch (e: Exception) {
-            Log.e(tag, "Assistant error", e)
+            Log.d(tag, "ACTION_VOICE_COMMAND failed, falling back to Assist")
+            // Fallback to the standard assist overlay if the voice intent is not handled
+            if (!performGlobalAction(16)) { // GLOBAL_ACTION_ASSIST
+                val assistIntent = Intent(Intent.ACTION_ASSIST)
+                assistIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                try {
+                    startActivity(assistIntent)
+                } catch (e2: Exception) {
+                    Log.e(tag, "Voice Assistant error", e2)
+                }
+            }
         }
     }
 
     private fun launchGoogleSearch() {
-        val intent = Intent(Intent.ACTION_WEB_SEARCH)
+        val intent = Intent(Intent.ACTION_MAIN)
+        intent.setPackage("com.google.android.googlequicksearchbox")
         intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
         try {
-            startActivity(intent)
+            // Try to launch the package's main activity (the search shortcut)
+            val launchIntent = packageManager.getLaunchIntentForPackage("com.google.android.googlequicksearchbox")
+            if (launchIntent != null) {
+                launchIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                startActivity(launchIntent)
+            } else {
+                // Fallback to web search if package not found
+                val webIntent = Intent(Intent.ACTION_WEB_SEARCH)
+                webIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                startActivity(webIntent)
+            }
         } catch (e: Exception) {
             Log.e(tag, "Google search error", e)
+        }
+    }
+
+    private fun switchToLastApp() {
+        val targetPkg = previousPackageName ?: return
+        Log.d(tag, "Switching to last app: $targetPkg")
+        val intent = packageManager.getLaunchIntentForPackage(targetPkg)
+        if (intent != null) {
+            intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            try {
+                startActivity(intent)
+            } catch (e: Exception) {
+                Log.e(tag, "Error switching to last app", e)
+            }
+        }
+    }
+
+    private fun openAppInfo() {
+        val currentPackage = rootInActiveWindow?.packageName?.toString() ?: lastPackageName
+        if (currentPackage != null && currentPackage != packageName) {
+            Log.d(tag, "Opening app info for: $currentPackage")
+            val intent = Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS)
+            intent.data = android.net.Uri.fromParts("package", currentPackage, null)
+            intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            try {
+                startActivity(intent)
+            } catch (e: Exception) {
+                Log.e(tag, "Error opening app info", e)
+            }
         }
     }
 
