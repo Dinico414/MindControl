@@ -1262,10 +1262,6 @@ fun MediaTab(config: ActionConfig, onActionSelected: (String) -> Unit) {
         SettingsManager.ACTION_PREVIOUS,
         SettingsManager.ACTION_NEXT,
         SettingsManager.ACTION_PLAY_PAUSE,
-        SettingsManager.ACTION_STOP,
-        SettingsManager.ACTION_RECORD,
-        SettingsManager.ACTION_FAST_FORWARD,
-        SettingsManager.ACTION_FAST_BACKWARD
     )
     ActionList(actions, config, onActionSelected)
 }

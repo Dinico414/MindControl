@@ -46,7 +46,7 @@ class ButtonMapperService : AccessibilityService() {
     private val keyboardKeyCodes = setOf(
         29, 30, 31, 32, 33, 34, 35, 36, 37, 38, 39, 40,             // a..l
         41, 42, 43, 44, 45, 46, 47, 48, 49, 50, 51, 52, 53, 54,     // m..z
-        55, 56, 74,                                                 // , . ;
+        55, 56, 71,                                                 // , . [
         59, 62, 66, 67                                              // shift, space, enter, backspace
     )
 
@@ -447,6 +447,14 @@ class ButtonMapperService : AccessibilityService() {
             SettingsManager.ACTION_PREVIOUS -> { dispatchMediaKey(KeyEvent.KEYCODE_MEDIA_PREVIOUS); true }
             SettingsManager.ACTION_VOLUME_UP -> { adjustVolume(AudioManager.ADJUST_RAISE); true }
             SettingsManager.ACTION_VOLUME_DOWN -> { adjustVolume(AudioManager.ADJUST_LOWER); true }
+            SettingsManager.ACTION_MUTE_VOL -> {
+                audioManager.adjustStreamVolume(AudioManager.STREAM_MUSIC, AudioManager.ADJUST_TOGGLE_MUTE, AudioManager.FLAG_SHOW_UI)
+                true
+            }
+            SettingsManager.ACTION_MUTE_MIC_TOGGLE -> {
+                audioManager.isMicrophoneMute = !audioManager.isMicrophoneMute
+                true
+            }
             SettingsManager.ACTION_FLASHLIGHT -> { toggleFlashlight(); true }
             SettingsManager.ACTION_SCREENSHOT -> performGlobalAction(GLOBAL_ACTION_TAKE_SCREENSHOT)
             SettingsManager.ACTION_LOCK -> performGlobalAction(GLOBAL_ACTION_LOCK_SCREEN)
@@ -455,7 +463,10 @@ class ButtonMapperService : AccessibilityService() {
             SettingsManager.ACTION_RECENTS -> performGlobalAction(GLOBAL_ACTION_RECENTS)
             SettingsManager.ACTION_NOTIFICATIONS -> performGlobalAction(GLOBAL_ACTION_NOTIFICATIONS)
             SettingsManager.ACTION_QUICK_SETTINGS -> performGlobalAction(GLOBAL_ACTION_QUICK_SETTINGS)
+            SettingsManager.ACTION_POWER_DIALOG -> performGlobalAction(GLOBAL_ACTION_POWER_DIALOG)
+            SettingsManager.ACTION_SHOW_MENU -> { ShizukuManager.injectKey(KeyEvent.KEYCODE_MENU); true }
             SettingsManager.ACTION_ASSISTANT -> { launchAssistant(); true }
+            SettingsManager.ACTION_GOOGLE_SEARCH -> { launchGoogleSearch(); true }
             SettingsManager.ACTION_BRIGHTNESS_UP -> { adjustBrightness(20); true }
             SettingsManager.ACTION_BRIGHTNESS_DOWN -> { adjustBrightness(-20); true }
             SettingsManager.ACTION_ROTATE_TOGGLE -> { toggleRotation(); true }
@@ -527,6 +538,16 @@ class ButtonMapperService : AccessibilityService() {
             startActivity(intent)
         } catch (e: Exception) {
             Log.e(tag, "Assistant error", e)
+        }
+    }
+
+    private fun launchGoogleSearch() {
+        val intent = Intent(Intent.ACTION_WEB_SEARCH)
+        intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+        try {
+            startActivity(intent)
+        } catch (e: Exception) {
+            Log.e(tag, "Google search error", e)
         }
     }
 

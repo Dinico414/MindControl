@@ -92,4 +92,16 @@ object ShizukuManager {
         monitoringThread?.interrupt()
         monitoringThread = null
     }
+
+    fun injectKey(keyCode: Int) {
+        try {
+            val binder = Shizuku.getBinder()
+            if (binder != null && binder.pingBinder()) {
+                val service = IShizukuService.Stub.asInterface(binder)
+                service.newProcess(arrayOf("input", "keyevent", keyCode.toString()), null, null)
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "Error injecting key $keyCode", e)
+        }
+    }
 }
