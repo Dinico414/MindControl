@@ -865,6 +865,22 @@ fun TogglesContainer(
                     Text("Allow Sys Settings", style = MaterialTheme.typography.bodySmall)
                 }
             }
+
+            val notificationManager = context.getSystemService(Context.NOTIFICATION_SERVICE) as android.app.NotificationManager
+            if (!notificationManager.isNotificationPolicyAccessGranted) {
+                Spacer(modifier = Modifier.height(4.dp))
+                Button(
+                    onClick = {
+                        val intent = Intent(Settings.ACTION_NOTIFICATION_POLICY_ACCESS_SETTINGS)
+                        context.startActivity(intent)
+                    },
+                    modifier = Modifier.fillMaxWidth(),
+                    colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.tertiary),
+                    contentPadding = PaddingValues(8.dp)
+                ) {
+                    Text("Allow DND Settings", style = MaterialTheme.typography.bodySmall)
+                }
+            }
             Spacer(modifier = Modifier.height(8.dp))
             Row(
                 verticalAlignment = Alignment.CenterVertically,
@@ -1235,7 +1251,6 @@ fun ShortcutsTab(config: ActionConfig, onActionSelected: (String) -> Unit) {
 @Composable
 fun SystemTab(config: ActionConfig, onActionSelected: (String) -> Unit) {
     val actions = listOf(
-        SettingsManager.ACTION_MUTE_VIBRATE_RINGER,
         SettingsManager.ACTION_VIBRATE_RINGER,
         SettingsManager.ACTION_DND,
         SettingsManager.ACTION_FAST_QUICK_SETTINGS,

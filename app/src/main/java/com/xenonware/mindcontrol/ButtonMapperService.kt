@@ -39,6 +39,7 @@ class ButtonMapperService : AccessibilityService() {
     private var isShutterKeyPressed = false
     private var ignoreNextFocusUp = false
     private var pendingFocusDown: Runnable? = null
+    private var lastRingerToggleTime = 0L
 
     private lateinit var audioManager: AudioManager
     private lateinit var cameraManager: CameraManager
@@ -457,7 +458,12 @@ class ButtonMapperService : AccessibilityService() {
             SettingsManager.ACTION_VOLUME_UP -> { adjustVolume(AudioManager.ADJUST_RAISE); true }
             SettingsManager.ACTION_VOLUME_DOWN -> { adjustVolume(AudioManager.ADJUST_LOWER); true }
             SettingsManager.ACTION_MUTE_VOL -> {
-                audioManager.adjustStreamVolume(AudioManager.STREAM_MUSIC, AudioManager.ADJUST_TOGGLE_MUTE, AudioManager.FLAG_SHOW_UI)
+                val isMuted = audioManager.isStreamMute(AudioManager.STREAM_MUSIC)
+                audioManager.adjustStreamVolume(
+                    AudioManager.STREAM_MUSIC,
+                    if (isMuted) AudioManager.ADJUST_UNMUTE else AudioManager.ADJUST_MUTE,
+                    AudioManager.FLAG_SHOW_UI
+                )
                 true
             }
             SettingsManager.ACTION_MUTE_MIC_TOGGLE -> {
@@ -478,6 +484,8 @@ class ButtonMapperService : AccessibilityService() {
             SettingsManager.ACTION_SHOW_MENU -> { ShizukuManager.injectKey(KeyEvent.KEYCODE_MENU); true }
             SettingsManager.ACTION_ASSISTANT -> { launchAssistant(); true }
             SettingsManager.ACTION_GOOGLE_SEARCH -> { launchGoogleSearch(); true }
+            SettingsManager.ACTION_VIBRATE_RINGER -> { toggleVibrateRinger(); true }
+            SettingsManager.ACTION_DND -> { toggleDND(); true }
             SettingsManager.ACTION_COPY -> performClipboardAction(AccessibilityNodeInfo.ACTION_COPY)
             SettingsManager.ACTION_CUT -> performClipboardAction(AccessibilityNodeInfo.ACTION_CUT)
             SettingsManager.ACTION_PASTE -> performClipboardAction(AccessibilityNodeInfo.ACTION_PASTE)
@@ -489,7 +497,13 @@ class ButtonMapperService : AccessibilityService() {
             SettingsManager.ACTION_SCROLL_UP_SMOOTH, "TAP_SCROLL_UP_SMOOTH" -> { performScroll(true); true }
             SettingsManager.ACTION_SCROLL_DOWN_SMOOTH, "TAP_SCROLL_DOWN_SMOOTH" -> { performScroll(false); true }
             SettingsManager.ACTION_NONE -> { Log.d(tag, "Action is NONE, key blocked."); true }
-            else -> false
+            else -> {
+                if (finalAction.startsWith(SettingsManager.PREFIX_APP)) {
+                    launchApp(finalAction.removePrefix(SettingsManager.PREFIX_APP))
+                } else {
+                    false
+                }
+            }
         }
 
         if (!success) {
@@ -630,6 +644,63 @@ class ButtonMapperService : AccessibilityService() {
             return success
         }
         return false
+    }
+
+    private fun launchApp(packageName: String): Boolean {
+        Log.d(tag, "Launching app: $packageName")
+        val intent = packageManager.getLaunchIntentForPackage(packageName)
+        if (intent != null) {
+            intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            try {
+                startActivity(intent)
+                return true
+            } catch (e: Exception) {
+                Log.e(tag, "Error launching app $packageName", e)
+            }
+        }
+        return false
+    }
+
+    private fun toggleVibrateRinger() {
+        val now = System.currentTimeMillis()
+        if (now - lastRingerToggleTime < 500L) return
+        lastRingerToggleTime = now
+
+        val currentMode = audioManager.ringerMode
+        val nextMode = if (currentMode == AudioManager.RINGER_MODE_NORMAL) {
+            AudioManager.RINGER_MODE_VIBRATE
+        } else {
+            AudioManager.RINGER_MODE_NORMAL
+        }
+        
+        try {
+            audioManager.ringerMode = nextMode
+            Log.d(tag, "Vibrate/Ringer Toggle: $currentMode -> $nextMode")
+        } catch (e: Exception) {
+            Log.e(tag, "Failed to toggle ringer mode", e)
+        }
+    }
+
+    private fun toggleDND() {
+        val now = System.currentTimeMillis()
+        if (now - lastRingerToggleTime < 500L) return
+        lastRingerToggleTime = now
+
+        val nm = getSystemService(NOTIFICATION_SERVICE) as android.app.NotificationManager
+        if (nm.isNotificationPolicyAccessGranted) {
+            val currentFilter = nm.currentInterruptionFilter
+            val newFilter = if (currentFilter == android.app.NotificationManager.INTERRUPTION_FILTER_ALL) {
+                android.app.NotificationManager.INTERRUPTION_FILTER_PRIORITY
+            } else {
+                android.app.NotificationManager.INTERRUPTION_FILTER_ALL
+            }
+            try {
+                nm.setInterruptionFilter(newFilter)
+                Log.d(tag, "DND Toggle: $currentFilter -> $newFilter")
+            } catch (e: Exception) {
+                Log.e(tag, "Error toggling DND filter", e)
+            }
+        }
     }
 
     private fun adjustBrightness(delta: Int) {
