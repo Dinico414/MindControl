@@ -255,46 +255,52 @@ class ButtonMapperService : AccessibilityService() {
         val isInteractive = powerManager.isInteractive
         val state = if (isInteractive && !isLocked) "ON" else "OFF"
 
-        // Keyboard-key handling 
+        val currentPackage = rootInActiveWindow?.packageName?.toString() ?: lastPackageName
+        val isCameraApp = currentPackage?.contains("camera", ignoreCase = true) == true
+
+        val updateButtonState = {
+            if (keyCode == 132 || keyCode == 133) {
+                keyClearTasks[keyCode]?.let { handler.removeCallbacks(it) }
+                ButtonState.setKeyPressed(keyCode, true)
+                val task = Runnable { ButtonState.setKeyPressed(keyCode, false) }
+                keyClearTasks[keyCode] = task
+                handler.postDelayed(task, 500L)
+            } else {
+                ButtonState.setKeyPressed(keyCode, isDown)
+            }
+        }
+
+        // ── Camera app pass-through ────────────────────────────────────────────
+
+        if ((isCameraApp || isCameraInUse) && SettingsManager.isDisableInCamera(this)) {
+            updateButtonState()
+            return false
+        }
+        
+        // ── Volume panel pass-through ──────────────────────────────────────────
+        val isVolumeKey = keyCode == 24 || keyCode == 25
+        if (isVolumeKey && isInteractive
+            && SettingsManager.isDefaultWhenVolumeVisible(this)
+            && isVolumePanelVisibleState
+        ) {
+            markVolumePanelVisible()
+            updateButtonState()
+            return false
+        }
+
+        // Keyboard-key handling
         if (keyCode in keyboardKeyCodes) {
             ButtonState.setKeyPressed(keyCode, isDown)
 
-            if (isTextFieldFocused()) {
-                return false
-            }
+            if (isTextFieldFocused()) return false
 
-            val currentPackage = rootInActiveWindow?.packageName?.toString() ?: lastPackageName
             val isOurApp = currentPackage == packageName
-
-            if (isOurApp) {
-                return true
-            }
+            if (isOurApp) return true
 
             if (!hasCustomMapping(keyCode, state)) return false
 
             processKeyEvent(keyCode, isDown, state)
             return true
-        }
-
-        // Check for Volume Panel
-        val isVolumeKey = keyCode == 24 || keyCode == 25
-        if (isVolumeKey && isInteractive && SettingsManager.isDefaultWhenVolumeVisible(this)) {
-            if (isVolumePanelVisibleState) {
-                val singleAction = SettingsManager.getAction(this, keyCode, state, "SINGLE")
-                val doubleAction = SettingsManager.getAction(this, keyCode, state, "DOUBLE")
-                val multiAction = SettingsManager.getAction(this, keyCode, state, "MULTI")
-                val longAction = SettingsManager.getAction(this, keyCode, state, "LONG")
-
-                val hasCustomMapping = singleAction != SettingsManager.ACTION_DEFAULT ||
-                        doubleAction != SettingsManager.ACTION_DEFAULT ||
-                        multiAction != SettingsManager.ACTION_DEFAULT ||
-                        longAction != SettingsManager.ACTION_DEFAULT
-
-                if (!hasCustomMapping) {
-                    markVolumePanelVisible()
-                    return false
-                }
-            }
         }
 
         // Hardcoded behavior for Camera and Focus buttons when screen is OFF/Locked
@@ -322,26 +328,6 @@ class ButtonMapperService : AccessibilityService() {
         } else {
             lastEventTimes[eventKey] = now
             lastEventSources[eventKey] = fromShizuku
-        }
-
-        val currentPackage = rootInActiveWindow?.packageName?.toString() ?: lastPackageName
-        val isCameraApp = currentPackage?.contains("camera", ignoreCase = true) == true
-
-        val updateButtonState = {
-            if (keyCode == 132 || keyCode == 133) {
-                keyClearTasks[keyCode]?.let { handler.removeCallbacks(it) }
-                ButtonState.setKeyPressed(keyCode, true)
-                val task = Runnable { ButtonState.setKeyPressed(keyCode, false) }
-                keyClearTasks[keyCode] = task
-                handler.postDelayed(task, 500L)
-            } else {
-                ButtonState.setKeyPressed(keyCode, isDown)
-            }
-        }
-
-        if (isCameraInUse && SettingsManager.isDisableInCamera(this) && isCameraApp) {
-            updateButtonState()
-            return false
         }
 
         if (isDuplicate) {
