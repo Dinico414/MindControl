@@ -39,6 +39,9 @@ object SettingsManager {
     const val ACTION_COPY = "COPY"
     const val ACTION_CUT = "CUT"
     const val ACTION_PASTE = "PASTE"
+    const val ACTION_SPEED_DIAL = "SPEED_DIAL"
+    const val ACTION_URL = "URL"
+    const val ACTION_QR_CODE = "QR_CODE"
 
     const val ACTION_VIBRATE_RINGER = "VIBRATE_RINGER"
     const val ACTION_DND = "DND"
@@ -59,6 +62,9 @@ object SettingsManager {
 
     const val PREFIX_APP = "APP:"
     const val PREFIX_SHORTCUT = "SHORTCUT:"
+    const val PREFIX_SPEED_DIAL = "SPEED_DIAL:"
+    const val PREFIX_URL = "URL:"
+    const val PREFIX_QR_CODE = "QR_CODE:"
 
     private const val KEY_DISABLE_IN_CAMERA = "disable_in_camera"
     private const val KEY_DEFAULT_WHEN_VOLUME_VISIBLE = "default_when_volume_visible"

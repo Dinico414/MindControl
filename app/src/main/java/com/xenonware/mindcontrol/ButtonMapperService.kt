@@ -508,6 +508,15 @@ class ButtonMapperService : AccessibilityService() {
             else -> {
                 if (finalAction.startsWith(SettingsManager.PREFIX_APP)) {
                     launchApp(finalAction.removePrefix(SettingsManager.PREFIX_APP))
+                } else if (finalAction.startsWith(SettingsManager.PREFIX_SPEED_DIAL)) {
+                    launchSpeedDial(finalAction.removePrefix(SettingsManager.PREFIX_SPEED_DIAL))
+                    true
+                } else if (finalAction.startsWith(SettingsManager.PREFIX_URL)) {
+                    launchUrl(finalAction.removePrefix(SettingsManager.PREFIX_URL))
+                    true
+                } else if (finalAction.startsWith(SettingsManager.PREFIX_QR_CODE)) {
+                    showQrCode(finalAction.removePrefix(SettingsManager.PREFIX_QR_CODE))
+                    true
                 } else {
                     false
                 }
@@ -667,6 +676,53 @@ class ButtonMapperService : AccessibilityService() {
             }
         }
         return false
+    }
+
+    private fun launchSpeedDial(number: String) {
+        val intent = Intent(Intent.ACTION_CALL)
+        intent.data = android.net.Uri.parse("tel:$number")
+        intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+        try {
+            startActivity(intent)
+        } catch (e: Exception) {
+            Log.e(tag, "Speed dial error", e)
+            // Fallback to dialer if CALL permission is not granted
+            val dialIntent = Intent(Intent.ACTION_DIAL)
+            dialIntent.data = android.net.Uri.parse("tel:$number")
+            dialIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            try {
+                startActivity(dialIntent)
+            } catch (e2: Exception) {
+                Log.e(tag, "Dialer fallback error", e2)
+            }
+        }
+    }
+
+    private fun launchUrl(url: String) {
+        var finalUrl = url
+        if (!finalUrl.startsWith("http://") && !finalUrl.startsWith("https://")) {
+            finalUrl = "https://$finalUrl"
+        }
+        val intent = Intent(Intent.ACTION_VIEW)
+        intent.data = android.net.Uri.parse(finalUrl)
+        intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+        try {
+            startActivity(intent)
+        } catch (e: Exception) {
+            Log.e(tag, "URL launch error", e)
+        }
+    }
+
+    private fun showQrCode(text: String) {
+        val intent = Intent(this, MainActivity::class.java)
+        intent.putExtra("EXTRA_QR_TEXT", text)
+        intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+        intent.addFlags(Intent.FLAG_ACTIVITY_SINGLE_TOP)
+        try {
+            startActivity(intent)
+        } catch (e: Exception) {
+            Log.e(tag, "QR show error", e)
+        }
     }
 
     private fun toggleVibrateRinger() {

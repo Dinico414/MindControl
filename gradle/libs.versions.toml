@@ -12,6 +12,7 @@ shizuku = "13.1.5"
 xenonCommons = "2.4.8"
 foundationLayout = "1.11.1"
 foundation = "1.11.1"
+zxing = "3.5.3"
 
 
 [libraries]
@@ -35,6 +36,7 @@ shizuku-provider = { group = "dev.rikka.shizuku", name = "provider", version.ref
 xenon-commons = { module = "com.github.Dinico414:Xenon-Commons", version.ref = "xenonCommons" }
 androidx-compose-foundation-layout = { group = "androidx.compose.foundation", name = "foundation-layout", version.ref = "foundationLayout" }
 androidx-compose-foundation = { group = "androidx.compose.foundation", name = "foundation", version.ref = "foundation" }
+zxing-core = { group = "com.google.zxing", name = "core", version.ref = "zxing" }
 
 
 [plugins]

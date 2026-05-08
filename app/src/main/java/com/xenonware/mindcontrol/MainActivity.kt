@@ -47,6 +47,7 @@ import androidx.compose.material.icons.rounded.FilterCenterFocus
 import androidx.compose.material.icons.rounded.Keyboard
 import androidx.compose.material.icons.rounded.KeyboardArrowDown
 import androidx.compose.material.icons.rounded.KeyboardArrowUp
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
@@ -60,9 +61,17 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
+import com.google.zxing.BarcodeFormat
+import com.google.zxing.qrcode.QRCodeWriter
+import android.graphics.Bitmap
+import androidx.compose.foundation.Image
+import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.window.Dialog
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
@@ -115,9 +124,12 @@ import androidx.compose.material3.TabRowDefaults.SecondaryIndicator
 import androidx.compose.material3.TabRowDefaults.tabIndicatorOffset
 
 class MainActivity : ComponentActivity() {
+    private var qrTextToShow by mutableStateOf<String?>(null)
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         WindowCompat.setDecorFitsSystemWindows(window, false)
+        handleIntent(intent)
 
         setContent {
             val context = LocalContext.current
@@ -132,21 +144,102 @@ class MainActivity : ComponentActivity() {
 
             PaletteTheme(palette = devicePalette) {
                 Surface(color = Color.Black) {
-                    MindControlMainScreen(
-                        modifier = Modifier
-                            .fillMaxSize()
-                            .padding(WindowInsets.safeDrawing.asPaddingValues()),
-                        devicePalette = devicePalette,
-                        keyboardPalette = keyboardPalette,
-                        onDevicePaletteChange = {
-                            devicePalette = it
-                            SettingsManager.setDevicePalette(context, it)
-                        },
-                        onKeyboardPaletteChange = {
-                            keyboardPalette = it
-                            SettingsManager.setKeyboardPalette(context, it)
-                        },
+                    Box(modifier = Modifier.fillMaxSize()) {
+                        MindControlMainScreen(
+                            modifier = Modifier
+                                .fillMaxSize()
+                                .padding(WindowInsets.safeDrawing.asPaddingValues()),
+                            devicePalette = devicePalette,
+                            keyboardPalette = keyboardPalette,
+                            onDevicePaletteChange = {
+                                devicePalette = it
+                                SettingsManager.setDevicePalette(context, it)
+                            },
+                            onKeyboardPaletteChange = {
+                                keyboardPalette = it
+                                SettingsManager.setKeyboardPalette(context, it)
+                            },
+                        )
+
+                        qrTextToShow?.let { text ->
+                            QrCodeDialog(text = text, onDismiss = { qrTextToShow = null })
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        handleIntent(intent)
+    }
+
+    private fun handleIntent(intent: Intent?) {
+        intent?.getStringExtra("EXTRA_QR_TEXT")?.let {
+            qrTextToShow = it
+        }
+    }
+}
+
+@Composable
+fun QrCodeDialog(text: String, onDismiss: () -> Unit) {
+    val bitmap = remember(text) {
+        try {
+            val writer = QRCodeWriter()
+            val bitMatrix = writer.encode(text, BarcodeFormat.QR_CODE, 512, 512)
+            val width = bitMatrix.width
+            val height = bitMatrix.height
+            val bmp = Bitmap.createBitmap(width, height, Bitmap.Config.RGB_565)
+            for (x in 0 until width) {
+                for (y in 0 until height) {
+                    bmp.setPixel(x, y, if (bitMatrix.get(x, y)) android.graphics.Color.BLACK else android.graphics.Color.WHITE)
+                }
+            }
+            bmp
+        } catch (e: Exception) {
+            null
+        }
+    }
+
+    Dialog(onDismissRequest = onDismiss) {
+        Card(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(16.dp),
+            shape = RoundedCornerShape(16.dp),
+            colors = CardDefaults.cardColors(containerColor = Color.White)
+        ) {
+            Column(
+                modifier = Modifier.padding(16.dp),
+                horizontalAlignment = Alignment.CenterHorizontally
+            ) {
+                Text(
+                    "QR Code",
+                    style = MaterialTheme.typography.titleLarge,
+                    color = Color.Black,
+                    fontFamily = QuicksandTitleVariable
+                )
+                Spacer(modifier = Modifier.height(16.dp))
+                if (bitmap != null) {
+                    Image(
+                        bitmap = bitmap.asImageBitmap(),
+                        contentDescription = "QR Code",
+                        modifier = Modifier.size(250.dp)
                     )
+                } else {
+                    Text("Error generating QR Code", color = Color.Red)
+                }
+                Spacer(modifier = Modifier.height(16.dp))
+                Text(
+                    text,
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = Color.DarkGray,
+                    textAlign = TextAlign.Center
+                )
+                Spacer(modifier = Modifier.height(16.dp))
+                Button(onClick = onDismiss) {
+                    Text("Close")
                 }
             }
         }
@@ -1045,6 +1138,12 @@ fun MindControlActionSelector(
     } else if (action.startsWith(SettingsManager.PREFIX_SHORTCUT)) {
         val parts = action.removePrefix(SettingsManager.PREFIX_SHORTCUT).split("|")
         parts.getOrNull(2) ?: action.removePrefix(SettingsManager.PREFIX_SHORTCUT)
+    } else if (action.startsWith(SettingsManager.PREFIX_SPEED_DIAL)) {
+        "Speed Dial: " + action.removePrefix(SettingsManager.PREFIX_SPEED_DIAL)
+    } else if (action.startsWith(SettingsManager.PREFIX_URL)) {
+        "URL: " + action.removePrefix(SettingsManager.PREFIX_URL)
+    } else if (action.startsWith(SettingsManager.PREFIX_QR_CODE)) {
+        "QR Code: " + action.removePrefix(SettingsManager.PREFIX_QR_CODE)
     } else {
         action.split("_").joinToString(" ") { word ->
             word.lowercase().replaceFirstChar { if (it.isLowerCase()) it.titlecase() else it.toString() }
@@ -1143,7 +1242,10 @@ fun ActionsTab(config: ActionConfig, onActionSelected: (String) -> Unit) {
         SettingsManager.ACTION_SCROLL_DOWN_SMOOTH,
         SettingsManager.ACTION_COPY,
         SettingsManager.ACTION_CUT,
-        SettingsManager.ACTION_PASTE
+        SettingsManager.ACTION_PASTE,
+        SettingsManager.ACTION_SPEED_DIAL,
+        SettingsManager.ACTION_URL,
+        SettingsManager.ACTION_QR_CODE
     )
     ActionList(actions, config, onActionSelected)
 }
@@ -1182,7 +1284,7 @@ fun AppsTab(config: ActionConfig, onActionSelected: (String) -> Unit) {
                 supportingContent = { Text(app.packageName, color = Color.Gray, style = MaterialTheme.typography.bodySmall) },
                 leadingContent = {
                     val bitmap = remember(app.packageName) { app.icon.toBitmap().asImageBitmap() }
-                    androidx.compose.foundation.Image(bitmap, contentDescription = null, modifier = Modifier.size(40.dp))
+                    Image(bitmap, contentDescription = null, modifier = Modifier.size(40.dp))
                 },
                 modifier = Modifier.clickable {
                     SettingsManager.setAction(context, config.keyCode, config.state, config.type, SettingsManager.PREFIX_APP + app.packageName)
@@ -1234,7 +1336,7 @@ fun ShortcutsTab(config: ActionConfig, onActionSelected: (String) -> Unit) {
                     supportingContent = { Text(app.packageName, color = Color.Gray, style = MaterialTheme.typography.bodySmall) },
                     leadingContent = {
                         val bitmap = remember(app.packageName) { app.icon.toBitmap().asImageBitmap() }
-                        androidx.compose.foundation.Image(bitmap, contentDescription = null, modifier = Modifier.size(40.dp))
+                        Image(bitmap, contentDescription = null, modifier = Modifier.size(40.dp))
                     },
                     modifier = Modifier.clickable {
                         SettingsManager.setAction(context, config.keyCode, config.state, config.type, SettingsManager.PREFIX_SHORTCUT + app.packageName + "||" + app.name)
@@ -1285,6 +1387,61 @@ fun MediaTab(config: ActionConfig, onActionSelected: (String) -> Unit) {
 @Composable
 fun ActionList(actions: List<String>, config: ActionConfig, onActionSelected: (String) -> Unit) {
     val context = LocalContext.current
+    var showInputDialog by remember { mutableStateOf<String?>(null) }
+    var inputValue by remember { mutableStateOf("") }
+
+    if (showInputDialog != null) {
+        val title = when(showInputDialog) {
+            SettingsManager.ACTION_SPEED_DIAL -> "Enter Number"
+            SettingsManager.ACTION_URL -> "Enter URL"
+            SettingsManager.ACTION_QR_CODE -> "Enter Text for QR Code"
+            else -> ""
+        }
+        val label = when(showInputDialog) {
+            SettingsManager.ACTION_SPEED_DIAL -> "Phone Number"
+            SettingsManager.ACTION_URL -> "https://..."
+            SettingsManager.ACTION_QR_CODE -> "Text"
+            else -> ""
+        }
+        AlertDialog(
+            onDismissRequest = { showInputDialog = null },
+            title = { Text(title) },
+            text = {
+                OutlinedTextField(
+                    value = inputValue,
+                    onValueChange = { inputValue = it },
+                    singleLine = true,
+                    label = { Text(label) }
+                )
+            },
+            confirmButton = {
+                TextButton(onClick = {
+                    val prefix = when(showInputDialog) {
+                        SettingsManager.ACTION_SPEED_DIAL -> SettingsManager.PREFIX_SPEED_DIAL
+                        SettingsManager.ACTION_URL -> SettingsManager.PREFIX_URL
+                        SettingsManager.ACTION_QR_CODE -> SettingsManager.PREFIX_QR_CODE
+                        else -> ""
+                    }
+                    SettingsManager.setAction(context, config.keyCode, config.state, config.type, prefix + inputValue)
+                    onActionSelected(when(showInputDialog) {
+                        SettingsManager.ACTION_SPEED_DIAL -> "Speed Dial"
+                        SettingsManager.ACTION_URL -> "URL"
+                        SettingsManager.ACTION_QR_CODE -> "QR Code"
+                        else -> ""
+                    })
+                    showInputDialog = null
+                }) {
+                    Text("OK")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showInputDialog = null }) {
+                    Text("Cancel")
+                }
+            }
+        )
+    }
+
     LazyColumn(modifier = Modifier.fillMaxSize()) {
         items(actions) { action ->
             val displayName = action.split("_").joinToString(" ") { word ->
@@ -1294,8 +1451,20 @@ fun ActionList(actions: List<String>, config: ActionConfig, onActionSelected: (S
             ListItem(
                 headlineContent = { Text(displayName, color = Color.White) },
                 modifier = Modifier.clickable {
-                    SettingsManager.setAction(context, config.keyCode, config.state, config.type, action)
-                    onActionSelected(displayName)
+                    if (action == SettingsManager.ACTION_SPEED_DIAL || action == SettingsManager.ACTION_URL || action == SettingsManager.ACTION_QR_CODE) {
+                        showInputDialog = action
+                        val currentSavedAction = SettingsManager.getAction(context, config.keyCode, config.state, config.type)
+                        val prefix = when(action) {
+                            SettingsManager.ACTION_SPEED_DIAL -> SettingsManager.PREFIX_SPEED_DIAL
+                            SettingsManager.ACTION_URL -> SettingsManager.PREFIX_URL
+                            SettingsManager.ACTION_QR_CODE -> SettingsManager.PREFIX_QR_CODE
+                            else -> ""
+                        }
+                        inputValue = if (currentSavedAction.startsWith(prefix)) currentSavedAction.removePrefix(prefix) else ""
+                    } else {
+                        SettingsManager.setAction(context, config.keyCode, config.state, config.type, action)
+                        onActionSelected(displayName)
+                    }
                 },
                 colors = ListItemDefaults.colors(containerColor = Color.Transparent)
             )
