@@ -111,7 +111,7 @@ private val palWhiteDark = darkColorScheme(
     primaryContainer = Color(0xFFE2E2E2), onPrimaryContainer = Color(0xFF636565),
     secondary = Color(0xFFC8C6C6), onSecondary = Color(0xFF303030),
     secondaryContainer = Color(0xFF494949), onSecondaryContainer = Color(0xFFB9B8B8),
-    tertiary = Color(0xFFEE6398), onTertiary = Color(0xFF1C1B1B),
+    tertiary = Color(0xFFFFFFFF), onTertiary = Color(0xFF1C1B1B),
     tertiaryContainer = Color(0xFFFFDCC1), onTertiaryContainer = Color(0xFF623F20),
     error = Color(0xFFFFB4AB), onError = Color(0xFF690005),
     errorContainer = Color(0xFF93000A), onErrorContainer = Color(0xFFFFDAD6),
