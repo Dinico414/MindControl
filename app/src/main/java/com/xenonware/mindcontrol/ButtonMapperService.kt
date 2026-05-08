@@ -18,6 +18,7 @@ import android.util.Log
 import android.view.KeyEvent
 import android.view.WindowManager
 import android.view.accessibility.AccessibilityEvent
+import android.view.accessibility.AccessibilityNodeInfo
 import rikka.shizuku.Shizuku
 
 class ButtonMapperService : AccessibilityService() {
@@ -477,6 +478,9 @@ class ButtonMapperService : AccessibilityService() {
             SettingsManager.ACTION_SHOW_MENU -> { ShizukuManager.injectKey(KeyEvent.KEYCODE_MENU); true }
             SettingsManager.ACTION_ASSISTANT -> { launchAssistant(); true }
             SettingsManager.ACTION_GOOGLE_SEARCH -> { launchGoogleSearch(); true }
+            SettingsManager.ACTION_COPY -> performClipboardAction(AccessibilityNodeInfo.ACTION_COPY)
+            SettingsManager.ACTION_CUT -> performClipboardAction(AccessibilityNodeInfo.ACTION_CUT)
+            SettingsManager.ACTION_PASTE -> performClipboardAction(AccessibilityNodeInfo.ACTION_PASTE)
             SettingsManager.ACTION_BRIGHTNESS_UP -> { adjustBrightness(20); true }
             SettingsManager.ACTION_BRIGHTNESS_DOWN -> { adjustBrightness(-20); true }
             SettingsManager.ACTION_ROTATE_TOGGLE -> { toggleRotation(); true }
@@ -609,6 +613,23 @@ class ButtonMapperService : AccessibilityService() {
                 Log.e(tag, "Error opening app info", e)
             }
         }
+    }
+
+    private fun performClipboardAction(actionId: Int): Boolean {
+        // Try to find the node with input focus first
+        var node = rootInActiveWindow?.findFocus(AccessibilityNodeInfo.FOCUS_INPUT)
+        
+        // If not found, try to find the generally focused node
+        if (node == null) {
+            node = rootInActiveWindow?.findFocus(AccessibilityNodeInfo.FOCUS_ACCESSIBILITY)
+        }
+
+        if (node != null) {
+            val success = node.performAction(actionId)
+            node.recycle()
+            return success
+        }
+        return false
     }
 
     private fun adjustBrightness(delta: Int) {
