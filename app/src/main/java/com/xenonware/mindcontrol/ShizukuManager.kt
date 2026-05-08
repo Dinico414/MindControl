@@ -97,7 +97,16 @@ object ShizukuManager {
         runShellCommand("input keyevent $keyCode")
     }
 
-    private fun runShellCommand(command: String) {
+    fun isAvailable(): Boolean {
+        return try {
+            Shizuku.pingBinder() &&
+                    Shizuku.checkSelfPermission() == android.content.pm.PackageManager.PERMISSION_GRANTED
+        } catch (_: Exception) {
+            false
+        }
+    }
+
+    fun runShellCommand(command: String) {
         try {
             val binder = Shizuku.getBinder()
             if (binder != null && binder.pingBinder()) {

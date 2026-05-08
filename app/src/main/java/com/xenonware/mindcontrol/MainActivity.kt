@@ -1253,7 +1253,6 @@ fun SystemTab(config: ActionConfig, onActionSelected: (String) -> Unit) {
     val actions = listOf(
         SettingsManager.ACTION_VIBRATE_RINGER,
         SettingsManager.ACTION_DND,
-        SettingsManager.ACTION_FAST_QUICK_SETTINGS,
         SettingsManager.ACTION_NOTIFICATIONS,
         SettingsManager.ACTION_BRIGHTNESS_UP,
         SettingsManager.ACTION_BRIGHTNESS_DOWN,
@@ -1262,6 +1261,7 @@ fun SystemTab(config: ActionConfig, onActionSelected: (String) -> Unit) {
         SettingsManager.ACTION_DATA_TOGGLE,
         SettingsManager.ACTION_NFC_TOGGLE,
         SettingsManager.ACTION_ROTATE_TOGGLE,
+        SettingsManager.ACTION_ROTATE_360,
         SettingsManager.ACTION_AUTOROTATE_TOGGLE
     )
     ActionList(actions, config, onActionSelected)

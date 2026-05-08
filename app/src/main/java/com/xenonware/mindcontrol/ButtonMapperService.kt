@@ -491,7 +491,10 @@ class ButtonMapperService : AccessibilityService() {
             SettingsManager.ACTION_PASTE -> performClipboardAction(AccessibilityNodeInfo.ACTION_PASTE)
             SettingsManager.ACTION_BRIGHTNESS_UP -> { adjustBrightness(20); true }
             SettingsManager.ACTION_BRIGHTNESS_DOWN -> { adjustBrightness(-20); true }
+            SettingsManager.ACTION_AUTO_BRIGHTNESS_TOGGLE -> { toggleAutoBrightness(); true }
             SettingsManager.ACTION_ROTATE_TOGGLE -> { toggleRotation(); true }
+            SettingsManager.ACTION_ROTATE_360 -> { toggleRotation360(); true }
+            SettingsManager.ACTION_AUTOROTATE_TOGGLE -> { toggleAutoRotate(); true }
             SettingsManager.ACTION_SCROLL_UP, "TAP_SCROLL_UP" -> { performScroll(true); true }
             SettingsManager.ACTION_SCROLL_DOWN, "TAP_SCROLL_DOWN" -> { performScroll(false); true }
             SettingsManager.ACTION_SCROLL_UP_SMOOTH, "TAP_SCROLL_UP_SMOOTH" -> { performScroll(true); true }
@@ -715,13 +718,84 @@ class ButtonMapperService : AccessibilityService() {
 
     private fun toggleRotation() {
         try {
+            // Force Auto-Rotate OFF
             Settings.System.putInt(contentResolver, Settings.System.ACCELEROMETER_ROTATION, 0)
-            val currentRotation = Settings.System.getInt(contentResolver, Settings.System.USER_ROTATION)
-            val newRotation = if (currentRotation == 0) 1 else 0
-            Settings.System.putInt(contentResolver, Settings.System.USER_ROTATION, newRotation)
-            Log.d(tag, "Rotation toggled to $newRotation")
+            
+            val current = try {
+                Settings.System.getInt(contentResolver, Settings.System.USER_ROTATION)
+            } catch (e: Exception) { 0 }
+            
+            // Toggle specifically between Portrait (0) and Landscape (1)
+            val next = if (current == 0) 1 else 0
+            
+            Settings.System.putInt(contentResolver, Settings.System.USER_ROTATION, next)
+            Log.d(tag, "Rotation Toggle: $current -> $next")
         } catch (e: Exception) {
-            Log.e(tag, "Rotation toggle error", e)
+            Log.e(tag, "Rotation toggle error. Make sure 'Allow Sys Settings' is granted.", e)
+        }
+    }
+
+    private fun toggleRotation360() {
+        try {
+            // Force Auto-Rotate OFF
+            Settings.System.putInt(contentResolver, Settings.System.ACCELEROMETER_ROTATION, 0)
+            
+            val current = try {
+                Settings.System.getInt(contentResolver, Settings.System.USER_ROTATION)
+            } catch (e: Exception) { 0 }
+            
+            // Cycle through all 4 orientations (0, 1, 2, 3)
+            val next = (current + 1) % 4
+            
+            Settings.System.putInt(contentResolver, Settings.System.USER_ROTATION, next)
+            Log.d(tag, "Rotation 360 Toggle: $current -> $next")
+        } catch (e: Exception) {
+            Log.e(tag, "Rotation 360 toggle error", e)
+        }
+    }
+
+    private fun toggleAutoRotate() {
+        try {
+            val current = try {
+                Settings.System.getInt(contentResolver, Settings.System.ACCELEROMETER_ROTATION)
+            } catch (e: Exception) { 0 }
+            
+            val next = if (current == 1) 0 else 1
+            Settings.System.putInt(contentResolver, Settings.System.ACCELEROMETER_ROTATION, next)
+            Log.d(tag, "Auto-Rotate Toggle: $current -> $next")
+        } catch (e: Exception) {
+            Log.e(tag, "Auto-Rotate toggle error", e)
+        }
+    }
+
+    private fun toggleAutoBrightness() {
+        try {
+            val mode = try {
+                Settings.System.getInt(contentResolver, Settings.System.SCREEN_BRIGHTNESS_MODE)
+            } catch (e: Exception) { Settings.System.SCREEN_BRIGHTNESS_MODE_MANUAL }
+
+            val next = if (mode == Settings.System.SCREEN_BRIGHTNESS_MODE_AUTOMATIC) {
+                Settings.System.SCREEN_BRIGHTNESS_MODE_MANUAL
+            } else {
+                Settings.System.SCREEN_BRIGHTNESS_MODE_AUTOMATIC
+            }
+
+            if (ShizukuManager.isAvailable()) {
+                ShizukuManager.runShellCommand("settings put system screen_brightness_mode $next")
+                Log.d(tag, "Auto-Brightness Toggle (Shizuku): $mode -> $next")
+            } else {
+                val ok = Settings.System.putInt(
+                    contentResolver,
+                    Settings.System.SCREEN_BRIGHTNESS_MODE,
+                    next
+                )
+                Log.d(tag, "Auto-Brightness Toggle (System.putInt=$ok): $mode -> $next")
+                if (!ok) {
+                    Log.e(tag, "Auto-Brightness toggle was rejected. Authorize Shizuku for reliable toggling.")
+                }
+            }
+        } catch (e: Exception) {
+            Log.e(tag, "Auto-Brightness toggle error. Authorize Shizuku or grant 'Allow Sys Settings'.", e)
         }
     }
 

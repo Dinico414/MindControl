@@ -47,6 +47,7 @@ object SettingsManager {
     const val ACTION_DATA_TOGGLE = "DATA_TOGGLE"
     const val ACTION_NFC_TOGGLE = "NFC_TOGGLE"
     const val ACTION_AUTOROTATE_TOGGLE = "AUTOROTATE_TOGGLE"
+    const val ACTION_ROTATE_360 = "ROTATE_360"
 
     const val ACTION_MUTE_VOL = "MUTE_VOL"
     const val ACTION_MUTE_MIC_TOGGLE = "MUTE_MIC_TOGGLE"
