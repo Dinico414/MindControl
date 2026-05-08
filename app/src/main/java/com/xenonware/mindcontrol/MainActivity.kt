@@ -1260,6 +1260,7 @@ fun SystemTab(config: ActionConfig, onActionSelected: (String) -> Unit) {
         SettingsManager.ACTION_WIFI_TOGGLE,
         SettingsManager.ACTION_DATA_TOGGLE,
         SettingsManager.ACTION_NFC_TOGGLE,
+        SettingsManager.ACTION_LOCATION_TOGGLE,
         SettingsManager.ACTION_ROTATE_TOGGLE,
         SettingsManager.ACTION_ROTATE_360,
         SettingsManager.ACTION_AUTOROTATE_TOGGLE

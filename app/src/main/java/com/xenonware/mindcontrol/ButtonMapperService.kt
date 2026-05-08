@@ -19,6 +19,7 @@ import android.view.KeyEvent
 import android.view.WindowManager
 import android.view.accessibility.AccessibilityEvent
 import android.view.accessibility.AccessibilityNodeInfo
+import android.location.LocationManager
 import rikka.shizuku.Shizuku
 
 class ButtonMapperService : AccessibilityService() {
@@ -495,6 +496,10 @@ class ButtonMapperService : AccessibilityService() {
             SettingsManager.ACTION_ROTATE_TOGGLE -> { toggleRotation(); true }
             SettingsManager.ACTION_ROTATE_360 -> { toggleRotation360(); true }
             SettingsManager.ACTION_AUTOROTATE_TOGGLE -> { toggleAutoRotate(); true }
+            SettingsManager.ACTION_WIFI_TOGGLE -> { toggleWifi(); true }
+            SettingsManager.ACTION_DATA_TOGGLE -> { toggleData(); true }
+            SettingsManager.ACTION_NFC_TOGGLE -> { toggleNfc(); true }
+            SettingsManager.ACTION_LOCATION_TOGGLE -> { toggleLocation(); true }
             SettingsManager.ACTION_SCROLL_UP, "TAP_SCROLL_UP" -> { performScroll(true); true }
             SettingsManager.ACTION_SCROLL_DOWN, "TAP_SCROLL_DOWN" -> { performScroll(false); true }
             SettingsManager.ACTION_SCROLL_UP_SMOOTH, "TAP_SCROLL_UP_SMOOTH" -> { performScroll(true); true }
@@ -796,6 +801,68 @@ class ButtonMapperService : AccessibilityService() {
             }
         } catch (e: Exception) {
             Log.e(tag, "Auto-Brightness toggle error. Authorize Shizuku or grant 'Allow Sys Settings'.", e)
+        }
+    }
+
+    private fun toggleWifi() {
+        try {
+            val current = Settings.Global.getInt(contentResolver, Settings.Global.WIFI_ON, 0)
+            val next = if (current == 1) "disable" else "enable"
+            if (ShizukuManager.isAvailable()) {
+                ShizukuManager.runShellCommand("svc wifi $next")
+                Log.d(tag, "Wifi Toggle (Shizuku): $current -> $next")
+            } else {
+                Log.e(tag, "Wifi toggle requires Shizuku or Root on this Android version")
+            }
+        } catch (e: Exception) {
+            Log.e(tag, "Wifi toggle error", e)
+        }
+    }
+
+    private fun toggleData() {
+        try {
+            val current = Settings.Global.getInt(contentResolver, "mobile_data", 0)
+            val next = if (current == 1) "disable" else "enable"
+            if (ShizukuManager.isAvailable()) {
+                ShizukuManager.runShellCommand("svc data $next")
+                Log.d(tag, "Data Toggle (Shizuku): $current -> $next")
+            } else {
+                Log.e(tag, "Mobile Data toggle requires Shizuku or Root")
+            }
+        } catch (e: Exception) {
+            Log.e(tag, "Data toggle error", e)
+        }
+    }
+
+    private fun toggleNfc() {
+        try {
+            val current = Settings.Global.getInt(contentResolver, "nfc_on", 0)
+            val next = if (current == 1) "disable" else "enable"
+            if (ShizukuManager.isAvailable()) {
+                ShizukuManager.runShellCommand("svc nfc $next")
+                Log.d(tag, "NFC Toggle (Shizuku): $current -> $next")
+            } else {
+                Log.e(tag, "NFC toggle requires Shizuku or Root")
+            }
+        } catch (e: Exception) {
+            Log.e(tag, "NFC toggle error", e)
+        }
+    }
+
+    private fun toggleLocation() {
+        try {
+            val lm = getSystemService(LOCATION_SERVICE) as LocationManager
+            val isEnabled = lm.isLocationEnabled
+            val nextMode = if (isEnabled) 0 else 3 // 0 = OFF, 3 = HIGH_ACCURACY
+            
+            if (ShizukuManager.isAvailable()) {
+                ShizukuManager.runShellCommand("settings put secure location_mode $nextMode")
+                Log.d(tag, "Location Toggle (Shizuku): $isEnabled -> $nextMode")
+            } else {
+                Log.e(tag, "Location toggle requires Shizuku or Root")
+            }
+        } catch (e: Exception) {
+            Log.e(tag, "Location toggle error", e)
         }
     }
 
