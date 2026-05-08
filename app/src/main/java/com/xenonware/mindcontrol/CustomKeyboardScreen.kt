@@ -3,8 +3,6 @@ package com.xenonware.mindcontrol
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.interaction.MutableInteractionSource
-import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
@@ -144,10 +142,6 @@ fun KeyButton(
     isHardwarePressed: Boolean = false,
     onKeyConfigure: (Int, String) -> Unit = { _, _ -> }
 ) {
-    val interactionSource = remember { MutableInteractionSource() }
-    val isTouchPressed by interactionSource.collectIsPressedAsState()
-    val isActive = isTouchPressed || isHardwarePressed
-
     // Logic to visually dim disabled buttons
     val isDisabled = key.keyCode == null && key.onClick != null && key.label != "Back to system buttons" && !key.label.contains(KeyboardLayout.QWERTY.displayName, true) && !key.label.contains("QWERTZ", true) && !key.label.contains("AZERTY", true)
 
@@ -161,14 +155,12 @@ fun KeyButton(
             .clip(if (key.isPill) RoundedCornerShape(50) else RoundedCornerShape(4.dp))
             .background(
                 when {
-                    isActive -> MaterialTheme.colorScheme.primary
+                    isHardwarePressed -> MaterialTheme.colorScheme.primary
                     isDisabled -> MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.4f)
                     else -> MaterialTheme.colorScheme.primaryContainer
                 }
             )
             .clickable(
-                interactionSource = interactionSource,
-                indication = null,
                 enabled = !isDisabled
             ) {
                 when {
@@ -183,13 +175,13 @@ fun KeyButton(
             Icon(
                 imageVector = key.icon,
                 contentDescription = key.label,
-                tint = if (isActive) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = if (isDisabled) 0.3f else 1f),
+                tint = if (isHardwarePressed) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = if (isDisabled) 0.3f else 1f),
                 modifier = Modifier.size(20.dp)
             )
         } else {
             Text(
                 text = displayedLabel,
-                color = if (isActive) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = if (isDisabled) 0.3f else 1f),
+                color = if (isHardwarePressed) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = if (isDisabled) 0.3f else 1f),
                 fontSize = if (key.label.length > 1) 14.sp else 18.sp,
                 fontWeight = FontWeight.Bold,
                 textAlign = TextAlign.Center,
