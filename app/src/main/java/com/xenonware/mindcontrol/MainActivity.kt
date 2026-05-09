@@ -208,7 +208,7 @@ fun QrCodeDialog(text: String, onDismiss: () -> Unit) {
                 .fillMaxWidth()
                 .padding(16.dp),
             shape = RoundedCornerShape(16.dp),
-            colors = CardDefaults.cardColors(containerColor = Color.White)
+            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
         ) {
             Column(
                 modifier = Modifier.padding(16.dp),
@@ -217,24 +217,30 @@ fun QrCodeDialog(text: String, onDismiss: () -> Unit) {
                 Text(
                     "QR Code",
                     style = MaterialTheme.typography.titleLarge,
-                    color = Color.Black,
+                    color = MaterialTheme.colorScheme.onSurface,
                     fontFamily = QuicksandTitleVariable
                 )
                 Spacer(modifier = Modifier.height(16.dp))
                 if (bitmap != null) {
-                    Image(
-                        bitmap = bitmap.asImageBitmap(),
-                        contentDescription = "QR Code",
-                        modifier = Modifier.size(250.dp)
-                    )
+                    Box(
+                        modifier = Modifier
+                            .background(Color.White)
+                            .padding(8.dp)
+                    ) {
+                        Image(
+                            bitmap = bitmap.asImageBitmap(),
+                            contentDescription = "QR Code",
+                            modifier = Modifier.size(250.dp)
+                        )
+                    }
                 } else {
-                    Text("Error generating QR Code", color = Color.Red)
+                    Text("Error generating QR Code", color = MaterialTheme.colorScheme.error)
                 }
                 Spacer(modifier = Modifier.height(16.dp))
                 Text(
                     text,
                     style = MaterialTheme.typography.bodyMedium,
-                    color = Color.DarkGray,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
                     textAlign = TextAlign.Center
                 )
                 Spacer(modifier = Modifier.height(16.dp))
@@ -1160,7 +1166,7 @@ fun MindControlActionSelector(
             text = "$type: ", modifier = Modifier.weight(1f), color = Color.White
         )
         OutlinedButton(onClick = { onSelectAction(keyCode, state, type) }) {
-            Text(displayAction, color = Color.White)
+            Text(displayAction, color = MaterialTheme.colorScheme.primary)
         }
     }
 }
@@ -1281,7 +1287,7 @@ fun AppsTab(config: ActionConfig, onActionSelected: (String) -> Unit) {
         items(apps) { app ->
             ListItem(
                 headlineContent = { Text(app.name, color = Color.White) },
-                supportingContent = { Text(app.packageName, color = Color.Gray, style = MaterialTheme.typography.bodySmall) },
+                supportingContent = { Text(app.packageName, color = MaterialTheme.colorScheme.onSurfaceVariant, style = MaterialTheme.typography.bodySmall) },
                 leadingContent = {
                     val bitmap = remember(app.packageName) { app.icon.toBitmap().asImageBitmap() }
                     Image(bitmap, contentDescription = null, modifier = Modifier.size(40.dp))
@@ -1292,7 +1298,7 @@ fun AppsTab(config: ActionConfig, onActionSelected: (String) -> Unit) {
                 },
                 colors = ListItemDefaults.colors(containerColor = Color.Transparent)
             )
-            HorizontalDivider(color = Color.DarkGray)
+            HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
         }
     }
 }
@@ -1326,14 +1332,14 @@ fun ShortcutsTab(config: ActionConfig, onActionSelected: (String) -> Unit) {
 
     if (shortcutApps.isEmpty()) {
         Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-            Text("No shortcut-capable apps found", color = Color.Gray)
+            Text("No shortcut-capable apps found", color = MaterialTheme.colorScheme.onSurfaceVariant)
         }
     } else {
         LazyColumn(modifier = Modifier.fillMaxSize()) {
             items(shortcutApps) { app ->
                 ListItem(
                     headlineContent = { Text(app.name, color = Color.White) },
-                    supportingContent = { Text(app.packageName, color = Color.Gray, style = MaterialTheme.typography.bodySmall) },
+                    supportingContent = { Text(app.packageName, color = MaterialTheme.colorScheme.onSurfaceVariant, style = MaterialTheme.typography.bodySmall) },
                     leadingContent = {
                         val bitmap = remember(app.packageName) { app.icon.toBitmap().asImageBitmap() }
                         Image(bitmap, contentDescription = null, modifier = Modifier.size(40.dp))
@@ -1344,7 +1350,7 @@ fun ShortcutsTab(config: ActionConfig, onActionSelected: (String) -> Unit) {
                     },
                     colors = ListItemDefaults.colors(containerColor = Color.Transparent)
                 )
-                HorizontalDivider(color = Color.DarkGray)
+                HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
             }
         }
     }
@@ -1468,7 +1474,7 @@ fun ActionList(actions: List<String>, config: ActionConfig, onActionSelected: (S
                 },
                 colors = ListItemDefaults.colors(containerColor = Color.Transparent)
             )
-            HorizontalDivider(color = Color.DarkGray)
+            HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
         }
     }
 }
