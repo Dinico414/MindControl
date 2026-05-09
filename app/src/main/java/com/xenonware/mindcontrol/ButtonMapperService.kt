@@ -29,7 +29,7 @@ class ButtonMapperService : AccessibilityService() {
     private val clickDelay = 350L
 
     private var isCameraInUse = false
-    private var isLongPress = false
+    private val isLongPress = mutableMapOf<Int, Boolean>()
     private var isFlashlightOn = false
     private var lastPackageName: String? = null
     private var previousPackageName: String? = null
@@ -181,7 +181,7 @@ class ButtonMapperService : AccessibilityService() {
     private val keyClearTasks = mutableMapOf<Int, Runnable>()
     private var pendingMultiClick: Runnable? = null
 
-    private var continuousActionTask: Runnable? = null
+    private val continuousActionTask = mutableMapOf<Int, Runnable>()
 
     private val lastEventTimes = mutableMapOf<Pair<Int, Boolean>, Long>()
     private val lastEventSources = mutableMapOf<Pair<Int, Boolean>, Boolean>()
@@ -202,11 +202,13 @@ class ButtonMapperService : AccessibilityService() {
 
     private fun processKeyEvent(keyCode: Int, isDown: Boolean, state: String) {
         if (isDown) {
-            isLongPress = false
+            isLongPress[keyCode] = false
             if (keyCode != lastKeyCode) {
                 clickCount = 0
                 pendingMultiClick?.let { handler.removeCallbacks(it) }
-                stopContinuousAction()
+                // Stop any continuous action from the PREVIOUS key to avoid "zombies"
+                if (lastKeyCode != -1) stopContinuousAction(lastKeyCode)
+                stopContinuousAction(keyCode)
             }
             lastKeyCode = keyCode
 
@@ -217,7 +219,7 @@ class ButtonMapperService : AccessibilityService() {
             val capturedState = state
             val longPressRunnable = Runnable {
                 if (clickCount == 0) {
-                    isLongPress = true
+                    isLongPress[keyCode] = true
                     Log.d(tag, "Long Press triggered for $keyCode (state=$capturedState)")
                     performAction(keyCode, capturedState, "LONG")
                     startContinuousAction(keyCode, capturedState, "LONG")
@@ -228,12 +230,14 @@ class ButtonMapperService : AccessibilityService() {
         } else {
             longPressRunnables.remove(keyCode)?.let { handler.removeCallbacks(it) }
 
-            if (isLongPress) {
-                isLongPress = false
+            val wasLongPress = isLongPress.remove(keyCode) ?: false
+            if (wasLongPress) {
                 clickCount = 0
-                stopContinuousAction()
+                stopContinuousAction(keyCode)
                 return
             }
+
+            stopContinuousAction(keyCode)
 
             if (keyCode == 132 || keyCode == 133) {
                 Log.d(tag, "Single-click triggered for $keyCode (state=$state)")
@@ -343,6 +347,8 @@ class ButtonMapperService : AccessibilityService() {
 
         if (isDuplicate) {
             updateButtonState()
+            // Even if duplicate, ensure continuous action stops on UP
+            if (!isDown) stopContinuousAction(keyCode)
             return true
         }
 
@@ -386,6 +392,7 @@ class ButtonMapperService : AccessibilityService() {
                 if (ignoreNextFocusUp) {
                     ignoreNextFocusUp = false
                     longPressRunnables.remove(134)?.let { handler.removeCallbacks(it) }
+                    stopContinuousAction(134)
                     return true
                 }
                 pendingFocusDown?.let {
@@ -402,6 +409,8 @@ class ButtonMapperService : AccessibilityService() {
     }
 
     private fun startContinuousAction(keyCode: Int, state: String, type: String) {
+        stopContinuousAction(keyCode)
+        
         val action = SettingsManager.getAction(this, keyCode, state, type)
         val isContinuous = (action == SettingsManager.ACTION_DEFAULT && (keyCode == 24 || keyCode == 25)) ||
                 action == SettingsManager.ACTION_VOLUME_UP ||
@@ -424,18 +433,28 @@ class ButtonMapperService : AccessibilityService() {
         val isScroll = action == SettingsManager.ACTION_SCROLL_UP_SMOOTH || action == SettingsManager.ACTION_SCROLL_DOWN_SMOOTH || action == "TAP_SCROLL_UP_SMOOTH" || action == "TAP_SCROLL_DOWN_SMOOTH"
         val delay = if (isScroll) 250L else 150L
 
-        continuousActionTask = object : Runnable {
+        val task = object : Runnable {
             override fun run() {
+                if (continuousActionTask[keyCode] != this) return
+                
+                // Ensure the key is still physically pressed.
+                // This is a failsafe against "zombie" repetition if the UP event was missed or ignored.
+                if (!ButtonState.pressedKeys.value.contains(keyCode)) {
+                    Log.w(tag, "Continuous action for $keyCode self-terminated (key no longer pressed)")
+                    stopContinuousAction(keyCode)
+                    return
+                }
+
                 performAction(keyCode, state, type)
                 handler.postDelayed(this, delay)
             }
         }
-        handler.postDelayed(continuousActionTask!!, delay)
+        continuousActionTask[keyCode] = task
+        handler.postDelayed(task, delay)
     }
 
-    private fun stopContinuousAction() {
-        continuousActionTask?.let { handler.removeCallbacks(it) }
-        continuousActionTask = null
+    private fun stopContinuousAction(keyCode: Int) {
+        continuousActionTask.remove(keyCode)?.let { handler.removeCallbacks(it) }
     }
 
     private fun performAction(keyCode: Int, state: String, type: String) {
