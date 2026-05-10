@@ -57,8 +57,6 @@ object SettingsManager {
     const val ACTION_MUTE_MIC_TOGGLE = "MUTE_MIC_TOGGLE"
     const val ACTION_STOP = "STOP"
     const val ACTION_RECORD = "RECORD"
-    const val ACTION_FAST_FORWARD = "FAST_FORWARD"
-    const val ACTION_FAST_BACKWARD = "FAST_BACKWARD"
 
     const val PREFIX_APP = "APP:"
     const val PREFIX_SHORTCUT = "SHORTCUT:"

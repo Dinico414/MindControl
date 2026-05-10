@@ -69,6 +69,7 @@ import androidx.compose.material3.TextButton
 import com.google.zxing.BarcodeFormat
 import com.google.zxing.qrcode.QRCodeWriter
 import android.graphics.Bitmap
+import android.graphics.drawable.Drawable
 import androidx.compose.foundation.Image
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.window.Dialog
@@ -115,13 +116,57 @@ import kotlinx.coroutines.withContext
 import androidx.compose.foundation.layout.size
 import androidx.compose.material3.ListItem
 import androidx.compose.material3.ListItemDefaults
-import androidx.compose.ui.graphics.ImageBitmap
-import android.content.pm.ResolveInfo
-import android.graphics.drawable.Drawable
-import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.material.icons.automirrored.rounded.ArrowBack
+import androidx.compose.material.icons.rounded.Apps
+import androidx.compose.material.icons.rounded.Assistant
+import androidx.compose.material.icons.rounded.BrightnessAuto
+import androidx.compose.material.icons.rounded.BrightnessHigh
+import androidx.compose.material.icons.rounded.BrightnessLow
+import androidx.compose.material.icons.rounded.ContentCopy
+import androidx.compose.material.icons.rounded.ContentCut
+import androidx.compose.material.icons.rounded.ContentPaste
+import androidx.compose.material.icons.rounded.DataUsage
+import androidx.compose.material.icons.rounded.DoNotDisturbOn
+import androidx.compose.material.icons.rounded.FlashlightOn
+import androidx.compose.material.icons.rounded.History
+import androidx.compose.material.icons.rounded.Home
+import androidx.compose.material.icons.rounded.Info
+import androidx.compose.material.icons.rounded.KeyboardDoubleArrowDown
+import androidx.compose.material.icons.rounded.KeyboardDoubleArrowUp
+import androidx.compose.material.icons.rounded.Language
+import androidx.compose.material.icons.rounded.LocationOn
+import androidx.compose.material.icons.rounded.Lock
+import androidx.compose.material.icons.rounded.Menu
+import androidx.compose.material.icons.rounded.MicOff
+import androidx.compose.material.icons.rounded.Nfc
+import androidx.compose.material.icons.rounded.Notifications
+import androidx.compose.material.icons.rounded.Phone
+import androidx.compose.material.icons.rounded.PlayArrow
+import androidx.compose.material.icons.rounded.PowerSettingsNew
+import androidx.compose.material.icons.rounded.QrCode
+import androidx.compose.material.icons.rounded.Repeat
+import androidx.compose.material.icons.rounded.RotateRight
+import androidx.compose.material.icons.rounded.ScreenRotation
+import androidx.compose.material.icons.rounded.Screenshot
+import androidx.compose.material.icons.rounded.Search
+import androidx.compose.material.icons.rounded.SettingsBackupRestore
+import androidx.compose.material.icons.rounded.Shortcut
+import androidx.compose.material.icons.rounded.SkipNext
+import androidx.compose.material.icons.rounded.SkipPrevious
+import androidx.compose.material.icons.rounded.Vibration
+import androidx.compose.material.icons.rounded.VolumeDown
+import androidx.compose.material.icons.rounded.VolumeOff
+import androidx.compose.material.icons.rounded.VolumeUp
+import androidx.compose.material.icons.rounded.Block
+import androidx.compose.material.icons.rounded.FiberManualRecord
+import androidx.compose.material.icons.rounded.Stop
+import androidx.compose.material.icons.rounded.QuestionMark
+import androidx.compose.material.icons.rounded.Settings
+import androidx.compose.material.icons.rounded.Wifi
+import androidx.compose.material3.LocalContentColor
 import androidx.compose.material3.PrimaryScrollableTabRow
-import androidx.compose.material3.TabRowDefaults.SecondaryIndicator
-import androidx.compose.material3.TabRowDefaults.tabIndicatorOffset
+import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.ui.graphics.vector.ImageVector
 
 class MainActivity : ComponentActivity() {
     private var qrTextToShow by mutableStateOf<String?>(null)
@@ -1166,7 +1211,86 @@ fun MindControlActionSelector(
             text = "$type: ", modifier = Modifier.weight(1f), color = Color.White
         )
         OutlinedButton(onClick = { onSelectAction(keyCode, state, type) }) {
+            ActionIcon(
+                action = action,
+                modifier = Modifier.size(18.dp).padding(end = 4.dp),
+                tint = MaterialTheme.colorScheme.primary
+            )
             Text(displayAction, color = MaterialTheme.colorScheme.primary)
+        }
+    }
+}
+
+@Composable
+fun ActionIcon(action: String, modifier: Modifier = Modifier, tint: Color = LocalContentColor.current) {
+    val context = LocalContext.current
+    val icon: Any? = when {
+        action.startsWith(SettingsManager.PREFIX_APP) -> {
+            val pkg = action.removePrefix(SettingsManager.PREFIX_APP)
+            remember(pkg) {
+                try {
+                    context.packageManager.getApplicationIcon(pkg)
+                } catch (e: Exception) {
+                    Icons.Rounded.Apps
+                }
+            }
+        }
+        action.startsWith(SettingsManager.PREFIX_SHORTCUT) -> Icons.Rounded.Shortcut
+        action.startsWith(SettingsManager.PREFIX_SPEED_DIAL) || action == SettingsManager.ACTION_SPEED_DIAL -> Icons.Rounded.Phone
+        action.startsWith(SettingsManager.PREFIX_URL) || action == SettingsManager.ACTION_URL -> Icons.Rounded.Language
+        action.startsWith(SettingsManager.PREFIX_QR_CODE) || action == SettingsManager.ACTION_QR_CODE -> Icons.Rounded.QrCode
+        action == SettingsManager.ACTION_NONE -> Icons.Rounded.Block
+        action == SettingsManager.ACTION_DEFAULT -> Icons.Rounded.SettingsBackupRestore
+        action == SettingsManager.ACTION_HOME -> Icons.Rounded.Home
+        action == SettingsManager.ACTION_BACK -> Icons.AutoMirrored.Rounded.ArrowBack
+        action == SettingsManager.ACTION_RECENTS -> Icons.Rounded.History
+        action == SettingsManager.ACTION_SHOW_MENU -> Icons.Rounded.Menu
+        action == SettingsManager.ACTION_LOCK -> Icons.Rounded.Lock
+        action == SettingsManager.ACTION_FLASHLIGHT -> Icons.Rounded.FlashlightOn
+        action == SettingsManager.ACTION_SCREENSHOT -> Icons.Rounded.Screenshot
+        action == SettingsManager.ACTION_QUICK_SETTINGS -> Icons.Rounded.Settings
+        action == SettingsManager.ACTION_LAST_APP -> Icons.Rounded.Repeat
+        action == SettingsManager.ACTION_APP_INFO -> Icons.Rounded.Info
+        action == SettingsManager.ACTION_POWER_DIALOG -> Icons.Rounded.PowerSettingsNew
+        action == SettingsManager.ACTION_GOOGLE_SEARCH -> Icons.Rounded.Search
+        action == SettingsManager.ACTION_ASSISTANT -> Icons.Rounded.Assistant
+        action == SettingsManager.ACTION_SCROLL_UP -> Icons.Rounded.KeyboardArrowUp
+        action == SettingsManager.ACTION_SCROLL_DOWN -> Icons.Rounded.KeyboardArrowDown
+        action == SettingsManager.ACTION_SCROLL_UP_SMOOTH -> Icons.Rounded.KeyboardDoubleArrowUp
+        action == SettingsManager.ACTION_SCROLL_DOWN_SMOOTH -> Icons.Rounded.KeyboardDoubleArrowDown
+        action == SettingsManager.ACTION_COPY -> Icons.Rounded.ContentCopy
+        action == SettingsManager.ACTION_CUT -> Icons.Rounded.ContentCut
+        action == SettingsManager.ACTION_PASTE -> Icons.Rounded.ContentPaste
+        action == SettingsManager.ACTION_VIBRATE_RINGER -> Icons.Rounded.Vibration
+        action == SettingsManager.ACTION_DND -> Icons.Rounded.DoNotDisturbOn
+        action == SettingsManager.ACTION_NOTIFICATIONS -> Icons.Rounded.Notifications
+        action == SettingsManager.ACTION_BRIGHTNESS_UP -> Icons.Rounded.BrightnessHigh
+        action == SettingsManager.ACTION_BRIGHTNESS_DOWN -> Icons.Rounded.BrightnessLow
+        action == SettingsManager.ACTION_AUTO_BRIGHTNESS_TOGGLE -> Icons.Rounded.BrightnessAuto
+        action == SettingsManager.ACTION_WIFI_TOGGLE -> Icons.Rounded.Wifi
+        action == SettingsManager.ACTION_DATA_TOGGLE -> Icons.Rounded.DataUsage
+        action == SettingsManager.ACTION_NFC_TOGGLE -> Icons.Rounded.Nfc
+        action == SettingsManager.ACTION_LOCATION_TOGGLE -> Icons.Rounded.LocationOn
+        action == SettingsManager.ACTION_ROTATE_TOGGLE -> Icons.Rounded.ScreenRotation
+        action == SettingsManager.ACTION_ROTATE_360 -> Icons.Rounded.RotateRight
+        action == SettingsManager.ACTION_AUTOROTATE_TOGGLE -> Icons.Rounded.ScreenRotation
+        action == SettingsManager.ACTION_VOLUME_UP -> Icons.Rounded.VolumeUp
+        action == SettingsManager.ACTION_VOLUME_DOWN -> Icons.Rounded.VolumeDown
+        action == SettingsManager.ACTION_MUTE_VOL -> Icons.Rounded.VolumeOff
+        action == SettingsManager.ACTION_MUTE_MIC_TOGGLE -> Icons.Rounded.MicOff
+        action == SettingsManager.ACTION_PREVIOUS -> Icons.Rounded.SkipPrevious
+        action == SettingsManager.ACTION_NEXT -> Icons.Rounded.SkipNext
+        action == SettingsManager.ACTION_PLAY_PAUSE -> Icons.Rounded.PlayArrow
+        action == SettingsManager.ACTION_STOP -> Icons.Rounded.Stop
+        action == SettingsManager.ACTION_RECORD -> Icons.Rounded.FiberManualRecord
+        else -> Icons.Rounded.QuestionMark
+    }
+
+    when (icon) {
+        is ImageVector -> Icon(imageVector = icon, contentDescription = null, modifier = modifier, tint = tint)
+        is Drawable -> {
+            val bitmap = remember(icon) { icon.toBitmap().asImageBitmap() }
+            Image(bitmap = bitmap, contentDescription = null, modifier = modifier)
         }
     }
 }
@@ -1386,6 +1510,8 @@ fun MediaTab(config: ActionConfig, onActionSelected: (String) -> Unit) {
         SettingsManager.ACTION_PREVIOUS,
         SettingsManager.ACTION_NEXT,
         SettingsManager.ACTION_PLAY_PAUSE,
+        SettingsManager.ACTION_STOP,
+        SettingsManager.ACTION_RECORD,
     )
     ActionList(actions, config, onActionSelected)
 }
@@ -1456,6 +1582,9 @@ fun ActionList(actions: List<String>, config: ActionConfig, onActionSelected: (S
             
             ListItem(
                 headlineContent = { Text(displayName, color = Color.White) },
+                leadingContent = {
+                    ActionIcon(action = action, modifier = Modifier.size(24.dp), tint = Color.White)
+                },
                 modifier = Modifier.clickable {
                     if (action == SettingsManager.ACTION_SPEED_DIAL || action == SettingsManager.ACTION_URL || action == SettingsManager.ACTION_QR_CODE) {
                         showInputDialog = action
