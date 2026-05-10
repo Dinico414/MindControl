@@ -66,13 +66,8 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
-import com.google.zxing.BarcodeFormat
-import com.google.zxing.qrcode.QRCodeWriter
-import android.graphics.Bitmap
 import android.graphics.drawable.Drawable
 import androidx.compose.foundation.Image
-import androidx.compose.ui.graphics.asImageBitmap
-import androidx.compose.ui.window.Dialog
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
@@ -169,12 +164,10 @@ import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.ui.graphics.vector.ImageVector
 
 class MainActivity : ComponentActivity() {
-    private var qrTextToShow by mutableStateOf<String?>(null)
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         WindowCompat.setDecorFitsSystemWindows(window, false)
-        handleIntent(intent)
 
         setContent {
             val context = LocalContext.current
@@ -205,92 +198,7 @@ class MainActivity : ComponentActivity() {
                                 SettingsManager.setKeyboardPalette(context, it)
                             },
                         )
-
-                        qrTextToShow?.let { text ->
-                            QrCodeDialog(text = text, onDismiss = { qrTextToShow = null })
-                        }
                     }
-                }
-            }
-        }
-    }
-
-    override fun onNewIntent(intent: Intent) {
-        super.onNewIntent(intent)
-        handleIntent(intent)
-    }
-
-    private fun handleIntent(intent: Intent?) {
-        intent?.getStringExtra("EXTRA_QR_TEXT")?.let {
-            qrTextToShow = it
-        }
-    }
-}
-
-@Composable
-fun QrCodeDialog(text: String, onDismiss: () -> Unit) {
-    val bitmap = remember(text) {
-        try {
-            val writer = QRCodeWriter()
-            val bitMatrix = writer.encode(text, BarcodeFormat.QR_CODE, 512, 512)
-            val width = bitMatrix.width
-            val height = bitMatrix.height
-            val bmp = Bitmap.createBitmap(width, height, Bitmap.Config.RGB_565)
-            for (x in 0 until width) {
-                for (y in 0 until height) {
-                    bmp.setPixel(x, y, if (bitMatrix.get(x, y)) android.graphics.Color.BLACK else android.graphics.Color.WHITE)
-                }
-            }
-            bmp
-        } catch (e: Exception) {
-            null
-        }
-    }
-
-    Dialog(onDismissRequest = onDismiss) {
-        Card(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(16.dp),
-            shape = RoundedCornerShape(16.dp),
-            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
-        ) {
-            Column(
-                modifier = Modifier.padding(16.dp),
-                horizontalAlignment = Alignment.CenterHorizontally
-            ) {
-                Text(
-                    "QR Code",
-                    style = MaterialTheme.typography.titleLarge,
-                    color = MaterialTheme.colorScheme.onSurface,
-                    fontFamily = QuicksandTitleVariable
-                )
-                Spacer(modifier = Modifier.height(16.dp))
-                if (bitmap != null) {
-                    Box(
-                        modifier = Modifier
-                            .background(Color.White)
-                            .padding(8.dp)
-                    ) {
-                        Image(
-                            bitmap = bitmap.asImageBitmap(),
-                            contentDescription = "QR Code",
-                            modifier = Modifier.size(250.dp)
-                        )
-                    }
-                } else {
-                    Text("Error generating QR Code", color = MaterialTheme.colorScheme.error)
-                }
-                Spacer(modifier = Modifier.height(16.dp))
-                Text(
-                    text,
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    textAlign = TextAlign.Center
-                )
-                Spacer(modifier = Modifier.height(16.dp))
-                Button(onClick = onDismiss) {
-                    Text("Close")
                 }
             }
         }

@@ -733,10 +733,10 @@ class ButtonMapperService : AccessibilityService() {
     }
 
     private fun showQrCode(text: String) {
-        val intent = Intent(this, MainActivity::class.java)
+        val intent = Intent(this, QrCodeActivity::class.java)
         intent.putExtra("EXTRA_QR_TEXT", text)
         intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-        intent.addFlags(Intent.FLAG_ACTIVITY_SINGLE_TOP)
+        intent.addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP)
         try {
             startActivity(intent)
         } catch (e: Exception) {
