@@ -13,8 +13,10 @@ import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
@@ -22,6 +24,9 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.pager.HorizontalPager
+import androidx.compose.foundation.pager.rememberPagerState
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
@@ -33,16 +38,14 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
-import androidx.compose.ui.geometry.Rect
-import androidx.compose.ui.geometry.RoundRect
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
-import androidx.compose.ui.graphics.drawscope.Fill
+import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.drawscope.Stroke
-import androidx.compose.ui.graphics.drawscope.rotate
 import androidx.compose.ui.graphics.drawscope.withTransform
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
@@ -51,6 +54,9 @@ import com.google.zxing.EncodeHintType
 import com.google.zxing.qrcode.QRCodeWriter
 import com.xenon.mylibrary.theme.QuicksandTitleVariable
 import com.xenonware.mindcontrol.ui.theme.PaletteTheme
+import kotlin.math.PI
+import kotlin.math.cos
+import kotlin.math.sin
 
 class QrCodeActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -86,6 +92,8 @@ class QrCodeActivity : ComponentActivity() {
 
 @Composable
 fun QrCodeContent(text: String, onDismiss: () -> Unit) {
+    val pagerState = rememberPagerState(pageCount = { 2 })
+
     Card(
         modifier = Modifier
             .fillMaxWidth()
@@ -108,17 +116,70 @@ fun QrCodeContent(text: String, onDismiss: () -> Unit) {
                 color = MaterialTheme.colorScheme.onSurface,
                 fontFamily = QuicksandTitleVariable
             )
-            Spacer(modifier = Modifier.height(24.dp))
-
-            ModernQrCode(
-                text = text,
-                modifier = Modifier
-                    .size(260.dp)
-                    .background(MaterialTheme.colorScheme.surfaceContainerHighest, RoundedCornerShape(28.dp))
-                    .padding(16.dp)
+            Spacer(modifier = Modifier.height(8.dp))
+            Text(
+                "Scan this QR code with another device to join",
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                textAlign = TextAlign.Center,
+                fontFamily = QuicksandTitleVariable,
+                modifier = Modifier.padding(horizontal = 16.dp)
             )
-
             Spacer(modifier = Modifier.height(24.dp))
+
+            Box(
+                modifier = Modifier
+                    .size(280.dp)
+                    .background(
+                        MaterialTheme.colorScheme.surfaceContainerHighest.copy(alpha = 0.5f),
+                        RoundedCornerShape(32.dp)
+                    ),
+                contentAlignment = Alignment.Center
+            ) {
+                HorizontalPager(
+                    state = pagerState,
+                    modifier = Modifier.fillMaxSize()
+                ) { page ->
+                    Box(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .padding(24.dp),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        if (page == 0) {
+                            ModernQrCode(text = text)
+                        } else {
+                            DefaultQrCode(text = text)
+                        }
+                    }
+                }
+            }
+
+            Spacer(modifier = Modifier.height(16.dp))
+
+            // Pager Indicator
+            Row(
+                Modifier
+                    .height(8.dp)
+                    .fillMaxWidth(),
+                horizontalArrangement = Arrangement.Center
+            ) {
+                repeat(2) { iteration ->
+                    val color = if (pagerState.currentPage == iteration)
+                        MaterialTheme.colorScheme.primary
+                    else
+                        MaterialTheme.colorScheme.outlineVariant
+                    Box(
+                        modifier = Modifier
+                            .padding(horizontal = 4.dp)
+                            .size(8.dp)
+                            .clip(CircleShape)
+                            .background(color)
+                    )
+                }
+            }
+
+            Spacer(modifier = Modifier.height(16.dp))
             Text(
                 text,
                 style = MaterialTheme.typography.bodyLarge,
@@ -143,34 +204,36 @@ fun ModernQrCode(
     text: String,
     modifier: Modifier = Modifier,
     primaryColor: Color = MaterialTheme.colorScheme.primary,
-    secondaryColor: Color = MaterialTheme.colorScheme.secondary
+    secondaryColor: Color = MaterialTheme.colorScheme.secondary,
+    tertiaryColor: Color = MaterialTheme.colorScheme.tertiary
 ) {
     val bitMatrix = remember(text) {
         try {
             val hints = mutableMapOf<EncodeHintType, Any>()
             hints[EncodeHintType.MARGIN] = 0
             QRCodeWriter().encode(text, BarcodeFormat.QR_CODE, 0, 0, hints)
-        } catch (e: Exception) {
+        } catch (_: Exception) {
             null
         }
     } ?: return
 
     val matrixSize = bitMatrix.width
     val infiniteTransition = rememberInfiniteTransition(label = "QrAnimation")
-    
-    val cornerRadiusAnim by infiniteTransition.animateFloat(
-        initialValue = 0.2f,
-        targetValue = 0.8f,
+
+    // Gentle breathing scale of the cookie blob background
+    val blobScale by infiniteTransition.animateFloat(
+        initialValue = 0.97f,
+        targetValue = 1.03f,
         animationSpec = infiniteRepeatable(
-            animation = tween(1500, easing = LinearEasing),
+            animation = tween(4000, easing = LinearEasing),
             repeatMode = RepeatMode.Reverse
         ),
-        label = "CornerRadiusAnim"
+        label = "BlobScale"
     )
 
     val dotScaleAnim by infiniteTransition.animateFloat(
-        initialValue = 0.7f,
-        targetValue = 0.9f,
+        initialValue = 0.75f,
+        targetValue = 0.85f,
         animationSpec = infiniteRepeatable(
             animation = tween(2000, easing = LinearEasing),
             repeatMode = RepeatMode.Reverse
@@ -178,112 +241,220 @@ fun ModernQrCode(
         label = "DotScaleAnim"
     )
 
-    val rotationAnim by infiniteTransition.animateFloat(
-        initialValue = -5f,
-        targetValue = 5f,
+    // Continuous rotation of the inner finder cookie shapes
+    val finderRotation by infiniteTransition.animateFloat(
+        initialValue = 0f,
+        targetValue = 360f,
         animationSpec = infiniteRepeatable(
-            animation = tween(3000, easing = LinearEasing),
-            repeatMode = RepeatMode.Reverse
+            animation = tween(9000, easing = LinearEasing),
+            repeatMode = RepeatMode.Restart
         ),
-        label = "RotationAnim"
+        label = "FinderRotation"
     )
+
+    val blobColor = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.35f)
 
     Canvas(modifier = modifier.aspectRatio(1f)) {
         val moduleSize = size.width / matrixSize
-        
-        // Finder patterns with extra rotation
-        drawFinderPattern(0f, 0f, moduleSize, primaryColor, secondaryColor, cornerRadiusAnim, rotationAnim)
-        drawFinderPattern((matrixSize - 7) * moduleSize, 0f, moduleSize, primaryColor, secondaryColor, cornerRadiusAnim, -rotationAnim)
-        drawFinderPattern(0f, (matrixSize - 7) * moduleSize, moduleSize, primaryColor, secondaryColor, cornerRadiusAnim, rotationAnim)
+        val canvasCenter = Offset(size.width / 2f, size.height / 2f)
 
+        // 4-lobed "cookie" background blob (the wavy Material 3 Expressive shape)
+        withTransform({
+            scale(blobScale, blobScale, canvasCenter)
+        }) {
+            // 4 deep lobes; baseR + amp + blobScale(1.03) must stay <= 0.50
+            // (0.40 + 0.085) * 1.03 ≈ 0.499 — fits exactly without clipping.
+            val blobPath = buildCookiePath(
+                center = canvasCenter,
+                baseRadius = size.width * 0.40f,
+                bumps = 4,
+                amplitude = size.width * 0.085f,
+                rotation = 0f
+            )
+            drawPath(blobPath, color = blobColor)
+        }
+
+        // Three finder patterns — outer ring + rotating cookie inner shape
+        drawFinderPattern(
+            0f, 0f, moduleSize, primaryColor, secondaryColor, finderRotation
+        )
+        drawFinderPattern(
+            (matrixSize - 7) * moduleSize, 0f, moduleSize, primaryColor, secondaryColor, finderRotation
+        )
+        drawFinderPattern(
+            0f, (matrixSize - 7) * moduleSize, moduleSize, primaryColor, secondaryColor, finderRotation
+        )
+
+        // Data modules — dots with pill bridges
         for (y in 0 until matrixSize) {
             for (x in 0 until matrixSize) {
                 if (bitMatrix.get(x, y)) {
-                    val isFinder = (x < 7 && y < 7) || 
-                                   (x >= matrixSize - 7 && y < 7) || 
-                                   (x < 7 && y >= matrixSize - 7)
+                    val isFinder = (x < 7 && y < 7) ||
+                            (x >= matrixSize - 7 && y < 7) ||
+                            (x < 7 && y >= matrixSize - 7)
 
                     if (!isFinder) {
-                        // Check neighbors for pill connections
-                        val nextIsFinderX = (x + 1 < 7 && y < 7) || (x + 1 >= matrixSize - 7 && y < 7) || (x + 1 < 7 && y >= matrixSize - 7)
-                        val nextIsFinderY = (x < 7 && y + 1 < 7) || (x >= matrixSize - 7 && y + 1 < 7) || (x < 7 && y + 1 >= matrixSize - 7)
+                        val nextIsFinderX = (x + 1 < 7 && y < 7) ||
+                                (x + 1 >= matrixSize - 7 && y < 7) ||
+                                (x + 1 < 7 && y >= matrixSize - 7)
+                        val nextIsFinderY = (x < 7 && y + 1 < 7) ||
+                                (x >= matrixSize - 7 && y + 1 < 7) ||
+                                (x < 7 && y + 1 >= matrixSize - 7)
 
-                        val hasRight = x < matrixSize - 1 && bitMatrix.get(x + 1, y) && !nextIsFinderX
-                        val hasBottom = y < matrixSize - 1 && bitMatrix.get(x, y + 1) && !nextIsFinderY
+                        val hasRight = x < matrixSize - 1 &&
+                                bitMatrix.get(x + 1, y) && !nextIsFinderX
+                        val hasBottom = y < matrixSize - 1 &&
+                                bitMatrix.get(x, y + 1) && !nextIsFinderY
 
                         val dotSize = moduleSize * dotScaleAnim
                         val offset = (moduleSize - dotSize) / 2
 
-                        // Base dot
+                        // Sprinkle in some color variety like the reference
+                        val dotColor = when {
+                            (x * 3 + y * 7) % 11 == 0 -> tertiaryColor
+                            (x + y) % 5 == 0 -> secondaryColor
+                            else -> primaryColor
+                        }
+
                         drawCircle(
-                            color = primaryColor,
-                            center = Offset(x * moduleSize + moduleSize / 2, y * moduleSize + moduleSize / 2),
+                            color = dotColor,
+                            center = Offset(
+                                x * moduleSize + moduleSize / 2,
+                                y * moduleSize + moduleSize / 2
+                            ),
                             radius = dotSize / 2
                         )
 
                         // Pill connection bridges
                         if (hasRight) {
-                            drawRect(
-                                color = primaryColor,
-                                topLeft = Offset(x * moduleSize + moduleSize / 2, y * moduleSize + offset),
-                                size = Size(moduleSize, dotSize)
+                            drawRoundRect(
+                                color = dotColor,
+                                topLeft = Offset(
+                                    x * moduleSize + moduleSize / 2,
+                                    y * moduleSize + offset
+                                ),
+                                size = Size(moduleSize, dotSize),
+                                cornerRadius = CornerRadius(dotSize / 2)
                             )
                         }
                         if (hasBottom) {
-                            drawRect(
-                                color = primaryColor,
-                                topLeft = Offset(x * moduleSize + offset, y * moduleSize + moduleSize / 2),
-                                size = Size(dotSize, moduleSize)
+                            drawRoundRect(
+                                color = dotColor,
+                                topLeft = Offset(
+                                    x * moduleSize + offset,
+                                    y * moduleSize + moduleSize / 2
+                                ),
+                                size = Size(dotSize, moduleSize),
+                                cornerRadius = CornerRadius(dotSize / 2)
                             )
                         }
                     }
                 }
             }
         }
-
-        // Draw animated finder patterns
     }
 }
 
-private fun androidx.compose.ui.graphics.drawscope.DrawScope.drawFinderPattern(
+@Composable
+fun DefaultQrCode(
+    text: String,
+    modifier: Modifier = Modifier
+) {
+    val bitMatrix = remember(text) {
+        try {
+            // Keep ZXing's default quiet-zone margin so this is a properly
+            // scannable, "boring" black-on-white QR code.
+            QRCodeWriter().encode(text, BarcodeFormat.QR_CODE, 0, 0)
+        } catch (_: Exception) {
+            null
+        }
+    } ?: return
+
+    val matrixSize = bitMatrix.width
+
+    Canvas(modifier = modifier.aspectRatio(1f)) {
+        // Solid white background — makes this a real normal QR code,
+        // not a tinted-on-card one.
+        drawRect(color = Color.White, size = size)
+
+        val moduleSize = size.width / matrixSize
+        for (y in 0 until matrixSize) {
+            for (x in 0 until matrixSize) {
+                if (bitMatrix.get(x, y)) {
+                    drawRect(
+                        color = Color.Black,
+                        topLeft = Offset(x * moduleSize, y * moduleSize),
+                        size = Size(moduleSize, moduleSize)
+                    )
+                }
+            }
+        }
+    }
+}
+
+private fun DrawScope.drawFinderPattern(
     x: Float,
     y: Float,
     moduleSize: Float,
     primaryColor: Color,
     secondaryColor: Color,
-    animProgress: Float,
-    rotation: Float
+    innerRotationDeg: Float = 0f
 ) {
     val finderSize = moduleSize * 7
-    val outerStroke = moduleSize
-    val innerSize = moduleSize * 3
-    
-    // Animate corner radius for finders
-    val cornerRadius = finderSize * (0.2f + 0.3f * animProgress)
+    val outerStroke = moduleSize * 1.2f
+    val center = Offset(x + finderSize / 2, y + finderSize / 2)
 
-    rotate(rotation, Offset(x + finderSize / 2, y + finderSize / 2)) {
-        // Outer frame
-        val outerPath = Path().apply {
-            addRoundRect(
-                RoundRect(
-                    rect = Rect(Offset(x + outerStroke/2, y + outerStroke/2), Size(finderSize - outerStroke, finderSize - outerStroke)),
-                    cornerRadius = CornerRadius(cornerRadius)
-                )
-            )
-        }
-        drawPath(
-            path = outerPath,
-            color = primaryColor,
-            style = Stroke(width = outerStroke)
-        )
+    // Outer circle ring
+    drawCircle(
+        color = primaryColor,
+        radius = (finderSize - outerStroke) / 2,
+        center = center,
+        style = Stroke(width = outerStroke)
+    )
 
-        // Inner dot
-        val innerCornerRadius = innerSize * (0.3f + 0.2f * (1f - animProgress))
-        drawRoundRect(
-            color = secondaryColor,
-            topLeft = Offset(x + moduleSize * 2, y + moduleSize * 2),
-            size = Size(innerSize, innerSize),
-            cornerRadius = CornerRadius(innerCornerRadius)
-        )
+    // Inner 9-lobed cookie shape — matches the reference and rotates
+    val innerPath = buildCookiePath(
+        center = center,
+        baseRadius = moduleSize * 1.15f,
+        bumps = 9,
+        amplitude = moduleSize * 0.20f,
+        rotation = innerRotationDeg * (PI.toFloat() / 180f)
+    )
+    drawPath(innerPath, color = secondaryColor)
+}
+
+/**
+ * Builds a Material 3 Expressive "cookie" / lobed shape using polar coords:
+ *   r(θ) = baseRadius + amplitude · cos(bumps · θ)
+ *
+ * @param center      shape center
+ * @param baseRadius  average radius
+ * @param bumps       number of outward lobes (4 = blob, 9 = finder cookie)
+ * @param amplitude   how far lobes stick out (and indents go in)
+ * @param rotation    rotation of the entire shape, in radians
+ * @param steps       resolution; 240 is plenty smooth
+ */
+private fun buildCookiePath(
+    center: Offset,
+    baseRadius: Float,
+    bumps: Int,
+    amplitude: Float,
+    rotation: Float = 0f,
+    steps: Int = 240
+): Path {
+    val path = Path()
+    val twoPi = (2.0 * PI).toFloat()
+    for (i in 0..steps) {
+        val t = i.toFloat() / steps
+        val localAngle = t * twoPi
+        // Lobes are fixed in the shape's local frame
+        val r = baseRadius + amplitude * cos(bumps * localAngle)
+        // Rotation is applied to the whole shape via the world angle
+        val worldAngle = localAngle + rotation
+        val px = center.x + r * cos(worldAngle)
+        val py = center.y + r * sin(worldAngle)
+        if (i == 0) path.moveTo(px, py) else path.lineTo(px, py)
     }
+    path.close()
+    return path
 }
