@@ -11,11 +11,8 @@ import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
-import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.aspectRatio
@@ -28,9 +25,6 @@ import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material3.Button
-import androidx.compose.material3.Card
-import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -48,13 +42,16 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.graphics.drawscope.clipPath
 import androidx.compose.ui.graphics.drawscope.withTransform
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.window.DialogProperties
 import com.google.zxing.BarcodeFormat
 import com.google.zxing.EncodeHintType
 import com.google.zxing.common.BitMatrix
 import com.google.zxing.qrcode.QRCodeWriter
+import com.xenon.mylibrary.res.XenonDialog
 import com.xenon.mylibrary.theme.QuicksandTitleVariable
 import com.xenonware.mindcontrol.ui.theme.PaletteTheme
 import kotlin.math.PI
@@ -73,21 +70,10 @@ class QrCodeActivity : ComponentActivity() {
             val context = this@QrCodeActivity
             val devicePalette = remember { SettingsManager.getDevicePalette(context) }
             PaletteTheme(palette = devicePalette) {
-                Box(
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .background(Color.Transparent)
-                        .clickable(
-                            interactionSource = remember { MutableInteractionSource() },
-                            indication = null
-                        ) { finish() },
-                    contentAlignment = Alignment.Center
-                ) {
-                    QrCodeContent(
-                        text = text,
-                        onDismiss = { finish() }
-                    )
-                }
+                QrCodeContent(
+                    text = text,
+                    onDismiss = { finish() }
+                )
             }
         }
     }
@@ -97,56 +83,29 @@ class QrCodeActivity : ComponentActivity() {
 fun QrCodeContent(text: String, onDismiss: () -> Unit) {
     val pagerState = rememberPagerState(pageCount = { 2 })
 
-    Card(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(16.dp)
-            .clickable(
-                interactionSource = remember { MutableInteractionSource() },
-                indication = null,
-                onClick = {}
-            ),
-        shape = RoundedCornerShape(24.dp),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
-    ) {
-        Column(
-            modifier = Modifier.padding(24.dp),
-            horizontalAlignment = Alignment.CenterHorizontally
-        ) {
-            Text(
-                "Quick Share",
-                style = MaterialTheme.typography.headlineSmall,
-                color = MaterialTheme.colorScheme.onSurface,
-                fontFamily = QuicksandTitleVariable
-            )
-            Spacer(modifier = Modifier.height(8.dp))
-            Text(
-                "Scan this QR code with another device to join",
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                textAlign = TextAlign.Center,
-                fontFamily = QuicksandTitleVariable,
-                modifier = Modifier.padding(horizontal = 16.dp)
-            )
-            Spacer(modifier = Modifier.height(24.dp))
+    XenonDialog(
+        onDismissRequest = onDismiss,
+        properties = DialogProperties(decorFitsSystemWindows = true),
+        title = "QR-Code Share",
+        containerColor = MaterialTheme.colorScheme.surface,
+        confirmContainerColor = MaterialTheme.colorScheme.primary,
+        confirmContentColor = MaterialTheme.colorScheme.onPrimary,
+        contentManagesScrolling = true,
+        content = {
 
             Box(
                 modifier = Modifier
-                    .size(280.dp)
-                    .background(
-                        MaterialTheme.colorScheme.surfaceContainerHighest.copy(alpha = 0.5f),
-                        RoundedCornerShape(32.dp)
-                    ),
+                    .size(240.dp)
+                    .align(Alignment.CenterHorizontally),
                 contentAlignment = Alignment.Center
             ) {
                 HorizontalPager(
                     state = pagerState,
-                    modifier = Modifier.fillMaxSize()
+                    modifier = Modifier.fillMaxSize().clip(RoundedCornerShape(30.dp))
                 ) { page ->
                     Box(
                         modifier = Modifier
-                            .fillMaxSize()
-                            .padding(24.dp),
+                            .fillMaxSize(),
                         contentAlignment = Alignment.Center
                     ) {
                         if (page == 0) {
@@ -158,7 +117,7 @@ fun QrCodeContent(text: String, onDismiss: () -> Unit) {
                 }
             }
 
-            Spacer(modifier = Modifier.height(16.dp))
+            Spacer(modifier = Modifier.height(8.dp))
 
             // Pager Indicator
             Row(
@@ -185,21 +144,14 @@ fun QrCodeContent(text: String, onDismiss: () -> Unit) {
             Spacer(modifier = Modifier.height(16.dp))
             Text(
                 text,
-                style = MaterialTheme.typography.bodyLarge,
+                style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 textAlign = TextAlign.Center,
-                fontFamily = QuicksandTitleVariable
+                fontFamily = QuicksandTitleVariable,
+                modifier = Modifier.align(Alignment.CenterHorizontally)
             )
-            Spacer(modifier = Modifier.height(24.dp))
-            Button(
-                onClick = onDismiss,
-                modifier = Modifier.fillMaxWidth(),
-                shape = RoundedCornerShape(12.dp)
-            ) {
-                Text("Dismiss")
-            }
         }
-    }
+    )
 }
 
 @Composable
@@ -240,32 +192,29 @@ fun ModernQrCode(
         label = "FinderRotation"
     )
 
-    val flowerColor = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.35f)
-    val offDotColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.13f)
+    val flowerColor = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.75f)
+    val offDotColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.10f)
 
     Canvas(modifier = modifier.aspectRatio(1f)) {
         val canvasCenter = Offset(size.width / 2f, size.height / 2f)
 
-        // 4-petal flower with petals pointing into the CORNERS.
-        // Rotation of π/4 shifts the cos(4θ) lobes by 45°.
+        // 4-leaf Clover (Kleeblatt) background
         withTransform({ scale(flowerScale, flowerScale, canvasCenter) }) {
-            // Was: baseRadius 0.48, amplitude 0.12 → tall petals, lots of empty canvas
-            val flowerPath = buildCookiePath(
+            // R_max = 0.48 * width, R_min = 0.28 * width. Lobes point to corners.
+            val cloverPath = buildCookiePath(
                 center = canvasCenter,
-                baseRadius = size.width * 0.55f,    // bigger flower
+                baseRadius = size.width * 0.5f,
                 bumps = 4,
-                amplitude = size.width * 0.09f,     // shorter petals (was 0.12)
+                amplitude = size.width * 0.08f,
                 rotation = (PI / 4f).toFloat()
             )
-            drawPath(flowerPath, color = flowerColor)
+            drawPath(cloverPath, color = flowerColor)
         }
 
-        // QR data inset so it sits inside the flower's indents.
-        // 14% inset on each side → QR fills 72% of the canvas;
-        // flower indent (0.36) just clears the QR side midpoint (0.36).
-        // Was: qrInset = 0.14 → QR filled 72%
-        val qrInset = size.width * 0.07f        // QR now fills 86%
-        val qrSize = size.width - 2f * qrInset
+        // QR data sized so it fits exactly within the clover's indents (R_min = 0.28).
+        // Distance from center to side midpoints = qrSize / 2.
+        val qrSize = size.width * 0.8f
+        val qrInset = (size.width - qrSize) / 2f
         val moduleSize = qrSize / matrixSize
         val thickness = moduleSize * 0.78f
 
@@ -681,8 +630,6 @@ fun DefaultQrCode(
 ) {
     val bitMatrix = remember(text) {
         try {
-            // Keep ZXing's default quiet-zone margin so this is a properly
-            // scannable, "boring" black-on-white QR code.
             QRCodeWriter().encode(text, BarcodeFormat.QR_CODE, 0, 0)
         } catch (_: Exception) {
             null
@@ -692,19 +639,34 @@ fun DefaultQrCode(
     val matrixSize = bitMatrix.width
 
     Canvas(modifier = modifier.aspectRatio(1f)) {
-        // Solid white background — makes this a real normal QR code,
-        // not a tinted-on-card one.
-        drawRect(color = Color.White, size = size)
+        val cornerRadius = 30.dp.toPx()
 
-        val moduleSize = size.width / matrixSize
-        for (y in 0 until matrixSize) {
-            for (x in 0 until matrixSize) {
-                if (bitMatrix.get(x, y)) {
-                    drawRect(
-                        color = Color.Black,
-                        topLeft = Offset(x * moduleSize, y * moduleSize),
-                        size = Size(moduleSize, moduleSize)
-                    )
+        // 1. Create a path for the rounded rectangle and clip the canvas
+        // This ensures the black modules don't bleed past the rounded corners
+        val path = Path().apply {
+            addRoundRect(
+                RoundRect(
+                    rect = Rect(Offset.Zero, size),
+                    cornerRadius = CornerRadius(cornerRadius, cornerRadius)
+                )
+            )
+        }
+
+        clipPath(path) {
+            // 2. Draw the solid white background
+            drawRect(color = Color.White, size = size)
+
+            // 3. Draw the QR modules
+            val moduleSize = size.width / matrixSize
+            for (y in 0 until matrixSize) {
+                for (x in 0 until matrixSize) {
+                    if (bitMatrix.get(x, y)) {
+                        drawRect(
+                            color = Color.Black,
+                            topLeft = Offset(x * moduleSize, y * moduleSize),
+                            size = Size(moduleSize + 1f, moduleSize + 1f) // +1f prevents tiny gaps
+                        )
+                    }
                 }
             }
         }

@@ -5,6 +5,7 @@ import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.content.res.Configuration
+import android.graphics.drawable.Drawable
 import android.os.Bundle
 import android.provider.Settings
 import android.util.Log
@@ -19,6 +20,7 @@ import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.slideOutVertically
 import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -35,97 +37,42 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeDrawing
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.automirrored.rounded.ArrowBack
+import androidx.compose.material.icons.automirrored.rounded.RotateRight
+import androidx.compose.material.icons.automirrored.rounded.Shortcut
+import androidx.compose.material.icons.automirrored.rounded.VolumeDown
+import androidx.compose.material.icons.automirrored.rounded.VolumeOff
+import androidx.compose.material.icons.automirrored.rounded.VolumeUp
 import androidx.compose.material.icons.filled.AddCircle
 import androidx.compose.material.icons.filled.RemoveCircle
-import androidx.compose.material.icons.rounded.CameraAlt
-import androidx.compose.material.icons.rounded.FilterCenterFocus
-import androidx.compose.material.icons.rounded.Keyboard
-import androidx.compose.material.icons.rounded.KeyboardArrowDown
-import androidx.compose.material.icons.rounded.KeyboardArrowUp
-import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.Button
-import androidx.compose.material3.ButtonDefaults
-import androidx.compose.material3.Card
-import androidx.compose.material3.CardDefaults
-import androidx.compose.material3.DropdownMenu
-import androidx.compose.material3.DropdownMenuItem
-import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.FilledTonalButton
-import androidx.compose.material3.HorizontalDivider
-import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedButton
-import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.Surface
-import androidx.compose.material3.Switch
-import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
-import android.graphics.drawable.Drawable
-import androidx.compose.foundation.Image
-import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.collectAsState
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
-import androidx.compose.ui.Alignment
-import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.platform.LocalConfiguration
-import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.res.painterResource
-import androidx.compose.ui.text.style.TextAlign
-import androidx.compose.ui.unit.dp
-import androidx.core.net.toUri
-import androidx.core.view.WindowCompat
-import com.xenon.mylibrary.theme.QuicksandTitleVariable
-import com.xenonware.mindcontrol.ui.theme.BlueTheme
-import com.xenonware.mindcontrol.ui.theme.GreenTheme
-import com.xenonware.mindcontrol.ui.theme.Palette
-import com.xenonware.mindcontrol.ui.theme.PaletteRow
-import com.xenonware.mindcontrol.ui.theme.PaletteTheme
-import com.xenonware.mindcontrol.ui.theme.RedTheme
-import com.xenonware.mindcontrol.ui.theme.YellowTheme
-import rikka.shizuku.Shizuku
-import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
-import androidx.compose.material3.ScrollableTabRow
-import androidx.compose.material3.Tab
-import androidx.compose.material3.TabRowDefaults
-import androidx.compose.material3.TabRowDefaults.tabIndicatorOffset
-import androidx.compose.runtime.mutableStateListOf
-import androidx.compose.runtime.rememberCoroutineScope
-import androidx.compose.ui.graphics.asImageBitmap
-import androidx.core.graphics.drawable.toBitmap
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.launch
-import kotlinx.coroutines.withContext
-import androidx.compose.foundation.layout.size
-import androidx.compose.material3.ListItem
-import androidx.compose.material3.ListItemDefaults
-import androidx.compose.material.icons.automirrored.rounded.ArrowBack
 import androidx.compose.material.icons.rounded.Apps
 import androidx.compose.material.icons.rounded.Assistant
+import androidx.compose.material.icons.rounded.Block
 import androidx.compose.material.icons.rounded.BrightnessAuto
 import androidx.compose.material.icons.rounded.BrightnessHigh
 import androidx.compose.material.icons.rounded.BrightnessLow
+import androidx.compose.material.icons.rounded.CameraAlt
 import androidx.compose.material.icons.rounded.ContentCopy
 import androidx.compose.material.icons.rounded.ContentCut
 import androidx.compose.material.icons.rounded.ContentPaste
 import androidx.compose.material.icons.rounded.DataUsage
 import androidx.compose.material.icons.rounded.DoNotDisturbOn
+import androidx.compose.material.icons.rounded.FilterCenterFocus
 import androidx.compose.material.icons.rounded.FlashlightOn
 import androidx.compose.material.icons.rounded.History
 import androidx.compose.material.icons.rounded.Home
 import androidx.compose.material.icons.rounded.Info
+import androidx.compose.material.icons.rounded.Keyboard
+import androidx.compose.material.icons.rounded.KeyboardArrowDown
+import androidx.compose.material.icons.rounded.KeyboardArrowUp
 import androidx.compose.material.icons.rounded.KeyboardDoubleArrowDown
 import androidx.compose.material.icons.rounded.KeyboardDoubleArrowUp
 import androidx.compose.material.icons.rounded.Language
@@ -139,29 +86,74 @@ import androidx.compose.material.icons.rounded.Phone
 import androidx.compose.material.icons.rounded.PlayArrow
 import androidx.compose.material.icons.rounded.PowerSettingsNew
 import androidx.compose.material.icons.rounded.QrCode
+import androidx.compose.material.icons.rounded.QuestionMark
 import androidx.compose.material.icons.rounded.Repeat
-import androidx.compose.material.icons.rounded.RotateRight
 import androidx.compose.material.icons.rounded.ScreenRotation
 import androidx.compose.material.icons.rounded.Screenshot
 import androidx.compose.material.icons.rounded.Search
+import androidx.compose.material.icons.rounded.Settings
 import androidx.compose.material.icons.rounded.SettingsBackupRestore
-import androidx.compose.material.icons.rounded.Shortcut
 import androidx.compose.material.icons.rounded.SkipNext
 import androidx.compose.material.icons.rounded.SkipPrevious
 import androidx.compose.material.icons.rounded.Vibration
-import androidx.compose.material.icons.rounded.VolumeDown
-import androidx.compose.material.icons.rounded.VolumeOff
-import androidx.compose.material.icons.rounded.VolumeUp
-import androidx.compose.material.icons.rounded.Block
-import androidx.compose.material.icons.rounded.FiberManualRecord
-import androidx.compose.material.icons.rounded.Stop
-import androidx.compose.material.icons.rounded.QuestionMark
-import androidx.compose.material.icons.rounded.Settings
 import androidx.compose.material.icons.rounded.Wifi
+import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.Card
+import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.FilledTonalButton
+import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
+import androidx.compose.material3.ListItem
+import androidx.compose.material3.ListItemDefaults
 import androidx.compose.material3.LocalContentColor
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.PrimaryScrollableTabRow
+import androidx.compose.material3.Surface
+import androidx.compose.material3.Switch
+import androidx.compose.material3.Tab
+import androidx.compose.material3.Text
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableStateListOf
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.platform.LocalConfiguration
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.window.DialogProperties
+import androidx.core.graphics.drawable.toBitmap
+import androidx.core.net.toUri
+import androidx.core.view.WindowCompat
+import com.xenon.mylibrary.res.XenonDialog
+import com.xenon.mylibrary.theme.QuicksandTitleVariable
+import com.xenonware.mindcontrol.ui.theme.BlueTheme
+import com.xenonware.mindcontrol.ui.theme.GreenTheme
+import com.xenonware.mindcontrol.ui.theme.Palette
+import com.xenonware.mindcontrol.ui.theme.PaletteRow
+import com.xenonware.mindcontrol.ui.theme.PaletteTheme
+import com.xenonware.mindcontrol.ui.theme.RedTheme
+import com.xenonware.mindcontrol.ui.theme.YellowTheme
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
+import rikka.shizuku.Shizuku
 
 class MainActivity : ComponentActivity() {
 
@@ -1143,7 +1135,7 @@ fun ActionIcon(action: String, modifier: Modifier = Modifier, tint: Color = Loca
                 }
             }
         }
-        action.startsWith(SettingsManager.PREFIX_SHORTCUT) -> Icons.Rounded.Shortcut
+        action.startsWith(SettingsManager.PREFIX_SHORTCUT) -> Icons.AutoMirrored.Rounded.Shortcut
         action.startsWith(SettingsManager.PREFIX_SPEED_DIAL) || action == SettingsManager.ACTION_SPEED_DIAL -> Icons.Rounded.Phone
         action.startsWith(SettingsManager.PREFIX_URL) || action == SettingsManager.ACTION_URL -> Icons.Rounded.Language
         action.startsWith(SettingsManager.PREFIX_QR_CODE) || action == SettingsManager.ACTION_QR_CODE -> Icons.Rounded.QrCode
@@ -1180,17 +1172,15 @@ fun ActionIcon(action: String, modifier: Modifier = Modifier, tint: Color = Loca
         action == SettingsManager.ACTION_NFC_TOGGLE -> Icons.Rounded.Nfc
         action == SettingsManager.ACTION_LOCATION_TOGGLE -> Icons.Rounded.LocationOn
         action == SettingsManager.ACTION_ROTATE_TOGGLE -> Icons.Rounded.ScreenRotation
-        action == SettingsManager.ACTION_ROTATE_360 -> Icons.Rounded.RotateRight
+        action == SettingsManager.ACTION_ROTATE_360 -> Icons.AutoMirrored.Rounded.RotateRight
         action == SettingsManager.ACTION_AUTOROTATE_TOGGLE -> Icons.Rounded.ScreenRotation
-        action == SettingsManager.ACTION_VOLUME_UP -> Icons.Rounded.VolumeUp
-        action == SettingsManager.ACTION_VOLUME_DOWN -> Icons.Rounded.VolumeDown
-        action == SettingsManager.ACTION_MUTE_VOL -> Icons.Rounded.VolumeOff
+        action == SettingsManager.ACTION_VOLUME_UP -> Icons.AutoMirrored.Rounded.VolumeUp
+        action == SettingsManager.ACTION_VOLUME_DOWN -> Icons.AutoMirrored.Rounded.VolumeDown
+        action == SettingsManager.ACTION_MUTE_VOL -> Icons.AutoMirrored.Rounded.VolumeOff
         action == SettingsManager.ACTION_MUTE_MIC_TOGGLE -> Icons.Rounded.MicOff
         action == SettingsManager.ACTION_PREVIOUS -> Icons.Rounded.SkipPrevious
         action == SettingsManager.ACTION_NEXT -> Icons.Rounded.SkipNext
         action == SettingsManager.ACTION_PLAY_PAUSE -> Icons.Rounded.PlayArrow
-        action == SettingsManager.ACTION_STOP -> Icons.Rounded.Stop
-        action == SettingsManager.ACTION_RECORD -> Icons.Rounded.FiberManualRecord
         else -> Icons.Rounded.QuestionMark
     }
 
@@ -1418,8 +1408,6 @@ fun MediaTab(config: ActionConfig, onActionSelected: (String) -> Unit) {
         SettingsManager.ACTION_PREVIOUS,
         SettingsManager.ACTION_NEXT,
         SettingsManager.ACTION_PLAY_PAUSE,
-        SettingsManager.ACTION_STOP,
-        SettingsManager.ACTION_RECORD,
     )
     ActionList(actions, config, onActionSelected)
 }
@@ -1434,50 +1422,44 @@ fun ActionList(actions: List<String>, config: ActionConfig, onActionSelected: (S
         val title = when(showInputDialog) {
             SettingsManager.ACTION_SPEED_DIAL -> "Enter Number"
             SettingsManager.ACTION_URL -> "Enter URL"
-            SettingsManager.ACTION_QR_CODE -> "Enter Text for QR Code"
+            SettingsManager.ACTION_QR_CODE -> "Enter QR Code Content"
             else -> ""
         }
         val label = when(showInputDialog) {
-            SettingsManager.ACTION_SPEED_DIAL -> "Phone Number"
-            SettingsManager.ACTION_URL -> "https://..."
-            SettingsManager.ACTION_QR_CODE -> "Text"
+            SettingsManager.ACTION_SPEED_DIAL -> "Phone Number ..."
+            SettingsManager.ACTION_URL -> "Link ..."
+            SettingsManager.ACTION_QR_CODE -> "Text ..."
             else -> ""
         }
-        AlertDialog(
+        XenonDialog(
             onDismissRequest = { showInputDialog = null },
-            title = { Text(title) },
-            text = {
+            properties = DialogProperties(usePlatformDefaultWidth = true),
+            title = title,
+            confirmButtonText = "OK",
+            onConfirmButtonClick = {
+                val prefix = when(showInputDialog) {
+                    SettingsManager.ACTION_SPEED_DIAL -> SettingsManager.PREFIX_SPEED_DIAL
+                    SettingsManager.ACTION_URL -> SettingsManager.PREFIX_URL
+                    SettingsManager.ACTION_QR_CODE -> SettingsManager.PREFIX_QR_CODE
+                    else -> ""
+                }
+                SettingsManager.setAction(context, config.keyCode, config.state, config.type, prefix + inputValue)
+                onActionSelected(when(showInputDialog) {
+                    SettingsManager.ACTION_SPEED_DIAL -> "Speed Dial"
+                    SettingsManager.ACTION_URL -> "URL"
+                    SettingsManager.ACTION_QR_CODE -> "QR Code"
+                    else -> ""
+                })
+                showInputDialog = null
+            },
+            content = {
                 OutlinedTextField(
                     value = inputValue,
                     onValueChange = { inputValue = it },
                     singleLine = true,
-                    label = { Text(label) }
+                    label = { Text(label) },
+                    modifier = Modifier.fillMaxWidth()
                 )
-            },
-            confirmButton = {
-                TextButton(onClick = {
-                    val prefix = when(showInputDialog) {
-                        SettingsManager.ACTION_SPEED_DIAL -> SettingsManager.PREFIX_SPEED_DIAL
-                        SettingsManager.ACTION_URL -> SettingsManager.PREFIX_URL
-                        SettingsManager.ACTION_QR_CODE -> SettingsManager.PREFIX_QR_CODE
-                        else -> ""
-                    }
-                    SettingsManager.setAction(context, config.keyCode, config.state, config.type, prefix + inputValue)
-                    onActionSelected(when(showInputDialog) {
-                        SettingsManager.ACTION_SPEED_DIAL -> "Speed Dial"
-                        SettingsManager.ACTION_URL -> "URL"
-                        SettingsManager.ACTION_QR_CODE -> "QR Code"
-                        else -> ""
-                    })
-                    showInputDialog = null
-                }) {
-                    Text("OK")
-                }
-            },
-            dismissButton = {
-                TextButton(onClick = { showInputDialog = null }) {
-                    Text("Cancel")
-                }
             }
         )
     }
