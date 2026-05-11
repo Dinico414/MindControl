@@ -173,96 +173,160 @@ fun ModernQrCode(
     val plan = remember(bitMatrix) { computeCellPlan(bitMatrix, matrixSize) }
     val infiniteTransition = rememberInfiniteTransition(label = "QrAnimation")
 
-    val flowerScale by infiniteTransition.animateFloat(
-        initialValue = 0.985f, targetValue = 1.015f,
-        animationSpec = infiniteRepeatable(
-            animation = tween(4500, easing = LinearEasing),
-            repeatMode = RepeatMode.Reverse
-        ),
-        label = "FlowerScale"
+    val jitterTime by infiniteTransition.animateFloat(
+        initialValue = 0f, targetValue = 2f * PI.toFloat(),
+        animationSpec = infiniteRepeatable(tween(8000, easing = LinearEasing))
     )
 
-    // Only the FINDER inner cookies rotate — nothing else does.
+    val flowerScale by infiniteTransition.animateFloat(
+        initialValue = 0.985f, targetValue = 1.015f,
+        animationSpec = infiniteRepeatable(tween(4500, easing = LinearEasing), RepeatMode.Reverse)
+    )
+
     val finderRotation by infiniteTransition.animateFloat(
         initialValue = 0f, targetValue = 360f,
-        animationSpec = infiniteRepeatable(
-            animation = tween(14000, easing = LinearEasing),
-            repeatMode = RepeatMode.Restart
-        ),
-        label = "FinderRotation"
+        animationSpec = infiniteRepeatable(tween(14000, easing = LinearEasing))
     )
 
     val flowerColor = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.75f)
-    val offDotColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.10f)
+    val offDotColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.12f)
 
     Canvas(modifier = modifier.aspectRatio(1f)) {
         val canvasCenter = Offset(size.width / 2f, size.height / 2f)
 
-        // 4-leaf Clover (Kleeblatt) background
         withTransform({ scale(flowerScale, flowerScale, canvasCenter) }) {
-            // R_max = 0.48 * width, R_min = 0.28 * width. Lobes point to corners.
-            val cloverPath = buildCookiePath(
-                center = canvasCenter,
-                baseRadius = size.width * 0.5f,
-                bumps = 4,
-                amplitude = size.width * 0.08f,
-                rotation = (PI / 4f).toFloat()
-            )
+            val cloverPath = buildCookiePath(canvasCenter, size.width * 0.5f, 4, size.width * 0.08f, (PI / 4f).toFloat())
             drawPath(cloverPath, color = flowerColor)
         }
 
-        // QR data sized so it fits exactly within the clover's indents (R_min = 0.28).
-        // Distance from center to side midpoints = qrSize / 2.
-        val qrSize = size.width * 0.8f
+        val qrSize = size.width * 0.70f
         val qrInset = (size.width - qrSize) / 2f
         val moduleSize = qrSize / matrixSize
         val thickness = moduleSize * 0.78f
 
         withTransform({ translate(qrInset, qrInset) }) {
+            val dotRandom = kotlin.random.Random(text.hashCode())
+            val offRadius = moduleSize * 0.28f
 
-            // 1. Faded OFF dots — only inside the QR data area, only as small
-            //    circles at ~60% of the cell. Skipped in structural regions.
-            val offRadius = moduleSize * 0.30f
-            for (y in 0 until matrixSize) for (x in 0 until matrixSize) {
-                if (plan.isStructural(x, y)) continue
-                if (bitMatrix.get(x, y)) continue
-                drawCircle(
-                    color = offDotColor,
-                    center = Offset(
-                        x * moduleSize + moduleSize / 2f,
-                        y * moduleSize + moduleSize / 2f
-                    ),
-                    radius = offRadius
-                )
+            // Expanded loop to cover the 2-row corner zones
+            for (y in -2..matrixSize + 1) {
+                for (x in -2..matrixSize + 1) {
+                    val isInsideGrid = x in 0 until matrixSize && y in 0 until matrixSize
+
+                    // Determine if we are in a "Corner Zone" (The 2-row deep 7x7 cloud areas)
+                    val isNearXCorner = x < 0 || x >= matrixSize
+                    val isNearYCorner = y < 0 || y >= matrixSize
+                    val isDeepOuter = x == -2 || x == matrixSize + 1 || y == -2 || y == matrixSize + 1
+
+                    // The 8-Point Spawn Rule Logic:
+                    // 1. Only allow the 2nd row (-2 or matrixSize + 1) if we are in a corner area
+                    val isForbiddenSecondRow = isDeepOuter && !(isNearXCorner && isNearYCorner)
+                    if (isForbiddenSecondRow) continue
+
+                    val isOnBit = isInsideGrid && bitMatrix.get(x, y)
+                    val isCornerGap = isInsideGrid && isAtFinderCorner(x, y, matrixSize)
+                    val isStructural = isInsideGrid && plan.isStructural(x, y) && !isCornerGap
+
+                    if (!isOnBit && !isStructural) {
+                        val roll = dotRandom.nextFloat()
+
+                        // Probability thresholds based on your rule
+                        val threshold = when {
+                            isInsideGrid -> 0.70f
+                            isNearXCorner && isNearYCorner -> 0.52f // 1.5x of 0.35f (Corners)
+                            else -> 0.35f // 1.0x (Sides)
+                        }
+
+                        if (roll < threshold) {
+                            var centerX = x * moduleSize + moduleSize / 2f
+                            var centerY = y * moduleSize + moduleSize / 2f
+
+                            if (!isInsideGrid) {
+                                // Jitter restricted to 1.5f of the dot size
+                                val moveRange = offRadius * 1.2f
+                                val phase = (x * 31 + y * 17).toFloat()
+                                centerX += cos(jitterTime + phase) * moveRange
+                                centerY += sin(jitterTime + phase * 1.3f) * moveRange
+                            }
+
+                            val shapeType = (dotRandom.nextInt(100)).mod(3)
+                            drawOffDotShape(Offset(centerX, centerY), offRadius, shapeType, offDotColor, x, y)
+                        }
+                    }
+                }
             }
 
-            // 2. Finder patterns (the only rotating element).
+            // Standard QR Components
             drawFinderPattern(0f, 0f, moduleSize, primaryColor, secondaryColor, finderRotation)
             drawFinderPattern((matrixSize - 7) * moduleSize, 0f, moduleSize, primaryColor, secondaryColor, finderRotation)
             drawFinderPattern(0f, (matrixSize - 7) * moduleSize, moduleSize, primaryColor, secondaryColor, finderRotation)
 
-            // 3. 2×2 blocks — static 4-petal mini cookies, petals to corners.
-            plan.blocks.forEach { (bx, by) ->
-                drawBlock2x2(bx, by, moduleSize, pickColor(bx, by, primaryColor, secondaryColor))
-            }
-
-            // 5. Horizontal runs (length 2 pill, 3-4 flat-join split, 5+ gap split).
-            plan.horizontalRuns.forEach { run ->
-                drawHorizontalRun(run, moduleSize, thickness, primaryColor, secondaryColor)
-            }
-
-            // 6. Vertical runs (symmetric).
-            plan.verticalRuns.forEach { run ->
-                drawVerticalRun(run, moduleSize, thickness, primaryColor, secondaryColor)
-            }
-
-            // 7. Singles — rounded square / circle / teardrop, deterministic per position.
-            plan.singles.forEach { (x, y) ->
-                drawSingle(x, y, moduleSize, thickness, primaryColor, secondaryColor)
-            }
+            plan.blocks.forEach { drawBlock2x2(it.x, it.y, moduleSize, pickColor(it.x, it.y, primaryColor, secondaryColor)) }
+            plan.horizontalRuns.forEach { drawHorizontalRun(it, moduleSize, thickness, primaryColor, secondaryColor) }
+            plan.verticalRuns.forEach { drawVerticalRun(it, moduleSize, thickness, primaryColor, secondaryColor) }
+            plan.singles.forEach { drawSingle(it.first, it.second, moduleSize, thickness, primaryColor, secondaryColor) }
         }
     }
 }
+/**
+ * Specifically returns true for the 4 extreme corners of the three 7x7 Finder squares.
+ */
+private fun isAtFinderCorner(x: Int, y: Int, size: Int): Boolean {
+    val farStart = size - 7
+    val farEnd = size - 1
+
+    // Top-Left Finder: (0,0), (6,0), (0,6), (6,6)
+    if ((x == 0 || x == 6) && (y == 0 || y == 6)) return true
+
+    // Top-Right Finder: (farStart, 0), (farEnd, 0), (farStart, 6), (farEnd, 6)
+    if ((x == farStart || x == farEnd) && (y == 0 || y == 6)) return true
+
+    // Bottom-Left Finder: (0, farStart), (6, farStart), (0, farEnd), (6, farEnd)
+    if ((x == 0 || x == 6) && (y == farStart || y == farEnd)) return true
+
+    return false
+}
+
+private fun DrawScope.drawOffDotShape(
+    center: Offset,
+    radius: Float,
+    type: Int,
+    color: Color,
+    x: Int,
+    y: Int
+) {
+    when (type) {
+        0 -> drawCircle(color, radius, center) // Circle
+        1 -> { // Rounded Square
+            val size = radius * 1.8f
+            drawRoundRect(
+                color = color,
+                topLeft = Offset(center.x - size / 2f, center.y - size / 2f),
+                size = Size(size, size),
+                cornerRadius = CornerRadius(size * 0.3f)
+            )
+        }
+        else -> { // Teardrop
+            val path = Path().apply {
+                val size = radius * 2f
+                val rect = Rect(center.x - radius, center.y - radius, center.x + radius, center.y + radius)
+                val k = (x * 7 + y * 3).mod(4) // Randomize sharp corner direction
+                addRoundRect(
+                    RoundRect(
+                        rect = rect,
+                        topLeft = if (k == 0) CornerRadius.Zero else CornerRadius(radius),
+                        topRight = if (k == 1) CornerRadius.Zero else CornerRadius(radius),
+                        bottomRight = if (k == 2) CornerRadius.Zero else CornerRadius(radius),
+                        bottomLeft = if (k == 3) CornerRadius.Zero else CornerRadius(radius)
+                    )
+                )
+            }
+            drawPath(path, color)
+        }
+    }
+}
+
+
 private data class Block(val x: Int, val y: Int)
 private data class Run(val x: Int, val y: Int, val length: Int)
 
