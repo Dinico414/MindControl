@@ -70,8 +70,6 @@ fun CustomKeyboardScreen(
     var currentLayout by remember { mutableStateOf(KeyboardLayout.QWERTY) }
     val pressedKeys by ButtonState.pressedKeys.collectAsState()
 
-    BackHandler(onBack = onBack)
-
     val gap = 8.dp
     val columns = 10
 

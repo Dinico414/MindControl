@@ -11,18 +11,22 @@ import android.provider.Settings
 import android.util.Log
 import android.view.accessibility.AccessibilityManager
 import androidx.activity.ComponentActivity
-import androidx.activity.compose.BackHandler
+import androidx.activity.compose.PredictiveBackHandler
 import androidx.activity.compose.setContent
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
+import androidx.compose.animation.slideInHorizontally
 import androidx.compose.animation.slideInVertically
+import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.animation.slideOutVertically
 import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -39,7 +43,8 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeDrawing
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.pager.HorizontalPager
+import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
@@ -101,7 +106,6 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
-import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -114,13 +118,12 @@ import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.PrimaryScrollableTabRow
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Switch
-import androidx.compose.material3.Tab
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -131,9 +134,11 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
@@ -143,6 +148,8 @@ import androidx.core.net.toUri
 import androidx.core.view.WindowCompat
 import com.xenon.mylibrary.res.XenonDialog
 import com.xenon.mylibrary.theme.QuicksandTitleVariable
+import com.xenon.mylibrary.values.MediumCornerRadius
+import com.xenon.mylibrary.values.SmallestCornerRadius
 import com.xenonware.mindcontrol.ui.theme.BlueTheme
 import com.xenonware.mindcontrol.ui.theme.GreenTheme
 import com.xenonware.mindcontrol.ui.theme.Palette
@@ -219,13 +226,66 @@ fun MindControlMainScreen(
         else -> "grid"
     }
 
+    val context = LocalContext.current
+    val view = LocalView.current
+    val isDark = isSystemInDarkTheme()
+
+    SideEffect {
+        val window = (context as ComponentActivity).window
+        val insetsController = WindowCompat.getInsetsController(window, view)
+        window.statusBarColor = Color.Transparent.toArgb()
+        window.navigationBarColor = Color.Transparent.toArgb()
+        
+        if (state == "grid" || state == "keyboard") {
+            insetsController.isAppearanceLightStatusBars = false
+            insetsController.isAppearanceLightNavigationBars = false
+        } else {
+            insetsController.isAppearanceLightStatusBars = !isDark
+            insetsController.isAppearanceLightNavigationBars = !isDark
+        }
+    }
+    PredictiveBackHandler(enabled = state != "grid") { progress ->
+        try {
+            progress.collect { }
+            when (state) {
+                "action_selection" -> actionSelectionConfig = null
+                "config" -> {
+                    val cameFromKeyboard = configFromKeyboard
+                    selectedButton = null
+                    configFromKeyboard = false
+                    if (!cameFromKeyboard) showKeyboard = false
+                }
+                "keyboard" -> showKeyboard = false
+            }
+        } catch (e: Exception) {
+            // Cancelled
+        }
+    }
+
     AnimatedContent(
         targetState = state, transitionSpec = {
             when {
-                targetState == "keyboard" -> slideInVertically { it } + fadeIn() togetherWith slideOutVertically { -it } + fadeOut()
-                initialState == "keyboard" && targetState == "grid" -> slideInVertically { -it } + fadeIn() togetherWith slideOutVertically { it } + fadeOut()
-                targetState == "action_selection" -> slideInVertically { it } + fadeIn() togetherWith slideOutVertically { -it } + fadeOut()
-                initialState == "action_selection" -> slideInVertically { -it } + fadeIn() togetherWith slideOutVertically { it } + fadeOut()
+                // Keyboard transitions (Vertical)
+                targetState == "keyboard" && initialState == "grid" -> {
+                    slideInVertically { it } + fadeIn() togetherWith slideOutVertically { -it / 3 } + fadeOut()
+                }
+                initialState == "keyboard" && targetState == "grid" -> {
+                    slideInVertically { -it / 3 } + fadeIn() togetherWith slideOutVertically { it } + fadeOut()
+                }
+
+                // Horizontal Transitions (Config & Action Selection)
+                // Forward: Grid -> Config, Config -> ActionSelection, Keyboard -> Config
+                (targetState == "config" && (initialState == "grid" || initialState == "keyboard")) ||
+                        (targetState == "action_selection" && initialState == "config") -> {
+                    slideInHorizontally { it } + fadeIn() togetherWith slideOutHorizontally { -it / 3 } + fadeOut()
+                }
+
+                // Backward: ActionSelection -> Config, Config -> Grid, Config -> Keyboard
+                (initialState == "action_selection" && targetState == "config") ||
+                        (initialState == "config" && (targetState == "grid" || targetState == "keyboard")) -> {
+                    slideInHorizontally { -it / 3 } + fadeIn() togetherWith slideOutHorizontally { it } + fadeOut()
+                }
+
                 else -> fadeIn() togetherWith fadeOut()
             }
         }, label = "ScreenTransition"
@@ -234,14 +294,24 @@ fun MindControlMainScreen(
             "action_selection" -> {
                 val config = actionSelectionConfig
                 if (config != null) {
-                    ActionSelectionScreen(
-                        config = config,
-                        onBack = { actionSelectionConfig = null },
-                        onActionSelected = { _ ->
-                            actionSelectionConfig = null
-                        },
-                        modifier = modifier
-                    )
+                    val themeWrapper: @Composable (@Composable () -> Unit) -> Unit = when {
+                        configFromKeyboard || config.keyCode == 111 -> { content -> PaletteTheme(palette = keyboardPalette) { content() } }
+                        config.keyCode == 131 -> { content -> RedTheme { content() } }
+                        config.keyCode == 133 || config.keyCode == 132 -> { content -> YellowTheme { content() } }
+                        config.keyCode == 24 || config.keyCode == 25 -> { content -> GreenTheme { content() } }
+                        config.keyCode == 27 || config.keyCode == 134 -> { content -> BlueTheme { content() } }
+                        else -> { content -> content() }
+                    }
+                    themeWrapper {
+                        ActionSelectionScreen(
+                            config = config,
+                            onBack = { actionSelectionConfig = null },
+                            onActionSelected = { _ ->
+                                actionSelectionConfig = null
+                            },
+                            modifier = modifier
+                        )
+                    }
                 }
             }
 
@@ -263,6 +333,8 @@ fun MindControlMainScreen(
                         keyCode = button.first,
                         name = button.second,
                         modifier = modifier,
+                        keyboardPalette = keyboardPalette,
+                        isFromKeyboard = configFromKeyboard,
                         onBack = {
                             val cameFromKeyboard = configFromKeyboard
                             selectedButton = null
@@ -990,77 +1062,123 @@ fun ButtonConfigScreen(
     keyCode: Int,
     name: String,
     modifier: Modifier = Modifier,
+    keyboardPalette: Palette,
+    isFromKeyboard: Boolean = false,
     onBack: () -> Unit,
     onSelectAction: (Int, String, String) -> Unit,
 ) {
     var isScreenOff by remember { mutableStateOf(false) }
 
-    BackHandler(onBack = onBack)
+    val themeWrapper: @Composable (@Composable () -> Unit) -> Unit = when {
+        isFromKeyboard || keyCode == 111 -> { content -> PaletteTheme(palette = keyboardPalette) { content() } }
+        keyCode == 131 -> { content -> RedTheme { content() } }
+        keyCode == 133 || keyCode == 132 -> { content -> YellowTheme { content() } }
+        keyCode == 24 || keyCode == 25 -> { content -> GreenTheme { content() } }
+        keyCode == 27 || keyCode == 134 -> { content -> BlueTheme { content() } }
+        else -> { content -> content() }
+    }
 
-    Column(modifier = modifier.fillMaxSize()) {
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            IconButton(onClick = onBack) {
-                Icon(
-                    Icons.AutoMirrored.Filled.ArrowBack,
-                    contentDescription = "Back",
-                    tint = Color.White
-                )
-            }
-            Text(
-                text = "$name Configuration",
-                style = MaterialTheme.typography.titleLarge,
-                color = Color.White
-            )
-        }
-
-        Spacer(modifier = Modifier.height(16.dp))
-
-        if (keyCode != 27 && keyCode != 134) {
-            Row(
-                modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceEvenly
-            ) {
-                FilledTonalButton(
-                    onClick = { isScreenOff = false },
-                    colors = if (!isScreenOff) ButtonDefaults.buttonColors(
-                        containerColor = MaterialTheme.colorScheme.primary,
-                        contentColor = MaterialTheme.colorScheme.onPrimary
+    themeWrapper {
+        Surface(color = MaterialTheme.colorScheme.background, modifier = Modifier.fillMaxSize()) {
+            Column(modifier = modifier.fillMaxSize()) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    IconButton(onClick = onBack) {
+                        Icon(
+                            Icons.AutoMirrored.Filled.ArrowBack,
+                            contentDescription = "Back",
+                            tint = MaterialTheme.colorScheme.onSurface
+                        )
+                    }
+                    Text(
+                        text = "$name Configuration",
+                        style = MaterialTheme.typography.titleLarge,
+                        color = MaterialTheme.colorScheme.onSurface
                     )
-                    else ButtonDefaults.buttonColors(
-                        containerColor = Color.Transparent, contentColor = Color.White
+                }
+
+                Spacer(modifier = Modifier.height(16.dp))
+
+                if (keyCode != 27 && keyCode != 134) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceEvenly
+                    ) {
+                        Button(
+                            onClick = { isScreenOff = false },
+                            border = if (isScreenOff) BorderStroke(1.dp, MaterialTheme.colorScheme.primary) else null,
+                            colors = if (!isScreenOff) ButtonDefaults.buttonColors(
+                                containerColor = MaterialTheme.colorScheme.primary,
+                                contentColor = MaterialTheme.colorScheme.onPrimary
+                            )
+                            else ButtonDefaults.buttonColors(
+                                containerColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.1f),
+                                contentColor = MaterialTheme.colorScheme.primary
+                            )
+                        ) { Text("Screen On") }
+
+                        Button(
+                            onClick = { isScreenOff = true },
+                            border = if (!isScreenOff) BorderStroke(1.dp, MaterialTheme.colorScheme.primary) else null,
+                            colors = if (isScreenOff) ButtonDefaults.buttonColors(
+                                containerColor = MaterialTheme.colorScheme.primary,
+                                contentColor = MaterialTheme.colorScheme.onPrimary
+                            )
+                            else ButtonDefaults.buttonColors(
+                                containerColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.1f),
+                                contentColor = MaterialTheme.colorScheme.primary
+                            )
+                        ) { Text("Screen Off") }
+                    }
+                } else {
+                    Text(
+                        "Screen On only",
+                        style = MaterialTheme.typography.titleMedium,
+                        color = MaterialTheme.colorScheme.onSurface,
+                        modifier = Modifier.padding(8.dp)
                     )
-                ) { Text("Screen On") }
+                }
 
-                FilledTonalButton(
-                    onClick = { isScreenOff = true },
-                    colors = if (isScreenOff) ButtonDefaults.buttonColors(
-                        containerColor = MaterialTheme.colorScheme.primary,
-                        contentColor = MaterialTheme.colorScheme.onPrimary
-                    )
-                    else ButtonDefaults.buttonColors(
-                        containerColor = Color.Transparent, contentColor = Color.White
-                    )
-                ) { Text("Screen Off") }
-            }
-        } else {
-            Text(
-                "Screen On only",
-                style = MaterialTheme.typography.titleMedium,
-                color = Color.White,
-                modifier = Modifier.padding(8.dp)
-            )
-        }
+                val stateStr = if (isScreenOff) "OFF" else "ON"
 
-        val stateStr = if (isScreenOff) "OFF" else "ON"
+                Spacer(modifier = Modifier.height(16.dp))
 
-        Spacer(modifier = Modifier.height(16.dp))
+                val types = if (keyCode == 132 || keyCode == 133) listOf("SINGLE")
+                else listOf("SINGLE", "DOUBLE", "TRIPLE", "LONG")
 
-        val types = if (keyCode == 132 || keyCode == 133) listOf("SINGLE")
-        else listOf("SINGLE", "DOUBLE", "TRIPLE", "LONG")
+                Column(
+                    modifier = Modifier
+                        .weight(1f)
+                        .verticalScroll(rememberScrollState())
+                        .padding(horizontal = 16.dp),
+                    verticalArrangement = Arrangement.spacedBy(2.dp)
+                ) {
+                    types.forEachIndexed { index, type ->
+                        val shape = when {
+                            types.size == 1 -> RoundedCornerShape(MediumCornerRadius)
+                            index == 0 -> RoundedCornerShape(
+                                topStart = MediumCornerRadius,
+                                topEnd = MediumCornerRadius,
+                                bottomStart = SmallestCornerRadius,
+                                bottomEnd = SmallestCornerRadius
+                            )
+                            index == types.size - 1 -> RoundedCornerShape(
+                                topStart = SmallestCornerRadius,
+                                topEnd = SmallestCornerRadius,
+                                bottomStart = MediumCornerRadius,
+                                bottomEnd = MediumCornerRadius
+                            )
+                            else -> RoundedCornerShape(SmallestCornerRadius)
+                        }
 
-        Column(modifier = Modifier.verticalScroll(rememberScrollState())) {
-            types.forEach { type ->
-                MindControlActionSelector(keyCode, stateStr, type, onSelectAction)
-                HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
+                        Surface(
+                            color = MaterialTheme.colorScheme.surfaceContainer,
+                            shape = shape,
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            MindControlActionSelector(keyCode, stateStr, type, onSelectAction)
+                        }
+                    }
+                }
             }
         }
     }
@@ -1105,15 +1223,23 @@ fun MindControlActionSelector(
         verticalAlignment = Alignment.CenterVertically,
         modifier = Modifier
             .fillMaxWidth()
-            .padding(vertical = 4.dp)
+            .padding(horizontal = 16.dp, vertical = 12.dp)
     ) {
         Text(
-            text = "$type: ", modifier = Modifier.weight(1f), color = Color.White
+            text = "$type: ",
+            modifier = Modifier.weight(1f),
+            color = MaterialTheme.colorScheme.onSurface,
+            style = MaterialTheme.typography.bodyLarge
         )
-        OutlinedButton(onClick = { onSelectAction(keyCode, state, type) }) {
+        OutlinedButton(
+            onClick = { onSelectAction(keyCode, state, type) },
+            border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline)
+        ) {
             ActionIcon(
                 action = action,
-                modifier = Modifier.size(18.dp).padding(end = 4.dp),
+                modifier = Modifier
+                    .size(18.dp)
+                    .padding(end = 4.dp),
                 tint = MaterialTheme.colorScheme.primary
             )
             Text(displayAction, color = MaterialTheme.colorScheme.primary)
@@ -1198,50 +1324,83 @@ fun ActionSelectionScreen(
     config: ActionConfig,
     onBack: () -> Unit,
     onActionSelected: (String) -> Unit,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
 ) {
-    var selectedTabIndex by remember { mutableIntStateOf(0) }
     val tabs = listOf("Actions", "Apps", "Shortcuts", "System", "Media")
+    val pagerState = rememberPagerState(pageCount = { tabs.size })
+    val scope = rememberCoroutineScope()
+    val backgroundColor = MaterialTheme.colorScheme.background
 
-    Column(modifier = modifier
-        .fillMaxSize()
-        .background(Color.Black)) {
-        Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(8.dp)) {
-            IconButton(onClick = onBack) {
-                Icon(
-                    Icons.AutoMirrored.Filled.ArrowBack,
-                    contentDescription = "Back",
-                    tint = Color.White
+    Surface(color = backgroundColor, modifier = Modifier.fillMaxSize()) {
+        Column(modifier = modifier.fillMaxSize()) {
+            Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(8.dp)) {
+                IconButton(onClick = onBack) {
+                    Icon(
+                        Icons.AutoMirrored.Filled.ArrowBack,
+                        contentDescription = "Back",
+                        tint = MaterialTheme.colorScheme.onBackground
+                    )
+                }
+                Text(
+                    "Select Action for ${config.type}",
+                    style = MaterialTheme.typography.titleLarge,
+                    color = MaterialTheme.colorScheme.onBackground
                 )
             }
-            Text(
-                "Select Action for ${config.type}",
-                style = MaterialTheme.typography.titleLarge,
-                color = Color.White
-            )
-        }
 
-        PrimaryScrollableTabRow(
-            selectedTabIndex = selectedTabIndex,
-            containerColor = Color.Black,
-            contentColor = Color.White,
-            edgePadding = 16.dp
-        ) {
-            tabs.forEachIndexed { index, title ->
-                Tab(
-                    selected = selectedTabIndex == index,
-                    onClick = { selectedTabIndex = index },
-                    text = { Text(title) }
-                )
+            PrimaryScrollableTabRow(
+                selectedTabIndex = pagerState.currentPage,
+                containerColor = Color.Transparent,
+                contentColor = MaterialTheme.colorScheme.primary,
+                edgePadding = 16.dp,
+                indicator = {},
+                divider = {}
+            ) {
+                tabs.forEachIndexed { index, title ->
+                    val selected = pagerState.currentPage == index
+                    Box(
+                        modifier = Modifier
+                            .padding(vertical = 8.dp, horizontal = 4.dp)
+                            .clip(RoundedCornerShape(30.dp))
+                            .background(
+                                if (selected) MaterialTheme.colorScheme.primary
+                                else MaterialTheme.colorScheme.primary.copy(alpha = 0.1f)
+                            )
+                            .then(
+                                if (!selected) Modifier.border(
+                                    1.dp,
+                                    MaterialTheme.colorScheme.primary,
+                                    RoundedCornerShape(30.dp)
+                                ) else Modifier
+                            )
+                            .clickable {
+                                scope.launch { pagerState.animateScrollToPage(index) }
+                            }
+                            .padding(horizontal = 16.dp, vertical = 8.dp),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text(
+                            text = title,
+                            color = if (selected) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.primary,
+                            style = MaterialTheme.typography.labelLarge
+                        )
+                    }
+                }
             }
-        }
 
-        when (selectedTabIndex) {
-            0 -> ActionsTab(config, onActionSelected)
-            1 -> AppsTab(config, onActionSelected)
-            2 -> ShortcutsTab(config, onActionSelected)
-            3 -> SystemTab(config, onActionSelected)
-            4 -> MediaTab(config, onActionSelected)
+            HorizontalPager(
+                state = pagerState,
+                modifier = Modifier.weight(1f),
+                beyondViewportPageCount = 1
+            ) { page ->
+                when (page) {
+                    0 -> ActionsTab(config, onActionSelected)
+                    1 -> AppsTab(config, onActionSelected)
+                    2 -> ShortcutsTab(config, onActionSelected)
+                    3 -> SystemTab(config, onActionSelected)
+                    4 -> MediaTab(config, onActionSelected)
+                }
+            }
         }
     }
 }
@@ -1305,22 +1464,52 @@ fun AppsTab(config: ActionConfig, onActionSelected: (String) -> Unit) {
         }
     }
 
-    LazyColumn(modifier = Modifier.fillMaxSize()) {
-        items(apps) { app ->
-            ListItem(
-                headlineContent = { Text(app.name, color = Color.White) },
-                supportingContent = { Text(app.packageName, color = MaterialTheme.colorScheme.onSurfaceVariant, style = MaterialTheme.typography.bodySmall) },
-                leadingContent = {
-                    val bitmap = remember(app.packageName) { app.icon.toBitmap().asImageBitmap() }
-                    Image(bitmap, contentDescription = null, modifier = Modifier.size(40.dp))
-                },
-                modifier = Modifier.clickable {
-                    SettingsManager.setAction(context, config.keyCode, config.state, config.type, SettingsManager.PREFIX_APP + app.packageName)
-                    onActionSelected(app.name)
-                },
-                colors = ListItemDefaults.colors(containerColor = Color.Transparent)
-            )
-            HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
+    LazyColumn(
+        modifier = Modifier.fillMaxSize(),
+        contentPadding = PaddingValues(16.dp),
+        verticalArrangement = Arrangement.spacedBy(2.dp)
+    ) {
+        items(apps.size) { index ->
+            val app = apps[index]
+            val shape = when {
+                apps.size == 1 -> RoundedCornerShape(30.dp)
+                index == 0 -> RoundedCornerShape(topStart = 30.dp, topEnd = 30.dp, bottomStart = 4.dp, bottomEnd = 4.dp)
+                index == apps.size - 1 -> RoundedCornerShape(topStart = 4.dp, topEnd = 4.dp, bottomStart = 30.dp, bottomEnd = 30.dp)
+                else -> RoundedCornerShape(4.dp)
+            }
+            Surface(
+                color = MaterialTheme.colorScheme.surfaceContainer,
+                shape = shape,
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                ListItem(
+                    headlineContent = { Text(app.name, color = MaterialTheme.colorScheme.onSurface) },
+                    supportingContent = {
+                        Text(
+                            app.packageName,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            style = MaterialTheme.typography.bodySmall
+                        )
+                    },
+                    leadingContent = {
+                        val bitmap = remember(app.packageName) { app.icon.toBitmap().asImageBitmap() }
+                        Image(bitmap, contentDescription = null, modifier = Modifier.size(40.dp))
+                    },
+                    modifier = Modifier
+                        .clickable {
+                            SettingsManager.setAction(
+                                context,
+                                config.keyCode,
+                                config.state,
+                                config.type,
+                                SettingsManager.PREFIX_APP + app.packageName
+                            )
+                            onActionSelected(app.name)
+                        }
+                        .padding(vertical = 4.dp),
+                    colors = ListItemDefaults.colors(containerColor = Color.Transparent)
+                )
+            }
         }
     }
 }
@@ -1357,22 +1546,52 @@ fun ShortcutsTab(config: ActionConfig, onActionSelected: (String) -> Unit) {
             Text("No shortcut-capable apps found", color = MaterialTheme.colorScheme.onSurfaceVariant)
         }
     } else {
-        LazyColumn(modifier = Modifier.fillMaxSize()) {
-            items(shortcutApps) { app ->
-                ListItem(
-                    headlineContent = { Text(app.name, color = Color.White) },
-                    supportingContent = { Text(app.packageName, color = MaterialTheme.colorScheme.onSurfaceVariant, style = MaterialTheme.typography.bodySmall) },
-                    leadingContent = {
-                        val bitmap = remember(app.packageName) { app.icon.toBitmap().asImageBitmap() }
-                        Image(bitmap, contentDescription = null, modifier = Modifier.size(40.dp))
-                    },
-                    modifier = Modifier.clickable {
-                        SettingsManager.setAction(context, config.keyCode, config.state, config.type, SettingsManager.PREFIX_SHORTCUT + app.packageName + "||" + app.name)
-                        onActionSelected(app.name)
-                    },
-                    colors = ListItemDefaults.colors(containerColor = Color.Transparent)
-                )
-                HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
+        LazyColumn(
+            modifier = Modifier.fillMaxSize(),
+            contentPadding = PaddingValues(16.dp),
+            verticalArrangement = Arrangement.spacedBy(2.dp)
+        ) {
+            items(shortcutApps.size) { index ->
+                val app = shortcutApps[index]
+                val shape = when {
+                    shortcutApps.size == 1 -> RoundedCornerShape(30.dp)
+                    index == 0 -> RoundedCornerShape(topStart = 30.dp, topEnd = 30.dp, bottomStart = 4.dp, bottomEnd = 4.dp)
+                    index == shortcutApps.size - 1 -> RoundedCornerShape(topStart = 4.dp, topEnd = 4.dp, bottomStart = 30.dp, bottomEnd = 30.dp)
+                    else -> RoundedCornerShape(4.dp)
+                }
+                Surface(
+                    color = MaterialTheme.colorScheme.surfaceContainer,
+                    shape = shape,
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    ListItem(
+                        headlineContent = { Text(app.name, color = MaterialTheme.colorScheme.onSurface) },
+                        supportingContent = {
+                            Text(
+                                app.packageName,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                style = MaterialTheme.typography.bodySmall
+                            )
+                        },
+                        leadingContent = {
+                            val bitmap = remember(app.packageName) { app.icon.toBitmap().asImageBitmap() }
+                            Image(bitmap, contentDescription = null, modifier = Modifier.size(40.dp))
+                        },
+                        modifier = Modifier
+                            .clickable {
+                                SettingsManager.setAction(
+                                    context,
+                                    config.keyCode,
+                                    config.state,
+                                    config.type,
+                                    SettingsManager.PREFIX_SHORTCUT + app.packageName + "||" + app.name
+                                )
+                                onActionSelected(app.name)
+                            }
+                            .padding(vertical = 4.dp),
+                        colors = ListItemDefaults.colors(containerColor = Color.Transparent)
+                    )
+                }
             }
         }
     }
@@ -1464,36 +1683,61 @@ fun ActionList(actions: List<String>, config: ActionConfig, onActionSelected: (S
         )
     }
 
-    LazyColumn(modifier = Modifier.fillMaxSize()) {
-        items(actions) { action ->
+    LazyColumn(
+        modifier = Modifier.fillMaxSize(),
+        contentPadding = PaddingValues(16.dp),
+        verticalArrangement = Arrangement.spacedBy(2.dp)
+    ) {
+        items(actions.size) { index ->
+            val action = actions[index]
             val displayName = action.split("_").joinToString(" ") { word ->
                 word.lowercase().replaceFirstChar { if (it.isLowerCase()) it.titlecase() else it.toString() }
             }
-            
-            ListItem(
-                headlineContent = { Text(displayName, color = Color.White) },
-                leadingContent = {
-                    ActionIcon(action = action, modifier = Modifier.size(24.dp), tint = Color.White)
-                },
-                modifier = Modifier.clickable {
-                    if (action == SettingsManager.ACTION_SPEED_DIAL || action == SettingsManager.ACTION_URL || action == SettingsManager.ACTION_QR_CODE) {
-                        showInputDialog = action
-                        val currentSavedAction = SettingsManager.getAction(context, config.keyCode, config.state, config.type)
-                        val prefix = when(action) {
-                            SettingsManager.ACTION_SPEED_DIAL -> SettingsManager.PREFIX_SPEED_DIAL
-                            SettingsManager.ACTION_URL -> SettingsManager.PREFIX_URL
-                            SettingsManager.ACTION_QR_CODE -> SettingsManager.PREFIX_QR_CODE
-                            else -> ""
+
+            val shape = when {
+                actions.size == 1 -> RoundedCornerShape(30.dp)
+                index == 0 -> RoundedCornerShape(topStart = 30.dp, topEnd = 30.dp, bottomStart = 4.dp, bottomEnd = 4.dp)
+                index == actions.size - 1 -> RoundedCornerShape(topStart = 4.dp, topEnd = 4.dp, bottomStart = 30.dp, bottomEnd = 30.dp)
+                else -> RoundedCornerShape(4.dp)
+            }
+
+            Surface(
+                color = MaterialTheme.colorScheme.surfaceContainer,
+                shape = shape,
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                ListItem(
+                    headlineContent = { Text(displayName, color = MaterialTheme.colorScheme.onSurface) },
+                    leadingContent = {
+                        ActionIcon(
+                            action = action,
+                            modifier = Modifier.size(24.dp),
+                            tint = MaterialTheme.colorScheme.primary
+                        )
+                    },
+                    modifier = Modifier
+                        .clickable {
+                            if (action == SettingsManager.ACTION_SPEED_DIAL || action == SettingsManager.ACTION_URL || action == SettingsManager.ACTION_QR_CODE) {
+                                showInputDialog = action
+                                val currentSavedAction =
+                                    SettingsManager.getAction(context, config.keyCode, config.state, config.type)
+                                val prefix = when (action) {
+                                    SettingsManager.ACTION_SPEED_DIAL -> SettingsManager.PREFIX_SPEED_DIAL
+                                    SettingsManager.ACTION_URL -> SettingsManager.PREFIX_URL
+                                    SettingsManager.ACTION_QR_CODE -> SettingsManager.PREFIX_QR_CODE
+                                    else -> ""
+                                }
+                                inputValue =
+                                    if (currentSavedAction.startsWith(prefix)) currentSavedAction.removePrefix(prefix) else ""
+                            } else {
+                                SettingsManager.setAction(context, config.keyCode, config.state, config.type, action)
+                                onActionSelected(displayName)
+                            }
                         }
-                        inputValue = if (currentSavedAction.startsWith(prefix)) currentSavedAction.removePrefix(prefix) else ""
-                    } else {
-                        SettingsManager.setAction(context, config.keyCode, config.state, config.type, action)
-                        onActionSelected(displayName)
-                    }
-                },
-                colors = ListItemDefaults.colors(containerColor = Color.Transparent)
-            )
-            HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
+                        .padding(vertical = 4.dp),
+                    colors = ListItemDefaults.colors(containerColor = Color.Transparent)
+                )
+            }
         }
     }
 }
