@@ -30,6 +30,7 @@ import android.view.KeyEvent
 import android.view.WindowManager
 import android.view.accessibility.AccessibilityEvent
 import android.view.accessibility.AccessibilityNodeInfo
+import android.widget.Toast // TOAST
 import rikka.shizuku.Shizuku
 import kotlin.math.max
 
@@ -62,7 +63,7 @@ class ButtonMapperService : AccessibilityService() {
     private val keyboardKeyCodes = setOf(
         29, 30, 31, 32, 33, 34, 35, 36, 37, 38, 39, 40,             // a..l
         41, 42, 43, 44, 45, 46, 47, 48, 49, 50, 51, 52, 53, 54,     // m..z
-        55, 56, 71,                                                 // , . [
+        55, 56,                                                     // , . 
         59, 62, 66, 67                                              // shift, space, enter, backspace
     )
 
@@ -74,11 +75,11 @@ class ButtonMapperService : AccessibilityService() {
     }
 
     private fun isTextFieldFocused(): Boolean {
-        var focusedNode: android.view.accessibility.AccessibilityNodeInfo? = null
+        var focusedNode: AccessibilityNodeInfo? = null
         try {
             val rootNode = rootInActiveWindow ?: return false
             // Find the node that currently has keyboard input focus
-            focusedNode = rootNode.findFocus(android.view.accessibility.AccessibilityNodeInfo.FOCUS_INPUT)
+            focusedNode = rootNode.findFocus(AccessibilityNodeInfo.FOCUS_INPUT)
 
             if (focusedNode != null) {
                 // Check if the node is marked as editable or is an EditText class
@@ -136,7 +137,7 @@ class ButtonMapperService : AccessibilityService() {
     }
 
     private val permissionListener = Shizuku.OnRequestPermissionResultListener { _, result ->
-        if (result == android.content.pm.PackageManager.PERMISSION_GRANTED) {
+        if (result == PackageManager.PERMISSION_GRANTED) {
             Log.d(tag, "Shizuku Permission Granted")
             tryStartShizuku()
         }
@@ -145,7 +146,7 @@ class ButtonMapperService : AccessibilityService() {
     private fun tryStartShizuku() {
         try {
             if (Shizuku.pingBinder() &&
-                Shizuku.checkSelfPermission() == android.content.pm.PackageManager.PERMISSION_GRANTED) {
+                Shizuku.checkSelfPermission() == PackageManager.PERMISSION_GRANTED) {
                 ShizukuManager.startMonitoring { keyCode, isDown ->
                     handler.post { handleKeyEvent(keyCode, isDown, fromShizuku = true) }
                 }
@@ -205,10 +206,6 @@ class ButtonMapperService : AccessibilityService() {
 
         Log.v(tag, "ACCESSIBILITY RAW: keyCode=$keyCode action=${if (isDown) "DOWN" else "UP"}")
 
-        val isSpecialKey = keyCode in setOf(134, 27, 25, 24, 131, 132, 133, 111)
-        val isKeyboardKey = keyCode in keyboardKeyCodes
-        if (!isSpecialKey && !isKeyboardKey) return false
-
         return handleKeyEvent(keyCode, isDown, fromShizuku = false)
     }
 
@@ -222,7 +219,7 @@ class ButtonMapperService : AccessibilityService() {
                 if (lastKeyCode != -1) stopContinuousAction(lastKeyCode)
                 stopContinuousAction(keyCode)
             }
-            lastKeyCode = keyCode
+            lastKeyCode = keyCode       
 
             longPressRunnables.remove(keyCode)?.let { handler.removeCallbacks(it) }
 
@@ -276,6 +273,31 @@ class ButtonMapperService : AccessibilityService() {
         }
     }
 
+//    // TOAST
+//    private fun showKeyToast(keyCode: Int) {
+//        val name = when (keyCode) {
+//            131 -> "AI Button"
+//            133 -> "Camera Up"
+//            132 -> "Camera Down"
+//            111 -> "Keyboard Button"
+//            24 -> "Volume Up"
+//            25 -> "Volume Down"
+//            27 -> "Camera Button"
+//            134 -> "Focus Button"
+//            else -> {
+//                val rawName = KeyEvent.keyCodeToString(keyCode)
+//                if (rawName.startsWith("KEYCODE_")) {
+//                    rawName.removePrefix("KEYCODE_")
+//                        .lowercase()
+//                        .replaceFirstChar { if (it.isLowerCase()) it.titlecase() else it.toString() }
+//                } else {
+//                    rawName
+//                }
+//            }
+//        }
+//        Toast.makeText(this, "$name, keycode: $keyCode", Toast.LENGTH_SHORT).show()
+//    }
+
     private fun handleKeyEvent(keyCode: Int, isDown: Boolean, fromShizuku: Boolean): Boolean {
         val km = getSystemService(KEYGUARD_SERVICE) as KeyguardManager
         val isLocked = km.isKeyguardLocked
@@ -284,6 +306,21 @@ class ButtonMapperService : AccessibilityService() {
 
         val currentPackage = rootInActiveWindow?.packageName?.toString() ?: lastPackageName
         val isCameraApp = currentPackage?.contains("camera", ignoreCase = true) == true
+
+        // Deduplicate events between Shizuku and AccessibilityService
+        val eventKey = Pair(keyCode, isDown)
+        val now = System.currentTimeMillis()
+        val lastTime = lastEventTimes[eventKey] ?: 0L
+        val lastSource = lastEventSources[eventKey]
+
+        var isDuplicate = false
+        if (now - lastTime < 300L && lastSource != null && lastSource != fromShizuku) {
+            isDuplicate = true
+            Log.v(tag, "Duplicate event detected and ignored: $keyCode ${if (isDown) "DOWN" else "UP"} fromShizuku=$fromShizuku")
+        } else {
+            lastEventTimes[eventKey] = now
+            lastEventSources[eventKey] = fromShizuku
+        }
 
         val updateButtonState = {
             if (keyCode == 132 || keyCode == 133) {
@@ -296,6 +333,16 @@ class ButtonMapperService : AccessibilityService() {
                 ButtonState.setKeyPressed(keyCode, isDown)
             }
         }
+
+        if (isDuplicate) {
+            updateButtonState()
+            if (!isDown) stopContinuousAction(keyCode)
+            return true
+        }
+
+//        if (isDown) {
+//            showKeyToast(keyCode) // TOAST
+//        }
 
         // ── Camera app pass-through ────────────────────────────────────────────
 
@@ -330,38 +377,10 @@ class ButtonMapperService : AccessibilityService() {
             return true
         }
 
-        // Hardcoded behavior for Camera and Focus buttons when screen is OFF/Locked
-        if (state == "OFF") {
-            if (keyCode == 27) return false
-            if (keyCode == 134) return true
-        }
-
         if (fromShizuku) {
             Log.v(tag, "SHIZUKU KEY: $keyCode ${if (isDown) "DOWN" else "UP"} [Locked=$isLocked, State=$state]")
         } else {
             Log.v(tag, "ACCESSIBILITY KEY: $keyCode ${if (isDown) "DOWN" else "UP"} [Locked=$isLocked, State=$state]")
-        }
-
-        // Deduplicate events between Shizuku and AccessibilityService
-        val eventKey = Pair(keyCode, isDown)
-        val now = System.currentTimeMillis()
-        val lastTime = lastEventTimes[eventKey] ?: 0L
-        val lastSource = lastEventSources[eventKey]
-
-        var isDuplicate = false
-        if (now - lastTime < 300L && lastSource != null && lastSource != fromShizuku) {
-            isDuplicate = true
-            Log.v(tag, "Duplicate event detected and ignored: $keyCode ${if (isDown) "DOWN" else "UP"} fromShizuku=$fromShizuku")
-        } else {
-            lastEventTimes[eventKey] = now
-            lastEventSources[eventKey] = fromShizuku
-        }
-
-        if (isDuplicate) {
-            updateButtonState()
-            // Even if duplicate, ensure continuous action stops on UP
-            if (!isDown) stopContinuousAction(keyCode)
-            return true
         }
 
         updateButtonState()
@@ -830,7 +849,7 @@ class ButtonMapperService : AccessibilityService() {
         if (now - lastRingerToggleTime < 500L) return
         lastRingerToggleTime = now
 
-        val nm = getSystemService(NOTIFICATION_SERVICE) as android.app.NotificationManager
+        val nm = getSystemService(NOTIFICATION_SERVICE) as NotificationManager
         val currentMode = audioManager.ringerMode
         
         // Target sequence: Silent (0) -> Vibrate (1) -> Normal (2) -> Silent (0)
@@ -897,14 +916,14 @@ class ButtonMapperService : AccessibilityService() {
         if (now - lastRingerToggleTime < 500L) return
         lastRingerToggleTime = now
 
-        val nm = getSystemService(NOTIFICATION_SERVICE) as android.app.NotificationManager
+        val nm = getSystemService(NOTIFICATION_SERVICE) as NotificationManager
         if (nm.isNotificationPolicyAccessGranted) {
             val currentFilter = nm.currentInterruptionFilter
             // EXACT OLD BEHAVIOR: Use FILTER_NONE for ON
-            val newFilter = if (currentFilter == android.app.NotificationManager.INTERRUPTION_FILTER_ALL) {
-                android.app.NotificationManager.INTERRUPTION_FILTER_NONE
+            val newFilter = if (currentFilter == NotificationManager.INTERRUPTION_FILTER_ALL) {
+                NotificationManager.INTERRUPTION_FILTER_NONE
             } else {
-                android.app.NotificationManager.INTERRUPTION_FILTER_ALL
+                NotificationManager.INTERRUPTION_FILTER_ALL
             }
             try {
                 nm.setInterruptionFilter(newFilter)
@@ -1025,7 +1044,7 @@ class ButtonMapperService : AccessibilityService() {
 
     private fun toggleBluetooth() {
         try {
-            val bm = getSystemService(Context.BLUETOOTH_SERVICE) as android.bluetooth.BluetoothManager
+            val bm = getSystemService(BLUETOOTH_SERVICE) as android.bluetooth.BluetoothManager
             val adapter = bm.adapter
             val isEnabled = adapter?.isEnabled == true
             val next = !isEnabled
@@ -1091,7 +1110,7 @@ class ButtonMapperService : AccessibilityService() {
 
     private fun stepMedia(forward: Boolean) {
         try {
-            val msm = getSystemService(Context.MEDIA_SESSION_SERVICE) as MediaSessionManager
+            val msm = getSystemService(MEDIA_SESSION_SERVICE) as MediaSessionManager
             val sessions = msm.getActiveSessions(ComponentName(this, NotificationListener::class.java))
             val controller = sessions.firstOrNull()
             

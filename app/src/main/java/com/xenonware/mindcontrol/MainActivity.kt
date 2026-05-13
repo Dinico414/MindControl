@@ -47,6 +47,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeDrawing
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.rememberPagerState
@@ -63,7 +64,6 @@ import androidx.compose.material.icons.automirrored.rounded.VolumeOff
 import androidx.compose.material.icons.automirrored.rounded.VolumeUp
 import androidx.compose.material.icons.filled.AddCircle
 import androidx.compose.material.icons.filled.RemoveCircle
-import androidx.compose.material.icons.filled.Tune
 import androidx.compose.material.icons.rounded.Apps
 import androidx.compose.material.icons.rounded.Assistant
 import androidx.compose.material.icons.rounded.Block
@@ -115,7 +115,6 @@ import androidx.compose.material.icons.rounded.Stop
 import androidx.compose.material.icons.rounded.Tune
 import androidx.compose.material.icons.rounded.Vibration
 import androidx.compose.material.icons.rounded.Wifi
-import androidx.compose.material.icons.rounded.WifiTethering
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
@@ -155,6 +154,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.DialogProperties
 import androidx.core.graphics.drawable.toBitmap
@@ -1119,6 +1119,8 @@ fun ButtonConfigScreen(
     onSelectAction: (Int, String, String) -> Unit,
 ) {
     var isScreenOff by remember { mutableStateOf(false) }
+    var showDisabledDialog by remember { mutableStateOf(false) }
+    var showFocusWarningDialog by remember { mutableStateOf(false) }
 
     val themeWrapper: @Composable (@Composable () -> Unit) -> Unit = when {
         isFromKeyboard || keyCode == 111 -> { content -> PaletteTheme(palette = keyboardPalette) { content() } }
@@ -1130,6 +1132,33 @@ fun ButtonConfigScreen(
     }
 
     themeWrapper {
+        if (showDisabledDialog) {
+            XenonDialog(
+                properties = DialogProperties(usePlatformDefaultWidth = true),
+                onDismissRequest = { showDisabledDialog = false },
+                title = "Notice",
+                confirmButtonText = "OK",
+                onConfirmButtonClick = { showDisabledDialog = false },
+                content = {
+                    Text("This Button is disabled, because this Button turns on the screen and therefore overwrites the Action")
+                }
+            )
+        }
+        if (showFocusWarningDialog) {
+            XenonDialog(
+                properties = DialogProperties(usePlatformDefaultWidth = true),
+                onDismissRequest = { showFocusWarningDialog = false },
+                title = "Warning",
+                confirmButtonText = "I Understand",
+                onConfirmButtonClick = {
+                    showFocusWarningDialog = false
+                    isScreenOff = true
+                },
+                content = {
+                    Text("Using the Focus button while the screen is off may lead to accidental actions while the device is in your pocket.")
+                }
+            )
+        }
         Surface(color = MaterialTheme.colorScheme.background, modifier = Modifier.fillMaxSize()) {
             Column(modifier = modifier.fillMaxSize()) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
@@ -1149,44 +1178,49 @@ fun ButtonConfigScreen(
 
                 Spacer(modifier = Modifier.height(16.dp))
 
-                if (keyCode != 27 && keyCode != 134) {
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceEvenly
-                    ) {
-                        Button(
-                            onClick = { isScreenOff = false },
-                            border = if (isScreenOff) BorderStroke(1.dp, MaterialTheme.colorScheme.primary) else null,
-                            colors = if (!isScreenOff) ButtonDefaults.buttonColors(
-                                containerColor = MaterialTheme.colorScheme.primary,
-                                contentColor = MaterialTheme.colorScheme.onPrimary
-                            )
-                            else ButtonDefaults.buttonColors(
-                                containerColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.1f),
-                                contentColor = MaterialTheme.colorScheme.primary
-                            )
-                        ) { Text("Screen On") }
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceEvenly
+                ) {
+                    Button(
+                        onClick = { isScreenOff = false },
+                        border = if (isScreenOff) BorderStroke(1.dp, MaterialTheme.colorScheme.primary) else null,
+                        colors = if (!isScreenOff) ButtonDefaults.buttonColors(
+                            containerColor = MaterialTheme.colorScheme.primary,
+                            contentColor = MaterialTheme.colorScheme.onPrimary
+                        )
+                        else ButtonDefaults.buttonColors(
+                            containerColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.1f),
+                            contentColor = MaterialTheme.colorScheme.primary
+                        )
+                    ) { Text("Screen On") }
 
-                        Button(
-                            onClick = { isScreenOff = true },
-                            border = if (!isScreenOff) BorderStroke(1.dp, MaterialTheme.colorScheme.primary) else null,
-                            colors = if (isScreenOff) ButtonDefaults.buttonColors(
+                    Button(
+                        onClick = {
+                            if (keyCode == 27) {
+                                showDisabledDialog = true
+                            } else if (keyCode == 134 && !isScreenOff) {
+                                showFocusWarningDialog = true
+                            } else {
+                                isScreenOff = true
+                            }
+                        },
+                        border = if (!isScreenOff) BorderStroke(1.dp, MaterialTheme.colorScheme.primary) else null,
+                        colors = when {
+                            keyCode == 27 -> ButtonDefaults.buttonColors(
+                                containerColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.12f),
+                                contentColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.38f)
+                            )
+                            isScreenOff -> ButtonDefaults.buttonColors(
                                 containerColor = MaterialTheme.colorScheme.primary,
                                 contentColor = MaterialTheme.colorScheme.onPrimary
                             )
-                            else ButtonDefaults.buttonColors(
+                            else -> ButtonDefaults.buttonColors(
                                 containerColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.1f),
                                 contentColor = MaterialTheme.colorScheme.primary
                             )
-                        ) { Text("Screen Off") }
-                    }
-                } else {
-                    Text(
-                        "Screen On only",
-                        style = MaterialTheme.typography.titleMedium,
-                        color = MaterialTheme.colorScheme.onSurface,
-                        modifier = Modifier.padding(8.dp)
-                    )
+                        }
+                    ) { Text("Screen Off") }
                 }
 
                 val stateStr = if (isScreenOff) "OFF" else "ON"
@@ -1274,26 +1308,47 @@ fun MindControlActionSelector(
         verticalAlignment = Alignment.CenterVertically,
         modifier = Modifier
             .fillMaxWidth()
-            .padding(horizontal = 16.dp, vertical = 12.dp)
+            .height(88.dp)
+            .padding(horizontal = 16.dp)
     ) {
         Text(
             text = "$type: ",
-            modifier = Modifier.weight(1f),
+            modifier = Modifier.widthIn(min = 80.dp),
             color = MaterialTheme.colorScheme.onSurface,
-            style = MaterialTheme.typography.bodyLarge
+            style = MaterialTheme.typography.bodyLarge,
+            maxLines = 1
         )
         OutlinedButton(
             onClick = { onSelectAction(keyCode, state, type) },
-            border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline)
+            border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline),
+            colors = ButtonDefaults.outlinedButtonColors(
+                containerColor = MaterialTheme.colorScheme.surface,
+                contentColor = MaterialTheme.colorScheme.primary
+            ),
+            modifier = Modifier
+                .weight(1f)
+                .padding(vertical = 8.dp),
+            contentPadding = PaddingValues(horizontal = 12.dp, vertical = 8.dp)
         ) {
-            ActionIcon(
-                action = action,
-                modifier = Modifier
-                    .size(18.dp)
-                    .padding(end = 4.dp),
-                tint = MaterialTheme.colorScheme.primary
-            )
-            Text(displayAction, color = MaterialTheme.colorScheme.primary)
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Text(
+                    text = displayAction,
+                    color = MaterialTheme.colorScheme.primary,
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.weight(1f)
+                )
+                ActionIcon(
+                    action = action,
+                    modifier = Modifier
+                        .size(24.dp)
+                        .padding(start = 4.dp),
+                    tint = MaterialTheme.colorScheme.primary
+                )
+            }
         }
     }
 }

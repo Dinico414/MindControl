@@ -9,10 +9,10 @@ activityCompose = "1.13.0"
 kotlin = "2.3.21"
 composeBom = "2026.05.00"
 shizuku = "13.1.5"
-xenonCommons = "2.4.8"
+xenonCommons = "2.5.3"
 foundationLayout = "1.11.1"
 foundation = "1.11.1"
-zxing = "3.5.3"
+zxing = "3.5.4"
 
 
 [libraries]

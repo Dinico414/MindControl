@@ -5,11 +5,7 @@ plugins {
 
 android {
     namespace = "com.xenonware.mindcontrol"
-    compileSdk {
-        version = release(36) {
-            minorApiLevel = 1
-        }
-    }
+    compileSdk = 37
 
     defaultConfig {
         applicationId = "com.xenonware.mindcontrol"
@@ -22,17 +18,25 @@ android {
     }
 
     buildTypes {
-        release {
-            isMinifyEnabled = false
+        getByName("debug") {
+            applicationIdSuffix = ".debug"
+            versionNameSuffix = "-d"
             proguardFiles(
-                getDefaultProguardFile("proguard-android-optimize.txt"),
-                "proguard-rules.pro"
+                getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro"
             )
+            signingConfig = signingConfigs.getByName("debug")
+        }
+        getByName("release") {
+            isMinifyEnabled = true
+            proguardFiles(
+                getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro"
+            )
+            signingConfig = signingConfigs.getByName("debug")
         }
     }
     compileOptions {
-        sourceCompatibility = JavaVersion.VERSION_11
-        targetCompatibility = JavaVersion.VERSION_11
+        sourceCompatibility = JavaVersion.VERSION_21
+        targetCompatibility = JavaVersion.VERSION_21
     }
     buildFeatures {
         compose = true
