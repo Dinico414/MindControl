@@ -43,10 +43,18 @@ object SettingsManager {
     const val ACTION_URL = "URL"
     const val ACTION_QR_CODE = "QR_CODE"
 
+    const val ACTION_FAST_FORWARD = "FAST_FORWARD"
+    const val ACTION_REWIND = "REWIND"
+    const val ACTION_STOP = "STOP"
+    const val ACTION_STEP_FORWARD = "STEP_FORWARD"
+    const val ACTION_STEP_BACKWARD = "STEP_BACKWARD"
+
     const val ACTION_VIBRATE_RINGER = "VIBRATE_RINGER"
+    const val ACTION_CYCLE_SOUND_MODE = "CYCLE_SOUND_MODE"
     const val ACTION_DND = "DND"
     const val ACTION_AUTO_BRIGHTNESS_TOGGLE = "AUTO_BRIGHTNESS_TOGGLE"
     const val ACTION_WIFI_TOGGLE = "WIFI_TOGGLE"
+    const val ACTION_BLUETOOTH_TOGGLE = "BLUETOOTH_TOGGLE"
     const val ACTION_DATA_TOGGLE = "DATA_TOGGLE"
     const val ACTION_NFC_TOGGLE = "NFC_TOGGLE"
     const val ACTION_LOCATION_TOGGLE = "LOCATION_TOGGLE"
@@ -55,6 +63,7 @@ object SettingsManager {
 
     const val ACTION_MUTE_VOL = "MUTE_VOL"
     const val ACTION_MUTE_MIC_TOGGLE = "MUTE_MIC_TOGGLE"
+    const val ACTION_VOLUME_DIALOG = "VOLUME_DIALOG"
 
     const val PREFIX_APP = "APP:"
     const val PREFIX_SHORTCUT = "SHORTCUT:"

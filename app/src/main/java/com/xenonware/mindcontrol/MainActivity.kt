@@ -1,18 +1,23 @@
 package com.xenonware.mindcontrol
 
 import android.accessibilityservice.AccessibilityServiceInfo
+import android.app.Activity
+import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.content.res.Configuration
 import android.graphics.drawable.Drawable
+import android.os.Build
 import android.os.Bundle
 import android.provider.Settings
 import android.util.Log
 import android.view.accessibility.AccessibilityManager
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.PredictiveBackHandler
+import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.compose.setContent
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
@@ -58,9 +63,11 @@ import androidx.compose.material.icons.automirrored.rounded.VolumeOff
 import androidx.compose.material.icons.automirrored.rounded.VolumeUp
 import androidx.compose.material.icons.filled.AddCircle
 import androidx.compose.material.icons.filled.RemoveCircle
+import androidx.compose.material.icons.filled.Tune
 import androidx.compose.material.icons.rounded.Apps
 import androidx.compose.material.icons.rounded.Assistant
 import androidx.compose.material.icons.rounded.Block
+import androidx.compose.material.icons.rounded.Bluetooth
 import androidx.compose.material.icons.rounded.BrightnessAuto
 import androidx.compose.material.icons.rounded.BrightnessHigh
 import androidx.compose.material.icons.rounded.BrightnessLow
@@ -70,8 +77,11 @@ import androidx.compose.material.icons.rounded.ContentCut
 import androidx.compose.material.icons.rounded.ContentPaste
 import androidx.compose.material.icons.rounded.DataUsage
 import androidx.compose.material.icons.rounded.DoNotDisturbOn
+import androidx.compose.material.icons.rounded.FastForward
+import androidx.compose.material.icons.rounded.FastRewind
 import androidx.compose.material.icons.rounded.FilterCenterFocus
 import androidx.compose.material.icons.rounded.FlashlightOn
+import androidx.compose.material.icons.rounded.Forward10
 import androidx.compose.material.icons.rounded.History
 import androidx.compose.material.icons.rounded.Home
 import androidx.compose.material.icons.rounded.Info
@@ -93,6 +103,7 @@ import androidx.compose.material.icons.rounded.PowerSettingsNew
 import androidx.compose.material.icons.rounded.QrCode
 import androidx.compose.material.icons.rounded.QuestionMark
 import androidx.compose.material.icons.rounded.Repeat
+import androidx.compose.material.icons.rounded.Replay10
 import androidx.compose.material.icons.rounded.ScreenRotation
 import androidx.compose.material.icons.rounded.Screenshot
 import androidx.compose.material.icons.rounded.Search
@@ -100,8 +111,11 @@ import androidx.compose.material.icons.rounded.Settings
 import androidx.compose.material.icons.rounded.SettingsBackupRestore
 import androidx.compose.material.icons.rounded.SkipNext
 import androidx.compose.material.icons.rounded.SkipPrevious
+import androidx.compose.material.icons.rounded.Stop
+import androidx.compose.material.icons.rounded.Tune
 import androidx.compose.material.icons.rounded.Vibration
 import androidx.compose.material.icons.rounded.Wifi
+import androidx.compose.material.icons.rounded.WifiTethering
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
@@ -827,12 +841,16 @@ fun TogglesContainer(
 
     var shizukuPermission by remember { mutableStateOf(false) }
     var shizukuAvailable by remember { mutableStateOf(false) }
+    var isNotificationListenerEnabled by remember { mutableStateOf(false) }
 
     LaunchedEffect(Unit) {
         while (true) {
             isServiceEnabled =
                 accessibilityManager.getEnabledAccessibilityServiceList(AccessibilityServiceInfo.FEEDBACK_GENERIC)
                     .any { it.resolveInfo.serviceInfo.packageName == context.packageName }
+
+            isNotificationListenerEnabled = Settings.Secure.getString(context.contentResolver, "enabled_notification_listeners")
+                ?.contains(context.packageName) == true
 
             shizukuAvailable = try {
                 Shizuku.pingBinder()
@@ -954,6 +972,27 @@ fun TogglesContainer(
                     }
                 }
             }
+
+            Card(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(vertical = 4.dp),
+                colors = CardDefaults.cardColors(
+                    containerColor = if (isNotificationListenerEnabled) Color(0xFFE8F5E9) else Color(0xFFFFEBEE)
+                ),
+                border = BorderStroke(
+                    1.dp, if (isNotificationListenerEnabled) Color(0xFF2E7D32) else Color(0xFFC62828)
+                )
+            ) {
+                Column(modifier = Modifier.padding(12.dp)) {
+                    Text(
+                        text = if (isNotificationListenerEnabled) "Media Control: ACTIVE" else "Media Control: INACTIVE",
+                        color = if (isNotificationListenerEnabled) Color(0xFF2E7D32) else Color(0xFFC62828),
+                        style = MaterialTheme.typography.bodyMedium
+                    )
+                }
+            }
+
             if (!isServiceEnabled) {
                 Spacer(modifier = Modifier.height(8.dp))
                 Button(
@@ -963,6 +1002,18 @@ fun TogglesContainer(
                     }, modifier = Modifier.fillMaxWidth(), contentPadding = PaddingValues(8.dp)
                 ) {
                     Text("Accessibility Settings", style = MaterialTheme.typography.bodySmall)
+                }
+            }
+
+            if (!isNotificationListenerEnabled) {
+                Spacer(modifier = Modifier.height(4.dp))
+                Button(
+                    onClick = {
+                        val intent = Intent(Settings.ACTION_NOTIFICATION_LISTENER_SETTINGS)
+                        context.startActivity(intent)
+                    }, modifier = Modifier.fillMaxWidth(), contentPadding = PaddingValues(8.dp)
+                ) {
+                    Text("Media Control Settings", style = MaterialTheme.typography.bodySmall)
                 }
             }
 
@@ -1205,8 +1256,8 @@ fun MindControlActionSelector(
             pkg
         }
     } else if (action.startsWith(SettingsManager.PREFIX_SHORTCUT)) {
-        val parts = action.removePrefix(SettingsManager.PREFIX_SHORTCUT).split("|")
-        parts.getOrNull(2) ?: action.removePrefix(SettingsManager.PREFIX_SHORTCUT)
+        val parts = action.removePrefix(SettingsManager.PREFIX_SHORTCUT).split("||")
+        parts.getOrNull(1) ?: "Shortcut"
     } else if (action.startsWith(SettingsManager.PREFIX_SPEED_DIAL)) {
         "Speed Dial: " + action.removePrefix(SettingsManager.PREFIX_SPEED_DIAL)
     } else if (action.startsWith(SettingsManager.PREFIX_URL)) {
@@ -1294,6 +1345,7 @@ fun ActionIcon(action: String, modifier: Modifier = Modifier, tint: Color = Loca
         action == SettingsManager.ACTION_BRIGHTNESS_DOWN -> Icons.Rounded.BrightnessLow
         action == SettingsManager.ACTION_AUTO_BRIGHTNESS_TOGGLE -> Icons.Rounded.BrightnessAuto
         action == SettingsManager.ACTION_WIFI_TOGGLE -> Icons.Rounded.Wifi
+        action == SettingsManager.ACTION_BLUETOOTH_TOGGLE -> Icons.Rounded.Bluetooth
         action == SettingsManager.ACTION_DATA_TOGGLE -> Icons.Rounded.DataUsage
         action == SettingsManager.ACTION_NFC_TOGGLE -> Icons.Rounded.Nfc
         action == SettingsManager.ACTION_LOCATION_TOGGLE -> Icons.Rounded.LocationOn
@@ -1303,10 +1355,17 @@ fun ActionIcon(action: String, modifier: Modifier = Modifier, tint: Color = Loca
         action == SettingsManager.ACTION_VOLUME_UP -> Icons.AutoMirrored.Rounded.VolumeUp
         action == SettingsManager.ACTION_VOLUME_DOWN -> Icons.AutoMirrored.Rounded.VolumeDown
         action == SettingsManager.ACTION_MUTE_VOL -> Icons.AutoMirrored.Rounded.VolumeOff
+        action == SettingsManager.ACTION_VOLUME_DIALOG -> Icons.Rounded.Tune
         action == SettingsManager.ACTION_MUTE_MIC_TOGGLE -> Icons.Rounded.MicOff
         action == SettingsManager.ACTION_PREVIOUS -> Icons.Rounded.SkipPrevious
         action == SettingsManager.ACTION_NEXT -> Icons.Rounded.SkipNext
         action == SettingsManager.ACTION_PLAY_PAUSE -> Icons.Rounded.PlayArrow
+        action == SettingsManager.ACTION_STOP -> Icons.Rounded.Stop
+        action == SettingsManager.ACTION_FAST_FORWARD -> Icons.Rounded.FastForward
+        action == SettingsManager.ACTION_REWIND -> Icons.Rounded.FastRewind
+        action == SettingsManager.ACTION_STEP_FORWARD -> Icons.Rounded.Forward10
+        action == SettingsManager.ACTION_STEP_BACKWARD -> Icons.Rounded.Replay10
+        action == SettingsManager.ACTION_CYCLE_SOUND_MODE -> Icons.Rounded.Vibration
         else -> Icons.Rounded.QuestionMark
     }
 
@@ -1432,7 +1491,7 @@ fun ActionsTab(config: ActionConfig, onActionSelected: (String) -> Unit) {
         SettingsManager.ACTION_PASTE,
         SettingsManager.ACTION_SPEED_DIAL,
         SettingsManager.ACTION_URL,
-        SettingsManager.ACTION_QR_CODE
+        SettingsManager.ACTION_QR_CODE,
     )
     ActionList(actions, config, onActionSelected)
 }
@@ -1516,32 +1575,70 @@ fun AppsTab(config: ActionConfig, onActionSelected: (String) -> Unit) {
 
 data class AppItem(val name: String, val packageName: String, val icon: Drawable)
 
+data class ShortcutItem(val name: String, val packageName: String, val className: String, val icon: Drawable)
+
 @Composable
 fun ShortcutsTab(config: ActionConfig, onActionSelected: (String) -> Unit) {
     val context = LocalContext.current
     val pm = context.packageManager
     val scope = rememberCoroutineScope()
-    val shortcutApps = remember { mutableStateListOf<AppItem>() }
+    val shortcutItems = remember { mutableStateListOf<ShortcutItem>() }
+
+    val shortcutLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.StartActivityForResult()
+    ) { result ->
+        if (result.resultCode == Activity.RESULT_OK) {
+            val data = result.data ?: return@rememberLauncherForActivityResult
+            
+            // Log for debugging
+            Log.d("ShortcutsTab", "Shortcut picker returned data: ${data.extras?.keySet()}")
+            
+            val shortcutIntent = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                data.getParcelableExtra(Intent.EXTRA_SHORTCUT_INTENT, Intent::class.java)
+            } else {
+                @Suppress("DEPRECATION")
+                data.getParcelableExtra<Intent>(Intent.EXTRA_SHORTCUT_INTENT)
+            }
+            
+            val name = data.getStringExtra(Intent.EXTRA_SHORTCUT_NAME) ?: "Shortcut"
+            val uri = shortcutIntent?.toUri(Intent.URI_INTENT_SCHEME)
+            
+            if (uri != null) {
+                Log.d("ShortcutsTab", "Saving shortcut: $name -> $uri")
+                SettingsManager.setAction(
+                    context,
+                    config.keyCode,
+                    config.state,
+                    config.type,
+                    SettingsManager.PREFIX_SHORTCUT + uri + "||" + name
+                )
+                onActionSelected(name)
+            } else {
+                Log.e("ShortcutsTab", "Failed to extract shortcut intent from result")
+            }
+        }
+    }
 
     LaunchedEffect(Unit) {
         scope.launch(Dispatchers.IO) {
             val intent = Intent(Intent.ACTION_CREATE_SHORTCUT)
             val resolveInfos = pm.queryIntentActivities(intent, 0)
-            val appList = resolveInfos.map {
-                AppItem(
-                    it.loadLabel(pm).toString(),
+            val itemList = resolveInfos.map {
+                ShortcutItem(
+                    it.activityInfo.loadLabel(pm).toString().ifEmpty { it.loadLabel(pm).toString() },
                     it.activityInfo.packageName,
+                    it.activityInfo.name,
                     it.loadIcon(pm)
                 )
-            }.distinctBy { it.packageName }.sortedBy { it.name }
+            }.sortedBy { it.name }
             withContext(Dispatchers.Main) {
-                shortcutApps.clear()
-                shortcutApps.addAll(appList)
+                shortcutItems.clear()
+                shortcutItems.addAll(itemList)
             }
         }
     }
 
-    if (shortcutApps.isEmpty()) {
+    if (shortcutItems.isEmpty()) {
         Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
             Text("No shortcut-capable apps found", color = MaterialTheme.colorScheme.onSurfaceVariant)
         }
@@ -1551,12 +1648,12 @@ fun ShortcutsTab(config: ActionConfig, onActionSelected: (String) -> Unit) {
             contentPadding = PaddingValues(16.dp),
             verticalArrangement = Arrangement.spacedBy(2.dp)
         ) {
-            items(shortcutApps.size) { index ->
-                val app = shortcutApps[index]
+            items(shortcutItems.size) { index ->
+                val item = shortcutItems[index]
                 val shape = when {
-                    shortcutApps.size == 1 -> RoundedCornerShape(30.dp)
+                    shortcutItems.size == 1 -> RoundedCornerShape(30.dp)
                     index == 0 -> RoundedCornerShape(topStart = 30.dp, topEnd = 30.dp, bottomStart = 4.dp, bottomEnd = 4.dp)
-                    index == shortcutApps.size - 1 -> RoundedCornerShape(topStart = 4.dp, topEnd = 4.dp, bottomStart = 30.dp, bottomEnd = 30.dp)
+                    index == shortcutItems.size - 1 -> RoundedCornerShape(topStart = 4.dp, topEnd = 4.dp, bottomStart = 30.dp, bottomEnd = 30.dp)
                     else -> RoundedCornerShape(4.dp)
                 }
                 Surface(
@@ -1565,28 +1662,29 @@ fun ShortcutsTab(config: ActionConfig, onActionSelected: (String) -> Unit) {
                     modifier = Modifier.fillMaxWidth()
                 ) {
                     ListItem(
-                        headlineContent = { Text(app.name, color = MaterialTheme.colorScheme.onSurface) },
+                        headlineContent = { Text(item.name, color = MaterialTheme.colorScheme.onSurface) },
                         supportingContent = {
                             Text(
-                                app.packageName,
+                                item.packageName,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                                 style = MaterialTheme.typography.bodySmall
                             )
                         },
                         leadingContent = {
-                            val bitmap = remember(app.packageName) { app.icon.toBitmap().asImageBitmap() }
+                            val bitmap = remember(item.packageName + item.className) { item.icon.toBitmap().asImageBitmap() }
                             Image(bitmap, contentDescription = null, modifier = Modifier.size(40.dp))
                         },
                         modifier = Modifier
                             .clickable {
-                                SettingsManager.setAction(
-                                    context,
-                                    config.keyCode,
-                                    config.state,
-                                    config.type,
-                                    SettingsManager.PREFIX_SHORTCUT + app.packageName + "||" + app.name
-                                )
-                                onActionSelected(app.name)
+                                val intent = Intent(Intent.ACTION_CREATE_SHORTCUT).apply {
+                                    component = ComponentName(item.packageName, item.className)
+                                    addCategory(Intent.CATEGORY_DEFAULT)
+                                }
+                                try {
+                                    shortcutLauncher.launch(intent)
+                                } catch (e: Exception) {
+                                    Log.e("ShortcutsTab", "Failed to launch shortcut picker", e)
+                                }
                             }
                             .padding(vertical = 4.dp),
                         colors = ListItemDefaults.colors(containerColor = Color.Transparent)
@@ -1601,12 +1699,14 @@ fun ShortcutsTab(config: ActionConfig, onActionSelected: (String) -> Unit) {
 fun SystemTab(config: ActionConfig, onActionSelected: (String) -> Unit) {
     val actions = listOf(
         SettingsManager.ACTION_VIBRATE_RINGER,
+        SettingsManager.ACTION_CYCLE_SOUND_MODE,
         SettingsManager.ACTION_DND,
         SettingsManager.ACTION_NOTIFICATIONS,
         SettingsManager.ACTION_BRIGHTNESS_UP,
         SettingsManager.ACTION_BRIGHTNESS_DOWN,
         SettingsManager.ACTION_AUTO_BRIGHTNESS_TOGGLE,
         SettingsManager.ACTION_WIFI_TOGGLE,
+        SettingsManager.ACTION_BLUETOOTH_TOGGLE,
         SettingsManager.ACTION_DATA_TOGGLE,
         SettingsManager.ACTION_NFC_TOGGLE,
         SettingsManager.ACTION_LOCATION_TOGGLE,
@@ -1623,10 +1723,16 @@ fun MediaTab(config: ActionConfig, onActionSelected: (String) -> Unit) {
         SettingsManager.ACTION_VOLUME_UP,
         SettingsManager.ACTION_VOLUME_DOWN,
         SettingsManager.ACTION_MUTE_VOL,
+        SettingsManager.ACTION_VOLUME_DIALOG,
         SettingsManager.ACTION_MUTE_MIC_TOGGLE,
+        SettingsManager.ACTION_PLAY_PAUSE,
+        SettingsManager.ACTION_STOP,
         SettingsManager.ACTION_PREVIOUS,
         SettingsManager.ACTION_NEXT,
-        SettingsManager.ACTION_PLAY_PAUSE,
+        SettingsManager.ACTION_FAST_FORWARD,
+        SettingsManager.ACTION_REWIND,
+        SettingsManager.ACTION_STEP_FORWARD,
+        SettingsManager.ACTION_STEP_BACKWARD,
     )
     ActionList(actions, config, onActionSelected)
 }

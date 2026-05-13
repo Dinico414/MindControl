@@ -2,14 +2,25 @@ package com.xenonware.mindcontrol
 
 import android.accessibilityservice.AccessibilityService
 import android.accessibilityservice.GestureDescription
+import android.app.ActivityOptions
 import android.app.KeyguardManager
 import android.app.Notification
 import android.app.NotificationChannel
 import android.app.NotificationManager
+import android.app.PendingIntent
+import android.content.ComponentName
+import android.content.Context
 import android.content.Intent
+import android.content.pm.PackageManager
+import android.content.res.Configuration
 import android.graphics.Path
 import android.hardware.camera2.CameraManager
+import android.location.LocationManager
 import android.media.AudioManager
+import android.media.session.MediaController
+import android.media.session.MediaSessionManager
+import android.os.Build
+import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
 import android.os.PowerManager
@@ -19,8 +30,8 @@ import android.view.KeyEvent
 import android.view.WindowManager
 import android.view.accessibility.AccessibilityEvent
 import android.view.accessibility.AccessibilityNodeInfo
-import android.location.LocationManager
 import rikka.shizuku.Shizuku
+import kotlin.math.max
 
 class ButtonMapperService : AccessibilityService() {
 
@@ -36,6 +47,7 @@ class ButtonMapperService : AccessibilityService() {
     private var isVolumePanelVisibleState = false
     private var volumePanelTimeoutRunnable: Runnable? = null
     private var lastKeyCode: Int = -1
+    private var lastKnownRingVolume: Int = -1
 
     private var isShutterKeyPressed = false
     private var ignoreNextFocusUp = false
@@ -475,6 +487,11 @@ class ButtonMapperService : AccessibilityService() {
             SettingsManager.ACTION_PLAY_PAUSE -> { dispatchMediaKey(KeyEvent.KEYCODE_MEDIA_PLAY_PAUSE); true }
             SettingsManager.ACTION_NEXT -> { dispatchMediaKey(KeyEvent.KEYCODE_MEDIA_NEXT); true }
             SettingsManager.ACTION_PREVIOUS -> { dispatchMediaKey(KeyEvent.KEYCODE_MEDIA_PREVIOUS); true }
+            SettingsManager.ACTION_FAST_FORWARD -> { dispatchMediaKey(KeyEvent.KEYCODE_MEDIA_FAST_FORWARD); true }
+            SettingsManager.ACTION_REWIND -> { dispatchMediaKey(KeyEvent.KEYCODE_MEDIA_REWIND); true }
+            SettingsManager.ACTION_STOP -> { dispatchMediaKey(KeyEvent.KEYCODE_MEDIA_STOP); true }
+            SettingsManager.ACTION_STEP_FORWARD -> { stepMedia(true); true }
+            SettingsManager.ACTION_STEP_BACKWARD -> { stepMedia(false); true }
             SettingsManager.ACTION_VOLUME_UP -> { adjustVolume(AudioManager.ADJUST_RAISE); true }
             SettingsManager.ACTION_VOLUME_DOWN -> { adjustVolume(AudioManager.ADJUST_LOWER); true }
             SettingsManager.ACTION_MUTE_VOL -> {
@@ -484,6 +501,10 @@ class ButtonMapperService : AccessibilityService() {
                     if (isMuted) AudioManager.ADJUST_UNMUTE else AudioManager.ADJUST_MUTE,
                     AudioManager.FLAG_SHOW_UI
                 )
+                true
+            }
+            SettingsManager.ACTION_VOLUME_DIALOG -> {
+                audioManager.adjustVolume(AudioManager.ADJUST_SAME, AudioManager.FLAG_SHOW_UI)
                 true
             }
             SettingsManager.ACTION_MUTE_MIC_TOGGLE -> {
@@ -505,6 +526,7 @@ class ButtonMapperService : AccessibilityService() {
             SettingsManager.ACTION_ASSISTANT -> { launchAssistant(); true }
             SettingsManager.ACTION_GOOGLE_SEARCH -> { launchGoogleSearch(); true }
             SettingsManager.ACTION_VIBRATE_RINGER -> { toggleVibrateRinger(); true }
+            SettingsManager.ACTION_CYCLE_SOUND_MODE -> { cycleSoundMode(); true }
             SettingsManager.ACTION_DND -> { toggleDND(); true }
             SettingsManager.ACTION_COPY -> performClipboardAction(AccessibilityNodeInfo.ACTION_COPY)
             SettingsManager.ACTION_CUT -> performClipboardAction(AccessibilityNodeInfo.ACTION_CUT)
@@ -516,6 +538,7 @@ class ButtonMapperService : AccessibilityService() {
             SettingsManager.ACTION_ROTATE_360 -> { toggleRotation360(); true }
             SettingsManager.ACTION_AUTOROTATE_TOGGLE -> { toggleAutoRotate(); true }
             SettingsManager.ACTION_WIFI_TOGGLE -> { toggleWifi(); true }
+            SettingsManager.ACTION_BLUETOOTH_TOGGLE -> { toggleBluetooth(); true }
             SettingsManager.ACTION_DATA_TOGGLE -> { toggleData(); true }
             SettingsManager.ACTION_NFC_TOGGLE -> { toggleNfc(); true }
             SettingsManager.ACTION_LOCATION_TOGGLE -> { toggleLocation(); true }
@@ -527,6 +550,9 @@ class ButtonMapperService : AccessibilityService() {
             else -> {
                 if (finalAction.startsWith(SettingsManager.PREFIX_APP)) {
                     launchApp(finalAction.removePrefix(SettingsManager.PREFIX_APP))
+                } else if (finalAction.startsWith(SettingsManager.PREFIX_SHORTCUT)) {
+                    launchShortcut(finalAction.removePrefix(SettingsManager.PREFIX_SHORTCUT))
+                    true
                 } else if (finalAction.startsWith(SettingsManager.PREFIX_SPEED_DIAL)) {
                     launchSpeedDial(finalAction.removePrefix(SettingsManager.PREFIX_SPEED_DIAL))
                     true
@@ -697,6 +723,41 @@ class ButtonMapperService : AccessibilityService() {
         return false
     }
 
+    private fun launchShortcut(shortcutData: String) {
+        try {
+            val parts = shortcutData.split("||")
+            val data = parts[0]
+            
+            if (data.startsWith("intent:")) {
+                Log.d(tag, "Launching shortcut via URI")
+                val intent = Intent.parseUri(data, 0)
+                intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+
+                val flags = PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT
+                val pendingIntent = PendingIntent.getActivity(this, 0, intent, flags)
+
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
+                    val bundle = ActivityOptions.makeBasic()
+                        .setPendingIntentBackgroundActivityStartMode(
+                            ActivityOptions.MODE_BACKGROUND_ACTIVITY_START_ALLOWED
+                        ).toBundle()
+                    pendingIntent.send(bundle)
+                } else {
+                    pendingIntent.send()
+                }
+            } else {
+                Log.d(tag, "Launching shortcut via package name: $data")
+                val intent = packageManager.getLaunchIntentForPackage(data)
+                if (intent != null) {
+                    intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                    startActivity(intent)
+                }
+            }
+        } catch (e: Exception) {
+            Log.e(tag, "Shortcut launch error", e)
+        }
+    }
+
     private fun launchSpeedDial(number: String) {
         val intent = Intent(Intent.ACTION_CALL)
         intent.data = android.net.Uri.parse("tel:$number")
@@ -764,6 +825,73 @@ class ButtonMapperService : AccessibilityService() {
         }
     }
 
+    private fun cycleSoundMode() {
+        val now = System.currentTimeMillis()
+        if (now - lastRingerToggleTime < 500L) return
+        lastRingerToggleTime = now
+
+        val nm = getSystemService(NOTIFICATION_SERVICE) as android.app.NotificationManager
+        val currentMode = audioManager.ringerMode
+        
+        // Target sequence: Silent (0) -> Vibrate (1) -> Normal (2) -> Silent (0)
+        val nextMode = when (currentMode) {
+            AudioManager.RINGER_MODE_SILENT -> 1 // To Vibrate
+            AudioManager.RINGER_MODE_VIBRATE -> 2 // To Normal
+            AudioManager.RINGER_MODE_NORMAL -> 0 // To Silent
+            else -> 0
+        }
+        
+        Log.d(tag, "Sound Mode Cycle: Current=$currentMode, NextModeTarget=$nextMode")
+        
+        try {
+            if (!nm.isNotificationPolicyAccessGranted) {
+                Log.w(tag, "cycleSoundMode: DND permission not granted")
+                return
+            }
+
+            when (nextMode) {
+                0 -> { // Silent
+                    val vol = audioManager.getStreamVolume(AudioManager.STREAM_RING)
+                    if (vol > 0) lastKnownRingVolume = vol
+
+                    // FORCE BEHAVIOR: Jump to Normal first
+                    if (audioManager.ringerMode != AudioManager.RINGER_MODE_NORMAL) {
+                        audioManager.ringerMode = AudioManager.RINGER_MODE_NORMAL
+                    }
+                    audioManager.ringerMode = AudioManager.RINGER_MODE_SILENT
+                }
+                1 -> { // Vibrate
+                    if (audioManager.ringerMode == AudioManager.RINGER_MODE_NORMAL) {
+                        val vol = audioManager.getStreamVolume(AudioManager.STREAM_RING)
+                        if (vol > 0) lastKnownRingVolume = vol
+                    }
+                    // FORCE BEHAVIOR: Jump to Normal first
+                    if (audioManager.ringerMode == AudioManager.RINGER_MODE_SILENT) {
+                        audioManager.ringerMode = AudioManager.RINGER_MODE_NORMAL
+                    }
+                    audioManager.ringerMode = AudioManager.RINGER_MODE_VIBRATE
+                }
+                2 -> { // Normal
+                    audioManager.ringerMode = AudioManager.RINGER_MODE_NORMAL
+                    val maxVol = audioManager.getStreamMaxVolume(AudioManager.STREAM_RING)
+                    val targetVol = if (lastKnownRingVolume > 0) lastKnownRingVolume
+                    else (maxVol / 2).coerceAtLeast(1)
+                    audioManager.setStreamVolume(AudioManager.STREAM_RING, targetVol, 0)
+                    audioManager.setStreamVolume(AudioManager.STREAM_NOTIFICATION, targetVol, 0)
+                }
+            }
+
+            // Force the system UI to show the change
+            audioManager.adjustVolume(AudioManager.ADJUST_SAME, AudioManager.FLAG_SHOW_UI)
+            
+            Handler(Looper.getMainLooper()).postDelayed({
+                Log.d(tag, "Sound Mode Cycle Verify: Actual=${audioManager.ringerMode}")
+            }, 200)
+        } catch (e: Exception) {
+            Log.e(tag, "Error cycling ringer mode", e)
+        }
+    }
+
     private fun toggleDND() {
         val now = System.currentTimeMillis()
         if (now - lastRingerToggleTime < 500L) return
@@ -772,8 +900,9 @@ class ButtonMapperService : AccessibilityService() {
         val nm = getSystemService(NOTIFICATION_SERVICE) as android.app.NotificationManager
         if (nm.isNotificationPolicyAccessGranted) {
             val currentFilter = nm.currentInterruptionFilter
+            // EXACT OLD BEHAVIOR: Use FILTER_NONE for ON
             val newFilter = if (currentFilter == android.app.NotificationManager.INTERRUPTION_FILTER_ALL) {
-                android.app.NotificationManager.INTERRUPTION_FILTER_PRIORITY
+                android.app.NotificationManager.INTERRUPTION_FILTER_NONE
             } else {
                 android.app.NotificationManager.INTERRUPTION_FILTER_ALL
             }
@@ -894,6 +1023,25 @@ class ButtonMapperService : AccessibilityService() {
         }
     }
 
+    private fun toggleBluetooth() {
+        try {
+            val bm = getSystemService(Context.BLUETOOTH_SERVICE) as android.bluetooth.BluetoothManager
+            val adapter = bm.adapter
+            val isEnabled = adapter?.isEnabled == true
+            val next = !isEnabled
+            val cmd = if (next) "enable" else "disable"
+
+            if (ShizukuManager.isAvailable()) {
+                ShizukuManager.runShellCommand("svc bluetooth $cmd")
+                Log.d(tag, "Bluetooth Toggle (Shizuku): $isEnabled -> $next")
+            } else {
+                Log.e(tag, "Bluetooth toggle requires Shizuku or Root")
+            }
+        } catch (e: Exception) {
+            Log.e(tag, "Bluetooth toggle error", e)
+        }
+    }
+
     private fun toggleData() {
         try {
             val current = Settings.Global.getInt(contentResolver, "mobile_data", 0)
@@ -938,6 +1086,28 @@ class ButtonMapperService : AccessibilityService() {
             }
         } catch (e: Exception) {
             Log.e(tag, "Location toggle error", e)
+        }
+    }
+
+    private fun stepMedia(forward: Boolean) {
+        try {
+            val msm = getSystemService(Context.MEDIA_SESSION_SERVICE) as MediaSessionManager
+            val sessions = msm.getActiveSessions(ComponentName(this, NotificationListener::class.java))
+            val controller = sessions.firstOrNull()
+            
+            if (controller?.playbackState != null) {
+                val delta = if (forward) 30000L else -30000L
+                val newPos = max(0, controller.playbackState!!.position + delta)
+                controller.transportControls.seekTo(newPos)
+                Log.d(tag, "Stepped media ${if (forward) "forward" else "backward"} to $newPos")
+            } else {
+                val keyCode = if (forward) KeyEvent.KEYCODE_MEDIA_STEP_FORWARD else KeyEvent.KEYCODE_MEDIA_STEP_BACKWARD
+                dispatchMediaKey(keyCode)
+            }
+        } catch (e: Exception) {
+            Log.e(tag, "Media step error", e)
+            val keyCode = if (forward) KeyEvent.KEYCODE_MEDIA_STEP_FORWARD else KeyEvent.KEYCODE_MEDIA_STEP_BACKWARD
+            dispatchMediaKey(keyCode)
         }
     }
 

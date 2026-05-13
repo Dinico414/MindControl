@@ -107,14 +107,35 @@ object ShizukuManager {
     }
 
     fun runShellCommand(command: String) {
-        try {
-            val binder = Shizuku.getBinder()
-            if (binder != null && binder.pingBinder()) {
-                val service = IShizukuService.Stub.asInterface(binder)
-                service.newProcess(arrayOf("sh", "-c", command), null, null)
+        Thread {
+            try {
+                val binder = Shizuku.getBinder()
+                if (binder != null && binder.pingBinder()) {
+                    val service = IShizukuService.Stub.asInterface(binder)
+                    val remoteProcess = service.newProcess(arrayOf("sh", "-c", command), null, null)
+                    
+                    val reader = BufferedReader(InputStreamReader(ParcelFileDescriptor.AutoCloseInputStream(remoteProcess.inputStream)))
+                    val errorReader = BufferedReader(InputStreamReader(ParcelFileDescriptor.AutoCloseInputStream(remoteProcess.errorStream)))
+                    
+                    val output = StringBuilder()
+                    var line: String?
+                    while (reader.readLine().also { line = it } != null) {
+                        output.append(line).append("\n")
+                    }
+                    
+                    val error = StringBuilder()
+                    while (errorReader.readLine().also { line = it } != null) {
+                        error.append(line).append("\n")
+                    }
+                    
+                    val exitCode = remoteProcess.waitFor()
+                    if (output.isNotEmpty()) Log.d(TAG, "Command '$command' output: ${output.toString().trim()}")
+                    if (error.isNotEmpty()) Log.e(TAG, "Command '$command' error: ${error.toString().trim()}")
+                    Log.d(TAG, "Command '$command' exited with code $exitCode")
+                }
+            } catch (e: Exception) {
+                Log.e(TAG, "Error running command: $command", e)
             }
-        } catch (e: Exception) {
-            Log.e(TAG, "Error running command: $command", e)
-        }
+        }.start()
     }
 }
