@@ -63,7 +63,7 @@ class ButtonMapperService : AccessibilityService() {
     private val keyboardKeyCodes = setOf(
         29, 30, 31, 32, 33, 34, 35, 36, 37, 38, 39, 40,             // a..l
         41, 42, 43, 44, 45, 46, 47, 48, 49, 50, 51, 52, 53, 54,     // m..z
-        55, 56,                                                     // , . 
+        55, 56,                                                     // , .
         59, 62, 66, 67                                              // shift, space, enter, backspace
     )
 
@@ -206,6 +206,10 @@ class ButtonMapperService : AccessibilityService() {
 
         Log.v(tag, "ACCESSIBILITY RAW: keyCode=$keyCode action=${if (isDown) "DOWN" else "UP"}")
 
+        val isSpecialKey = keyCode in setOf(134, 27, 25, 24, 131, 132, 133, 111)
+        val isKeyboardKey = keyCode in keyboardKeyCodes
+        if (!isSpecialKey && !isKeyboardKey) return false
+
         return handleKeyEvent(keyCode, isDown, fromShizuku = false)
     }
 
@@ -307,21 +311,6 @@ class ButtonMapperService : AccessibilityService() {
         val currentPackage = rootInActiveWindow?.packageName?.toString() ?: lastPackageName
         val isCameraApp = currentPackage?.contains("camera", ignoreCase = true) == true
 
-        // Deduplicate events between Shizuku and AccessibilityService
-        val eventKey = Pair(keyCode, isDown)
-        val now = System.currentTimeMillis()
-        val lastTime = lastEventTimes[eventKey] ?: 0L
-        val lastSource = lastEventSources[eventKey]
-
-        var isDuplicate = false
-        if (now - lastTime < 300L && lastSource != null && lastSource != fromShizuku) {
-            isDuplicate = true
-            Log.v(tag, "Duplicate event detected and ignored: $keyCode ${if (isDown) "DOWN" else "UP"} fromShizuku=$fromShizuku")
-        } else {
-            lastEventTimes[eventKey] = now
-            lastEventSources[eventKey] = fromShizuku
-        }
-
         val updateButtonState = {
             if (keyCode == 132 || keyCode == 133) {
                 keyClearTasks[keyCode]?.let { handler.removeCallbacks(it) }
@@ -334,18 +323,11 @@ class ButtonMapperService : AccessibilityService() {
             }
         }
 
-        if (isDuplicate) {
-            updateButtonState()
-            if (!isDown) stopContinuousAction(keyCode)
-            return true
-        }
-
 //        if (isDown) {
 //            showKeyToast(keyCode) // TOAST
 //        }
-
+        
         // ── Camera app pass-through ────────────────────────────────────────────
-
         if ((isCameraApp || isCameraInUse) && SettingsManager.isDisableInCamera(this)) {
             updateButtonState()
             return false
@@ -377,10 +359,37 @@ class ButtonMapperService : AccessibilityService() {
             return true
         }
 
+        // Hardcoded behavior for Camera and Focus buttons when screen is OFF/Locked
+        if (state == "OFF") {
+            if (keyCode == 27) return false
+            if (keyCode == 134) return true
+        }
+
         if (fromShizuku) {
             Log.v(tag, "SHIZUKU KEY: $keyCode ${if (isDown) "DOWN" else "UP"} [Locked=$isLocked, State=$state]")
         } else {
             Log.v(tag, "ACCESSIBILITY KEY: $keyCode ${if (isDown) "DOWN" else "UP"} [Locked=$isLocked, State=$state]")
+        }
+
+        // Deduplicate events between Shizuku and AccessibilityService
+        val eventKey = Pair(keyCode, isDown)
+        val now = System.currentTimeMillis()
+        val lastTime = lastEventTimes[eventKey] ?: 0L
+        val lastSource = lastEventSources[eventKey]
+
+        var isDuplicate = false
+        if (now - lastTime < 300L && lastSource != null && lastSource != fromShizuku) {
+            isDuplicate = true
+            Log.v(tag, "Duplicate event detected and ignored: $keyCode ${if (isDown) "DOWN" else "UP"} fromShizuku=$fromShizuku")
+        } else {
+            lastEventTimes[eventKey] = now
+            lastEventSources[eventKey] = fromShizuku
+        }
+
+        if (isDuplicate) {
+            updateButtonState()
+            if (!isDown) stopContinuousAction(keyCode)
+            return true
         }
 
         updateButtonState()
