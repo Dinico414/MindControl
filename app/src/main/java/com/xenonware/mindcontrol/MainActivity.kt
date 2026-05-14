@@ -247,7 +247,6 @@ private val SHIZUKU_REQUIRED_ACTIONS = setOf(
 
 
 private fun isActionDisabled(action: String, isScreenOff: Boolean, shizukuReady: Boolean): Boolean {
-    if (isScreenOff) return true
     if (!shizukuReady && action in SHIZUKU_REQUIRED_ACTIONS) return true
     return false
 }
@@ -272,6 +271,19 @@ fun MindControlMainScreen(
     var configFromKeyboard by rememberSaveable { mutableStateOf(false) }
     var actionSelectionConfig by rememberSaveable(stateSaver = ActionConfigSaver) { mutableStateOf<ActionConfig?>(null) }
     var isScreenOff by rememberSaveable { mutableStateOf(false) }
+
+    var shizukuPermission by remember { mutableStateOf(false) }
+    LaunchedEffect(Unit) {
+        while (true) {
+            shizukuPermission = try {
+                Shizuku.pingBinder() &&
+                        Shizuku.checkSelfPermission() == PackageManager.PERMISSION_GRANTED
+            } catch (_: Exception) {
+                false
+            }
+            kotlinx.coroutines.delay(2000)
+        }
+    }
 
     val state = when {
         actionSelectionConfig != null -> "action_selection"
@@ -391,6 +403,7 @@ fun MindControlMainScreen(
                         keyboardPalette = keyboardPalette,
                         isFromKeyboard = configFromKeyboard,
                         isScreenOff = isScreenOff,
+                        shizukuPermission = shizukuPermission,
                         onScreenOffChange = { isScreenOff = it },
                         onBack = {
                             val cameFromKeyboard = configFromKeyboard
@@ -882,6 +895,20 @@ fun TogglesContainer(
             )
         )
     }
+    var overrideScreenOff by remember {
+        mutableStateOf(
+            SettingsManager.isOverrideScreenOffEnabled(
+                context
+            )
+        )
+    }
+    var volumeLongPressSkip by remember {
+        mutableStateOf(
+            SettingsManager.isVolumeLongPressSkipEnabled(
+                context
+            )
+        )
+    }
 
     var shizukuPermission by remember { mutableStateOf(false) }
     var shizukuAvailable by remember { mutableStateOf(false) }
@@ -1167,6 +1194,42 @@ fun TogglesContainer(
                 })
             }
 
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 4.dp)
+            ) {
+                Text(
+                    "Override Screen Off",
+                    style = MaterialTheme.typography.bodySmall,
+                    modifier = Modifier.weight(1f)
+                )
+                Switch(checked = overrideScreenOff, onCheckedChange = {
+                    overrideScreenOff = it
+                    SettingsManager.setOverrideScreenOffEnabled(context, it)
+                })
+            }
+
+            if (!(shizukuAvailable && shizukuPermission)) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 4.dp)
+                ) {
+                    Text(
+                        "Volume Skip (Screen Off)",
+                        style = MaterialTheme.typography.bodySmall,
+                        modifier = Modifier.weight(1f)
+                    )
+                    Switch(checked = volumeLongPressSkip, onCheckedChange = {
+                        volumeLongPressSkip = it
+                        SettingsManager.setVolumeLongPressSkipEnabled(context, it)
+                    })
+                }
+            }
+
             Spacer(modifier = Modifier.height(8.dp))
             HorizontalDivider()
             Spacer(modifier = Modifier.height(8.dp))
@@ -1200,12 +1263,17 @@ fun ButtonConfigScreen(
     keyboardPalette: Palette,
     isFromKeyboard: Boolean = false,
     isScreenOff: Boolean,
+    shizukuPermission: Boolean,
     onScreenOffChange: (Boolean) -> Unit,
     onBack: () -> Unit,
     onSelectAction: (Int, String, String) -> Unit,
 ) {
+    val context = LocalContext.current
     var showDisabledDialog by rememberSaveable { mutableStateOf(false) }
     var showFocusWarningDialog by rememberSaveable { mutableStateOf(false) }
+
+    val overrideScreenOff = remember { SettingsManager.isOverrideScreenOffEnabled(context) }
+    val isVolumeButton = keyCode == 24 || keyCode == 25
 
     val themeWrapper: @Composable (@Composable () -> Unit) -> Unit = when {
         isFromKeyboard || keyCode == 111 -> { content -> PaletteTheme(palette = keyboardPalette) { content() } }
@@ -1225,7 +1293,14 @@ fun ButtonConfigScreen(
                 confirmButtonText = "OK",
                 onConfirmButtonClick = { showDisabledDialog = false },
                 content = {
-                    Text("This Button is disabled, because this Button turns on the screen and therefore overwrites the Action")
+                    val message = when {
+                        !overrideScreenOff -> "Override Screen Off is currently disabled in Settings."
+                        keyCode == 27 -> "The Camera button turns the screen on automatically, so it cannot be used for Screen Off actions."
+                        isVolumeButton && !shizukuPermission -> "To customize Volume buttons for Screen Off, please authorize Shizuku or use the 'Volume Skip' toggle in Settings."
+                        !shizukuPermission -> "Configuring non-volume buttons for Screen Off requires Shizuku permission."
+                        else -> "This configuration is currently unavailable."
+                    }
+                    Text(message)
                 }
             )
         }
@@ -1282,8 +1357,14 @@ fun ButtonConfigScreen(
 
                     Button(
                         onClick = {
-                            if (keyCode == 27) {
-                                showDisabledDialog = true
+                            if (!overrideScreenOff) {
+                                showDisabledDialog = true // Will show the "Override Off" message
+                            } else if (keyCode == 27) {
+                                showDisabledDialog = true // Hardware limitation
+                            } else if (isVolumeButton && !shizukuPermission) {
+                                showDisabledDialog = true // Use toggle instead
+                            } else if (!isVolumeButton && !shizukuPermission) {
+                                showDisabledDialog = true // Requires Shizuku
                             } else if (keyCode == 134 && !isScreenOff) {
                                 showFocusWarningDialog = true
                             } else {
@@ -1292,7 +1373,7 @@ fun ButtonConfigScreen(
                         },
                         border = if (!isScreenOff) BorderStroke(1.dp, MaterialTheme.colorScheme.primary) else null,
                         colors = when {
-                            keyCode == 27 -> ButtonDefaults.buttonColors(
+                            !overrideScreenOff || keyCode == 27 || (isVolumeButton && !shizukuPermission) || (!isVolumeButton && !shizukuPermission) -> ButtonDefaults.buttonColors(
                                 containerColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.12f),
                                 contentColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.38f)
                             )

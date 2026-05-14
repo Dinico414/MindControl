@@ -73,6 +73,8 @@ object SettingsManager {
 
     private const val KEY_DISABLE_IN_CAMERA = "disable_in_camera"
     private const val KEY_DEFAULT_WHEN_VOLUME_VISIBLE = "default_when_volume_visible"
+    private const val KEY_OVERRIDE_SCREEN_OFF = "override_screen_off"
+    private const val KEY_VOLUME_LONG_PRESS_SKIP = "volume_long_press_skip"
     private const val KEY_DEVICE_PALETTE = "device_palette"
     private const val KEY_KEYBOARD_PALETTE = "keyboard_palette"
 
@@ -100,6 +102,20 @@ object SettingsManager {
 
     fun setDefaultWhenVolumeVisible(context: Context, enabled: Boolean) {
         prefs(context).edit { putBoolean(KEY_DEFAULT_WHEN_VOLUME_VISIBLE, enabled) }
+    }
+
+    fun isOverrideScreenOffEnabled(context: Context): Boolean =
+        prefs(context).getBoolean(KEY_OVERRIDE_SCREEN_OFF, true)
+
+    fun setOverrideScreenOffEnabled(context: Context, enabled: Boolean) {
+        prefs(context).edit { putBoolean(KEY_OVERRIDE_SCREEN_OFF, enabled) }
+    }
+
+    fun isVolumeLongPressSkipEnabled(context: Context): Boolean =
+        prefs(context).getBoolean(KEY_VOLUME_LONG_PRESS_SKIP, false)
+
+    fun setVolumeLongPressSkipEnabled(context: Context, enabled: Boolean) {
+        prefs(context).edit { putBoolean(KEY_VOLUME_LONG_PRESS_SKIP, enabled) }
     }
 
     fun getDevicePalette(context: Context): Palette =

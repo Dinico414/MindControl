@@ -104,6 +104,10 @@ class ButtonMapperService : AccessibilityService() {
     override fun onServiceConnected() {
         Log.d(tag, "Service Connected")
 
+        val info = serviceInfo
+        info.flags = info.flags or 0x00000100 // FLAG_HANDLE_VOLUME_KEYS
+        serviceInfo = info
+
         createNotificationChannel()
         val notification = Notification.Builder(this, "service_channel")
             .setContentTitle("MindControl Active")
@@ -214,16 +218,22 @@ class ButtonMapperService : AccessibilityService() {
     }
 
     private fun processKeyEvent(keyCode: Int, isDown: Boolean, state: String) {
+        val isVolumeKey = keyCode == 24 || keyCode == 25
+        val isVolumeSkipActive = state == "OFF" && isVolumeKey && SettingsManager.isVolumeLongPressSkipEnabled(this)
+
         if (isDown) {
             isLongPress[keyCode] = false
-            if (keyCode != lastKeyCode) {
-                clickCount = 0
-                pendingMultiClick?.let { handler.removeCallbacks(it) }
-                // Stop any continuous action from the PREVIOUS key to avoid "zombies"
-                if (lastKeyCode != -1) stopContinuousAction(lastKeyCode)
+            if (keyCode != lastKeyCode || !isVolumeKey) {
+                // For volume keys, we might want to allow consecutive long-presses without changing lastKeyCode
+                // but usually, a new DOWN should reset the state for that key.
+                if (keyCode != lastKeyCode) {
+                    clickCount = 0
+                    pendingMultiClick?.let { handler.removeCallbacks(it) }
+                    if (lastKeyCode != -1) stopContinuousAction(lastKeyCode)
+                }
                 stopContinuousAction(keyCode)
             }
-            lastKeyCode = keyCode       
+            lastKeyCode = keyCode
 
             longPressRunnables.remove(keyCode)?.let { handler.removeCallbacks(it) }
 
@@ -231,11 +241,15 @@ class ButtonMapperService : AccessibilityService() {
 
             val capturedState = state
             val longPressRunnable = Runnable {
-                if (clickCount == 0) {
+                // If it's a volume skip, we trigger it even if clickCount > 0 
+                // because we handle volume clicks differently (responsively)
+                if (clickCount == 0 || isVolumeSkipActive) {
                     isLongPress[keyCode] = true
                     Log.d(tag, "Long Press triggered for $keyCode (state=$capturedState)")
                     performAction(keyCode, capturedState, "LONG")
-                    startContinuousAction(keyCode, capturedState, "LONG")
+                    if (!isVolumeSkipActive) {
+                        startContinuousAction(keyCode, capturedState, "LONG")
+                    }
                 }
             }
             longPressRunnables[keyCode] = longPressRunnable
@@ -254,6 +268,12 @@ class ButtonMapperService : AccessibilityService() {
 
             if (keyCode == 132 || keyCode == 133) {
                 Log.d(tag, "Single-click triggered for $keyCode (state=$state)")
+                performAction(keyCode, state, "SINGLE")
+                return
+            }
+
+            // Special responsive handling for volume keys when skip is active
+            if (isVolumeSkipActive) {
                 performAction(keyCode, state, "SINGLE")
                 return
             }
@@ -308,6 +328,29 @@ class ButtonMapperService : AccessibilityService() {
         val isInteractive = powerManager.isInteractive
         val state = if (isInteractive && !isLocked) "ON" else "OFF"
 
+        val isOverrideEnabled = SettingsManager.isOverrideScreenOffEnabled(this)
+        val shizukuAvailable = if (fromShizuku) true else ShizukuManager.isAvailable()
+        val isVolumeKey = keyCode == 24 || keyCode == 25
+
+        if (state == "OFF") {
+            if (!isOverrideEnabled) return false
+            
+            if (isVolumeKey) {
+                if (SettingsManager.isVolumeLongPressSkipEnabled(this)) {
+                    // We need to handle this key to implement Long Press Skip
+                    processKeyEvent(keyCode, isDown, state)
+                    return true
+                }
+                // If Volume Skip is OFF, let the system handle volume buttons normally
+                return false
+            }
+
+            if (!shizukuAvailable) {
+                Log.d(tag, "Blocking non-volume key $keyCode in Screen Off because Shizuku is missing")
+                return false
+            }
+        }
+
         val currentPackage = rootInActiveWindow?.packageName?.toString() ?: lastPackageName
         val isCameraApp = currentPackage?.contains("camera", ignoreCase = true) == true
 
@@ -334,7 +377,6 @@ class ButtonMapperService : AccessibilityService() {
         }
         
         // ── Volume panel pass-through ──────────────────────────────────────────
-        val isVolumeKey = keyCode == 24 || keyCode == 25
         if (isVolumeKey && isInteractive
             && SettingsManager.isDefaultWhenVolumeVisible(this)
             && isVolumePanelVisibleState
@@ -501,7 +543,7 @@ class ButtonMapperService : AccessibilityService() {
         val action = SettingsManager.getAction(this, keyCode, state, type)
         Log.i(tag, ">>>> EXECUTING: $action [Key: $keyCode, State: $state, Type: $type, Locked: ${powerManager.isInteractive}] <<<<")
 
-        val finalAction = if (SettingsManager.isDefaultWhenVolumeVisible(this) &&
+        var finalAction = if (SettingsManager.isDefaultWhenVolumeVisible(this) &&
             isVolumePanelVisibleState &&
             (keyCode == 24 || keyCode == 25)) {
             Log.d(tag, "Volume panel is visible, overriding action $action to DEFAULT")
@@ -510,11 +552,23 @@ class ButtonMapperService : AccessibilityService() {
             action
         }
 
+        // --- Forced Screen Off Volume behavior ---
+        if (state == "OFF" && (keyCode == 24 || keyCode == 25)) {
+            if (SettingsManager.isVolumeLongPressSkipEnabled(this)) {
+                if (type == "LONG") {
+                    skipMedia(keyCode == 24)
+                    return
+                } else {
+                    finalAction = SettingsManager.ACTION_DEFAULT
+                }
+            }
+        }
+
         val success = when (finalAction) {
             SettingsManager.ACTION_DEFAULT -> { simulateDefaultBehavior(keyCode); true }
             SettingsManager.ACTION_PLAY_PAUSE -> { dispatchMediaKey(KeyEvent.KEYCODE_MEDIA_PLAY_PAUSE); true }
-            SettingsManager.ACTION_NEXT -> { dispatchMediaKey(KeyEvent.KEYCODE_MEDIA_NEXT); true }
-            SettingsManager.ACTION_PREVIOUS -> { dispatchMediaKey(KeyEvent.KEYCODE_MEDIA_PREVIOUS); true }
+            SettingsManager.ACTION_NEXT -> { skipMedia(true); true }
+            SettingsManager.ACTION_PREVIOUS -> { skipMedia(false); true }
             SettingsManager.ACTION_FAST_FORWARD -> { dispatchMediaKey(KeyEvent.KEYCODE_MEDIA_FAST_FORWARD); true }
             SettingsManager.ACTION_REWIND -> { dispatchMediaKey(KeyEvent.KEYCODE_MEDIA_REWIND); true }
             SettingsManager.ACTION_STOP -> { dispatchMediaKey(KeyEvent.KEYCODE_MEDIA_STOP); true }
@@ -1129,13 +1183,35 @@ class ButtonMapperService : AccessibilityService() {
                 controller.transportControls.seekTo(newPos)
                 Log.d(tag, "Stepped media ${if (forward) "forward" else "backward"} to $newPos")
             } else {
-                val keyCode = if (forward) KeyEvent.KEYCODE_MEDIA_STEP_FORWARD else KeyEvent.KEYCODE_MEDIA_STEP_BACKWARD
-                dispatchMediaKey(keyCode)
+                dispatchMediaKey(if (forward) KeyEvent.KEYCODE_MEDIA_STEP_FORWARD else KeyEvent.KEYCODE_MEDIA_STEP_BACKWARD)
             }
         } catch (e: Exception) {
             Log.e(tag, "Media step error", e)
-            val keyCode = if (forward) KeyEvent.KEYCODE_MEDIA_STEP_FORWARD else KeyEvent.KEYCODE_MEDIA_STEP_BACKWARD
-            dispatchMediaKey(keyCode)
+            dispatchMediaKey(if (forward) KeyEvent.KEYCODE_MEDIA_STEP_FORWARD else KeyEvent.KEYCODE_MEDIA_STEP_BACKWARD)
+        }
+    }
+
+    private fun skipMedia(forward: Boolean) {
+        val msm = getSystemService(MEDIA_SESSION_SERVICE) as MediaSessionManager
+        try {
+            val sessions = msm.getActiveSessions(ComponentName(this, NotificationListener::class.java))
+            Log.d(tag, "Media Skip: Found ${sessions.size} active sessions")
+            val controller = sessions.firstOrNull()
+            
+            if (controller != null) {
+                Log.d(tag, "Media Skip: Controlling session ${controller.packageName}")
+                if (forward) controller.transportControls.skipToNext()
+                else controller.transportControls.skipToPrevious()
+            } else {
+                Log.d(tag, "Media Skip: No active media session, using fallback key events")
+                dispatchMediaKey(if (forward) KeyEvent.KEYCODE_MEDIA_NEXT else KeyEvent.KEYCODE_MEDIA_PREVIOUS)
+            }
+        } catch (e: SecurityException) {
+            Log.e(tag, "Media Skip: Notification Access NOT granted!")
+            dispatchMediaKey(if (forward) KeyEvent.KEYCODE_MEDIA_NEXT else KeyEvent.KEYCODE_MEDIA_PREVIOUS)
+        } catch (e: Exception) {
+            Log.e(tag, "Media Skip error", e)
+            dispatchMediaKey(if (forward) KeyEvent.KEYCODE_MEDIA_NEXT else KeyEvent.KEYCODE_MEDIA_PREVIOUS)
         }
     }
 
