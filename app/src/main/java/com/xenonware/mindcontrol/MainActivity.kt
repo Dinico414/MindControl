@@ -245,6 +245,7 @@ fun MindControlMainScreen(
     var showKeyboard by rememberSaveable { mutableStateOf(false) }
     var configFromKeyboard by rememberSaveable { mutableStateOf(false) }
     var actionSelectionConfig by rememberSaveable(stateSaver = ActionConfigSaver) { mutableStateOf<ActionConfig?>(null) }
+    var isScreenOff by rememberSaveable { mutableStateOf(false) }
 
     val state = when {
         actionSelectionConfig != null -> "action_selection"
@@ -279,6 +280,7 @@ fun MindControlMainScreen(
                 "config" -> {
                     val cameFromKeyboard = configFromKeyboard
                     selectedButton = null
+                    isScreenOff = false
                     configFromKeyboard = false
                     if (!cameFromKeyboard) showKeyboard = false
                 }
@@ -362,9 +364,12 @@ fun MindControlMainScreen(
                         modifier = modifier,
                         keyboardPalette = keyboardPalette,
                         isFromKeyboard = configFromKeyboard,
+                        isScreenOff = isScreenOff,
+                        onScreenOffChange = { isScreenOff = it },
                         onBack = {
                             val cameFromKeyboard = configFromKeyboard
                             selectedButton = null
+                            isScreenOff = false
                             configFromKeyboard = false
                             if (!cameFromKeyboard) showKeyboard = false
                         },
@@ -1128,10 +1133,11 @@ fun ButtonConfigScreen(
     modifier: Modifier = Modifier,
     keyboardPalette: Palette,
     isFromKeyboard: Boolean = false,
+    isScreenOff: Boolean,
+    onScreenOffChange: (Boolean) -> Unit,
     onBack: () -> Unit,
     onSelectAction: (Int, String, String) -> Unit,
 ) {
-    var isScreenOff by rememberSaveable { mutableStateOf(false) }
     var showDisabledDialog by rememberSaveable { mutableStateOf(false) }
     var showFocusWarningDialog by rememberSaveable { mutableStateOf(false) }
 
@@ -1165,7 +1171,7 @@ fun ButtonConfigScreen(
                 confirmButtonText = "I Understand",
                 onConfirmButtonClick = {
                     showFocusWarningDialog = false
-                    isScreenOff = true
+                    onScreenOffChange(true)
                 },
                 content = {
                     Text("Using the Focus button while the screen is off may lead to accidental actions while the device is in your pocket.")
@@ -1196,7 +1202,7 @@ fun ButtonConfigScreen(
                     horizontalArrangement = Arrangement.SpaceEvenly
                 ) {
                     Button(
-                        onClick = { isScreenOff = false },
+                        onClick = { onScreenOffChange(false) },
                         border = if (isScreenOff) BorderStroke(1.dp, MaterialTheme.colorScheme.primary) else null,
                         colors = if (!isScreenOff) ButtonDefaults.buttonColors(
                             containerColor = MaterialTheme.colorScheme.primary,
@@ -1215,7 +1221,7 @@ fun ButtonConfigScreen(
                             } else if (keyCode == 134 && !isScreenOff) {
                                 showFocusWarningDialog = true
                             } else {
-                                isScreenOff = true
+                                onScreenOffChange(true)
                             }
                         },
                         border = if (!isScreenOff) BorderStroke(1.dp, MaterialTheme.colorScheme.primary) else null,
