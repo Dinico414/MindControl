@@ -139,8 +139,11 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.saveable.listSaver
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -184,8 +187,8 @@ class MainActivity : ComponentActivity() {
 
         setContent {
             val context = LocalContext.current
-            var devicePalette by remember { mutableStateOf(SettingsManager.getDevicePalette(context)) }
-            var keyboardPalette by remember {
+            var devicePalette by rememberSaveable { mutableStateOf(SettingsManager.getDevicePalette(context)) }
+            var keyboardPalette by rememberSaveable {
                 mutableStateOf(
                     SettingsManager.getKeyboardPalette(
                         context
@@ -220,6 +223,16 @@ class MainActivity : ComponentActivity() {
 
 data class ActionConfig(val keyCode: Int, val state: String, val type: String)
 
+val ActionConfigSaver = listSaver<ActionConfig?, Any>(
+    save = { if (it == null) emptyList() else listOf(it.keyCode, it.state, it.type) },
+    restore = { if (it.isEmpty()) null else ActionConfig(it[0] as Int, it[1] as String, it[2] as String) }
+)
+
+val PairSaver = listSaver<Pair<Int, String>?, Any>(
+    save = { if (it == null) emptyList() else listOf(it.first, it.second) },
+    restore = { if (it.isEmpty()) null else (it[0] as Int) to (it[1] as String) }
+)
+
 @Composable
 fun MindControlMainScreen(
     modifier: Modifier = Modifier,
@@ -228,10 +241,10 @@ fun MindControlMainScreen(
     onDevicePaletteChange: (Palette) -> Unit,
     onKeyboardPaletteChange: (Palette) -> Unit,
 ) {
-    var selectedButton by remember { mutableStateOf<Pair<Int, String>?>(null) }
-    var showKeyboard by remember { mutableStateOf(false) }
-    var configFromKeyboard by remember { mutableStateOf(false) }
-    var actionSelectionConfig by remember { mutableStateOf<ActionConfig?>(null) }
+    var selectedButton by rememberSaveable(stateSaver = PairSaver) { mutableStateOf<Pair<Int, String>?>(null) }
+    var showKeyboard by rememberSaveable { mutableStateOf(false) }
+    var configFromKeyboard by rememberSaveable { mutableStateOf(false) }
+    var actionSelectionConfig by rememberSaveable(stateSaver = ActionConfigSaver) { mutableStateOf<ActionConfig?>(null) }
 
     val state = when {
         actionSelectionConfig != null -> "action_selection"
@@ -1118,9 +1131,9 @@ fun ButtonConfigScreen(
     onBack: () -> Unit,
     onSelectAction: (Int, String, String) -> Unit,
 ) {
-    var isScreenOff by remember { mutableStateOf(false) }
-    var showDisabledDialog by remember { mutableStateOf(false) }
-    var showFocusWarningDialog by remember { mutableStateOf(false) }
+    var isScreenOff by rememberSaveable { mutableStateOf(false) }
+    var showDisabledDialog by rememberSaveable { mutableStateOf(false) }
+    var showFocusWarningDialog by rememberSaveable { mutableStateOf(false) }
 
     val themeWrapper: @Composable (@Composable () -> Unit) -> Unit = when {
         isFromKeyboard || keyCode == 111 -> { content -> PaletteTheme(palette = keyboardPalette) { content() } }
@@ -1795,8 +1808,8 @@ fun MediaTab(config: ActionConfig, onActionSelected: (String) -> Unit) {
 @Composable
 fun ActionList(actions: List<String>, config: ActionConfig, onActionSelected: (String) -> Unit) {
     val context = LocalContext.current
-    var showInputDialog by remember { mutableStateOf<String?>(null) }
-    var inputValue by remember { mutableStateOf("") }
+    var showInputDialog by rememberSaveable { mutableStateOf<String?>(null) }
+    var inputValue by rememberSaveable { mutableStateOf("") }
 
     if (showInputDialog != null) {
         val title = when(showInputDialog) {
