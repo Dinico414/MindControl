@@ -139,7 +139,6 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.listSaver
@@ -147,6 +146,7 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.asImageBitmap
@@ -233,6 +233,58 @@ val PairSaver = listSaver<Pair<Int, String>?, Any>(
     restore = { if (it.isEmpty()) null else (it[0] as Int) to (it[1] as String) }
 )
 
+// ---- Action availability helpers ----------------------------------------------------------------
+
+private val SHIZUKU_REQUIRED_ACTIONS = setOf(
+    SettingsManager.ACTION_WIFI_TOGGLE,
+    SettingsManager.ACTION_BLUETOOTH_TOGGLE,
+    SettingsManager.ACTION_DATA_TOGGLE,
+    SettingsManager.ACTION_NFC_TOGGLE,
+    SettingsManager.ACTION_LOCATION_TOGGLE,
+    SettingsManager.ACTION_AUTO_BRIGHTNESS_TOGGLE,
+    SettingsManager.ACTION_SHOW_MENU,
+)
+
+private val SCREEN_OFF_INCOMPATIBLE_ACTIONS = setOf(
+    SettingsManager.ACTION_HOME,
+    SettingsManager.ACTION_BACK,
+    SettingsManager.ACTION_RECENTS,
+    SettingsManager.ACTION_NOTIFICATIONS,
+    SettingsManager.ACTION_QUICK_SETTINGS,
+    SettingsManager.ACTION_POWER_DIALOG,
+    SettingsManager.ACTION_SHOW_MENU,
+    SettingsManager.ACTION_LAST_APP,
+    SettingsManager.ACTION_APP_INFO,
+    SettingsManager.ACTION_GOOGLE_SEARCH,
+    SettingsManager.ACTION_ASSISTANT,
+    SettingsManager.ACTION_SCROLL_UP,
+    SettingsManager.ACTION_SCROLL_DOWN,
+    SettingsManager.ACTION_SCROLL_UP_SMOOTH,
+    SettingsManager.ACTION_SCROLL_DOWN_SMOOTH,
+    SettingsManager.ACTION_COPY,
+    SettingsManager.ACTION_CUT,
+    SettingsManager.ACTION_PASTE,
+    SettingsManager.ACTION_SCREENSHOT,
+    SettingsManager.ACTION_VOLUME_DIALOG,
+    SettingsManager.ACTION_SPEED_DIAL,
+    SettingsManager.ACTION_URL,
+    SettingsManager.ACTION_QR_CODE,
+)
+
+private fun isActionDisabled(action: String, isScreenOff: Boolean, shizukuReady: Boolean): Boolean {
+    if (isScreenOff && action in SCREEN_OFF_INCOMPATIBLE_ACTIONS) return true
+    if (!shizukuReady && action in SHIZUKU_REQUIRED_ACTIONS) return true
+    return false
+}
+
+private fun disabledReasonFor(action: String, isScreenOff: Boolean, shizukuReady: Boolean): String? = when {
+    isScreenOff && action in SCREEN_OFF_INCOMPATIBLE_ACTIONS -> "Requires screen on"
+    !shizukuReady && action in SHIZUKU_REQUIRED_ACTIONS -> "Requires Shizuku"
+    else -> null
+}
+
+// -------------------------------------------------------------------------------------------------
+
 @Composable
 fun MindControlMainScreen(
     modifier: Modifier = Modifier,
@@ -263,7 +315,7 @@ fun MindControlMainScreen(
         val insetsController = WindowCompat.getInsetsController(window, view)
         window.statusBarColor = Color.Transparent.toArgb()
         window.navigationBarColor = Color.Transparent.toArgb()
-        
+
         if (state == "grid" || state == "keyboard") {
             insetsController.isAppearanceLightStatusBars = false
             insetsController.isAppearanceLightNavigationBars = false
@@ -1503,6 +1555,20 @@ fun ActionSelectionScreen(
     val pagerState = rememberPagerState(pageCount = { tabs.size })
     val scope = rememberCoroutineScope()
     val backgroundColor = MaterialTheme.colorScheme.background
+    val isScreenOff = config.state == "OFF"
+
+    var shizukuReady by remember { mutableStateOf(false) }
+    LaunchedEffect(Unit) {
+        while (true) {
+            shizukuReady = try {
+                Shizuku.pingBinder() &&
+                        Shizuku.checkSelfPermission() == PackageManager.PERMISSION_GRANTED
+            } catch (_: Exception) {
+                false
+            }
+            kotlinx.coroutines.delay(2000)
+        }
+    }
 
     Surface(color = backgroundColor, modifier = Modifier.fillMaxSize()) {
         Column(modifier = modifier.fillMaxSize()) {
@@ -1567,11 +1633,11 @@ fun ActionSelectionScreen(
                 beyondViewportPageCount = 1
             ) { page ->
                 when (page) {
-                    0 -> ActionsTab(config, onActionSelected)
-                    1 -> AppsTab(config, onActionSelected)
-                    2 -> ShortcutsTab(config, onActionSelected)
-                    3 -> SystemTab(config, onActionSelected)
-                    4 -> MediaTab(config, onActionSelected)
+                    0 -> ActionsTab(config, onActionSelected, isScreenOff, shizukuReady)
+                    1 -> AppsTab(config, onActionSelected, isScreenOff)
+                    2 -> ShortcutsTab(config, onActionSelected, isScreenOff)
+                    3 -> SystemTab(config, onActionSelected, isScreenOff, shizukuReady)
+                    4 -> MediaTab(config, onActionSelected, isScreenOff, shizukuReady)
                 }
             }
         }
@@ -1579,7 +1645,12 @@ fun ActionSelectionScreen(
 }
 
 @Composable
-fun ActionsTab(config: ActionConfig, onActionSelected: (String) -> Unit) {
+fun ActionsTab(
+    config: ActionConfig,
+    onActionSelected: (String) -> Unit,
+    isScreenOff: Boolean,
+    shizukuReady: Boolean,
+) {
     val actions = listOf(
         SettingsManager.ACTION_NONE,
         SettingsManager.ACTION_DEFAULT,
@@ -1607,11 +1678,15 @@ fun ActionsTab(config: ActionConfig, onActionSelected: (String) -> Unit) {
         SettingsManager.ACTION_URL,
         SettingsManager.ACTION_QR_CODE,
     )
-    ActionList(actions, config, onActionSelected)
+    ActionList(actions, config, onActionSelected, isScreenOff, shizukuReady)
 }
 
 @Composable
-fun AppsTab(config: ActionConfig, onActionSelected: (String) -> Unit) {
+fun AppsTab(
+    config: ActionConfig,
+    onActionSelected: (String) -> Unit,
+    isScreenOff: Boolean,
+) {
     val context = LocalContext.current
     val pm = context.packageManager
     val scope = rememberCoroutineScope()
@@ -1642,8 +1717,19 @@ fun AppsTab(config: ActionConfig, onActionSelected: (String) -> Unit) {
         contentPadding = PaddingValues(16.dp),
         verticalArrangement = Arrangement.spacedBy(2.dp)
     ) {
+        if (isScreenOff) {
+            item {
+                Text(
+                    "Launching apps requires waking the screen, which is disabled in Screen Off mode.",
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    style = MaterialTheme.typography.bodySmall,
+                    modifier = Modifier.padding(bottom = 8.dp)
+                )
+            }
+        }
         items(apps.size) { index ->
             val app = apps[index]
+            val disabled = isScreenOff
             val shape = when {
                 apps.size == 1 -> RoundedCornerShape(30.dp)
                 index == 0 -> RoundedCornerShape(topStart = 30.dp, topEnd = 30.dp, bottomStart = 4.dp, bottomEnd = 4.dp)
@@ -1651,25 +1737,42 @@ fun AppsTab(config: ActionConfig, onActionSelected: (String) -> Unit) {
                 else -> RoundedCornerShape(4.dp)
             }
             Surface(
-                color = MaterialTheme.colorScheme.surfaceContainer,
+                color = if (disabled)
+                    MaterialTheme.colorScheme.surfaceContainer.copy(alpha = 0.4f)
+                else MaterialTheme.colorScheme.surfaceContainer,
                 shape = shape,
                 modifier = Modifier.fillMaxWidth()
             ) {
                 ListItem(
-                    headlineContent = { Text(app.name, color = MaterialTheme.colorScheme.onSurface) },
+                    headlineContent = {
+                        Text(
+                            app.name,
+                            color = if (disabled)
+                                MaterialTheme.colorScheme.onSurface.copy(alpha = 0.38f)
+                            else MaterialTheme.colorScheme.onSurface
+                        )
+                    },
                     supportingContent = {
                         Text(
                             app.packageName,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            color = if (disabled)
+                                MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.38f)
+                            else MaterialTheme.colorScheme.onSurfaceVariant,
                             style = MaterialTheme.typography.bodySmall
                         )
                     },
                     leadingContent = {
                         val bitmap = remember(app.packageName) { app.icon.toBitmap().asImageBitmap() }
-                        Image(bitmap, contentDescription = null, modifier = Modifier.size(40.dp))
+                        Image(
+                            bitmap,
+                            contentDescription = null,
+                            modifier = Modifier
+                                .size(40.dp)
+                                .then(if (disabled) Modifier.alpha(0.38f) else Modifier)
+                        )
                     },
                     modifier = Modifier
-                        .clickable {
+                        .clickable(enabled = !disabled) {
                             SettingsManager.setAction(
                                 context,
                                 config.keyCode,
@@ -1692,7 +1795,11 @@ data class AppItem(val name: String, val packageName: String, val icon: Drawable
 data class ShortcutItem(val name: String, val packageName: String, val className: String, val icon: Drawable)
 
 @Composable
-fun ShortcutsTab(config: ActionConfig, onActionSelected: (String) -> Unit) {
+fun ShortcutsTab(
+    config: ActionConfig,
+    onActionSelected: (String) -> Unit,
+    isScreenOff: Boolean,
+) {
     val context = LocalContext.current
     val pm = context.packageManager
     val scope = rememberCoroutineScope()
@@ -1703,20 +1810,20 @@ fun ShortcutsTab(config: ActionConfig, onActionSelected: (String) -> Unit) {
     ) { result ->
         if (result.resultCode == Activity.RESULT_OK) {
             val data = result.data ?: return@rememberLauncherForActivityResult
-            
+
             // Log for debugging
             Log.d("ShortcutsTab", "Shortcut picker returned data: ${data.extras?.keySet()}")
-            
+
             val shortcutIntent = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
                 data.getParcelableExtra(Intent.EXTRA_SHORTCUT_INTENT, Intent::class.java)
             } else {
                 @Suppress("DEPRECATION")
                 data.getParcelableExtra<Intent>(Intent.EXTRA_SHORTCUT_INTENT)
             }
-            
+
             val name = data.getStringExtra(Intent.EXTRA_SHORTCUT_NAME) ?: "Shortcut"
             val uri = shortcutIntent?.toUri(Intent.URI_INTENT_SCHEME)
-            
+
             if (uri != null) {
                 Log.d("ShortcutsTab", "Saving shortcut: $name -> $uri")
                 SettingsManager.setAction(
@@ -1762,8 +1869,19 @@ fun ShortcutsTab(config: ActionConfig, onActionSelected: (String) -> Unit) {
             contentPadding = PaddingValues(16.dp),
             verticalArrangement = Arrangement.spacedBy(2.dp)
         ) {
+            if (isScreenOff) {
+                item {
+                    Text(
+                        "Shortcuts launch activities that wake the screen and are disabled in Screen Off mode.",
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        style = MaterialTheme.typography.bodySmall,
+                        modifier = Modifier.padding(bottom = 8.dp)
+                    )
+                }
+            }
             items(shortcutItems.size) { index ->
                 val item = shortcutItems[index]
+                val disabled = isScreenOff
                 val shape = when {
                     shortcutItems.size == 1 -> RoundedCornerShape(30.dp)
                     index == 0 -> RoundedCornerShape(topStart = 30.dp, topEnd = 30.dp, bottomStart = 4.dp, bottomEnd = 4.dp)
@@ -1771,25 +1889,42 @@ fun ShortcutsTab(config: ActionConfig, onActionSelected: (String) -> Unit) {
                     else -> RoundedCornerShape(4.dp)
                 }
                 Surface(
-                    color = MaterialTheme.colorScheme.surfaceContainer,
+                    color = if (disabled)
+                        MaterialTheme.colorScheme.surfaceContainer.copy(alpha = 0.4f)
+                    else MaterialTheme.colorScheme.surfaceContainer,
                     shape = shape,
                     modifier = Modifier.fillMaxWidth()
                 ) {
                     ListItem(
-                        headlineContent = { Text(item.name, color = MaterialTheme.colorScheme.onSurface) },
+                        headlineContent = {
+                            Text(
+                                item.name,
+                                color = if (disabled)
+                                    MaterialTheme.colorScheme.onSurface.copy(alpha = 0.38f)
+                                else MaterialTheme.colorScheme.onSurface
+                            )
+                        },
                         supportingContent = {
                             Text(
                                 item.packageName,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                color = if (disabled)
+                                    MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.38f)
+                                else MaterialTheme.colorScheme.onSurfaceVariant,
                                 style = MaterialTheme.typography.bodySmall
                             )
                         },
                         leadingContent = {
                             val bitmap = remember(item.packageName + item.className) { item.icon.toBitmap().asImageBitmap() }
-                            Image(bitmap, contentDescription = null, modifier = Modifier.size(40.dp))
+                            Image(
+                                bitmap,
+                                contentDescription = null,
+                                modifier = Modifier
+                                    .size(40.dp)
+                                    .then(if (disabled) Modifier.alpha(0.38f) else Modifier)
+                            )
                         },
                         modifier = Modifier
-                            .clickable {
+                            .clickable(enabled = !disabled) {
                                 val intent = Intent(Intent.ACTION_CREATE_SHORTCUT).apply {
                                     component = ComponentName(item.packageName, item.className)
                                     addCategory(Intent.CATEGORY_DEFAULT)
@@ -1810,7 +1945,12 @@ fun ShortcutsTab(config: ActionConfig, onActionSelected: (String) -> Unit) {
 }
 
 @Composable
-fun SystemTab(config: ActionConfig, onActionSelected: (String) -> Unit) {
+fun SystemTab(
+    config: ActionConfig,
+    onActionSelected: (String) -> Unit,
+    isScreenOff: Boolean,
+    shizukuReady: Boolean,
+) {
     val actions = listOf(
         SettingsManager.ACTION_VIBRATE_RINGER,
         SettingsManager.ACTION_CYCLE_SOUND_MODE,
@@ -1828,11 +1968,16 @@ fun SystemTab(config: ActionConfig, onActionSelected: (String) -> Unit) {
         SettingsManager.ACTION_ROTATE_360,
         SettingsManager.ACTION_AUTOROTATE_TOGGLE
     )
-    ActionList(actions, config, onActionSelected)
+    ActionList(actions, config, onActionSelected, isScreenOff, shizukuReady)
 }
 
 @Composable
-fun MediaTab(config: ActionConfig, onActionSelected: (String) -> Unit) {
+fun MediaTab(
+    config: ActionConfig,
+    onActionSelected: (String) -> Unit,
+    isScreenOff: Boolean,
+    shizukuReady: Boolean,
+) {
     val actions = listOf(
         SettingsManager.ACTION_VOLUME_UP,
         SettingsManager.ACTION_VOLUME_DOWN,
@@ -1848,23 +1993,29 @@ fun MediaTab(config: ActionConfig, onActionSelected: (String) -> Unit) {
         SettingsManager.ACTION_STEP_FORWARD,
         SettingsManager.ACTION_STEP_BACKWARD,
     )
-    ActionList(actions, config, onActionSelected)
+    ActionList(actions, config, onActionSelected, isScreenOff, shizukuReady)
 }
 
 @Composable
-fun ActionList(actions: List<String>, config: ActionConfig, onActionSelected: (String) -> Unit) {
+fun ActionList(
+    actions: List<String>,
+    config: ActionConfig,
+    onActionSelected: (String) -> Unit,
+    isScreenOff: Boolean = false,
+    shizukuReady: Boolean = true,
+) {
     val context = LocalContext.current
     var showInputDialog by rememberSaveable { mutableStateOf<String?>(null) }
     var inputValue by rememberSaveable { mutableStateOf("") }
 
     if (showInputDialog != null) {
-        val title = when(showInputDialog) {
+        val title = when (showInputDialog) {
             SettingsManager.ACTION_SPEED_DIAL -> "Enter Number"
             SettingsManager.ACTION_URL -> "Enter URL"
             SettingsManager.ACTION_QR_CODE -> "Enter QR Code Content"
             else -> ""
         }
-        val label = when(showInputDialog) {
+        val label = when (showInputDialog) {
             SettingsManager.ACTION_SPEED_DIAL -> "Phone Number ..."
             SettingsManager.ACTION_URL -> "Link ..."
             SettingsManager.ACTION_QR_CODE -> "Text ..."
@@ -1876,19 +2027,21 @@ fun ActionList(actions: List<String>, config: ActionConfig, onActionSelected: (S
             title = title,
             confirmButtonText = "OK",
             onConfirmButtonClick = {
-                val prefix = when(showInputDialog) {
+                val prefix = when (showInputDialog) {
                     SettingsManager.ACTION_SPEED_DIAL -> SettingsManager.PREFIX_SPEED_DIAL
                     SettingsManager.ACTION_URL -> SettingsManager.PREFIX_URL
                     SettingsManager.ACTION_QR_CODE -> SettingsManager.PREFIX_QR_CODE
                     else -> ""
                 }
                 SettingsManager.setAction(context, config.keyCode, config.state, config.type, prefix + inputValue)
-                onActionSelected(when(showInputDialog) {
-                    SettingsManager.ACTION_SPEED_DIAL -> "Speed Dial"
-                    SettingsManager.ACTION_URL -> "URL"
-                    SettingsManager.ACTION_QR_CODE -> "QR Code"
-                    else -> ""
-                })
+                onActionSelected(
+                    when (showInputDialog) {
+                        SettingsManager.ACTION_SPEED_DIAL -> "Speed Dial"
+                        SettingsManager.ACTION_URL -> "URL"
+                        SettingsManager.ACTION_QR_CODE -> "QR Code"
+                        else -> ""
+                    }
+                )
                 showInputDialog = null
             },
             content = {
@@ -1910,6 +2063,9 @@ fun ActionList(actions: List<String>, config: ActionConfig, onActionSelected: (S
     ) {
         items(actions.size) { index ->
             val action = actions[index]
+            val disabled = isActionDisabled(action, isScreenOff, shizukuReady)
+            val disabledReason = disabledReasonFor(action, isScreenOff, shizukuReady)
+
             val displayName = action.split("_").joinToString(" ") { word ->
                 word.lowercase().replaceFirstChar { if (it.isLowerCase()) it.titlecase() else it.toString() }
             }
@@ -1922,22 +2078,45 @@ fun ActionList(actions: List<String>, config: ActionConfig, onActionSelected: (S
             }
 
             Surface(
-                color = MaterialTheme.colorScheme.surfaceContainer,
+                color = if (disabled)
+                    MaterialTheme.colorScheme.surfaceContainer.copy(alpha = 0.4f)
+                else MaterialTheme.colorScheme.surfaceContainer,
                 shape = shape,
                 modifier = Modifier.fillMaxWidth()
             ) {
                 ListItem(
-                    headlineContent = { Text(displayName, color = MaterialTheme.colorScheme.onSurface) },
+                    headlineContent = {
+                        Text(
+                            displayName,
+                            color = if (disabled)
+                                MaterialTheme.colorScheme.onSurface.copy(alpha = 0.38f)
+                            else MaterialTheme.colorScheme.onSurface
+                        )
+                    },
+                    supportingContent = disabledReason?.let {
+                        {
+                            Text(
+                                it,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f),
+                                style = MaterialTheme.typography.bodySmall
+                            )
+                        }
+                    },
                     leadingContent = {
                         ActionIcon(
                             action = action,
                             modifier = Modifier.size(24.dp),
-                            tint = MaterialTheme.colorScheme.primary
+                            tint = if (disabled)
+                                MaterialTheme.colorScheme.primary.copy(alpha = 0.38f)
+                            else MaterialTheme.colorScheme.primary
                         )
                     },
                     modifier = Modifier
-                        .clickable {
-                            if (action == SettingsManager.ACTION_SPEED_DIAL || action == SettingsManager.ACTION_URL || action == SettingsManager.ACTION_QR_CODE) {
+                        .clickable(enabled = !disabled) {
+                            if (action == SettingsManager.ACTION_SPEED_DIAL ||
+                                action == SettingsManager.ACTION_URL ||
+                                action == SettingsManager.ACTION_QR_CODE
+                            ) {
                                 showInputDialog = action
                                 val currentSavedAction =
                                     SettingsManager.getAction(context, config.keyCode, config.state, config.type)
