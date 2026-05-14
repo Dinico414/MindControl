@@ -859,6 +859,7 @@ fun TogglesContainer(
 
     var shizukuPermission by remember { mutableStateOf(false) }
     var shizukuAvailable by remember { mutableStateOf(false) }
+    var shizukuInstalled by remember { mutableStateOf(false) }
     var isNotificationListenerEnabled by remember { mutableStateOf(false) }
 
     LaunchedEffect(Unit) {
@@ -870,17 +871,26 @@ fun TogglesContainer(
             isNotificationListenerEnabled = Settings.Secure.getString(context.contentResolver, "enabled_notification_listeners")
                 ?.contains(context.packageName) == true
 
+            shizukuInstalled = try {
+                context.packageManager.getPackageInfo("moe.shizuku.privileged.api", PackageManager.PackageInfoFlags.of(0))
+                true
+            } catch (_: Exception) {
+                false
+            }
+
             shizukuAvailable = try {
                 Shizuku.pingBinder()
             } catch (_: Exception) {
                 false
             }
-            if (shizukuAvailable) {
-                shizukuPermission = try {
+            shizukuPermission = if (shizukuAvailable) {
+                try {
                     Shizuku.checkSelfPermission() == PackageManager.PERMISSION_GRANTED
                 } catch (_: Exception) {
                     false
                 }
+            } else {
+                false
             }
 
             kotlinx.coroutines.delay(2000)
@@ -967,27 +977,19 @@ fun TogglesContainer(
                 )
             ) {
                 Column(modifier = Modifier.padding(12.dp)) {
+                    val shizukuText = when {
+                        shizukuAvailable && shizukuPermission -> "Shizuku: AUTHORIZED"
+                        shizukuAvailable && !shizukuPermission -> "Shizuku: UNAUTHORIZED"
+                        shizukuInstalled -> "Shizuku: NOT RUNNING"
+                        else -> "Shizuku: NOT INSTALLED"
+                    }
                     Text(
-                        text = if (shizukuAvailable) {
-                            if (shizukuPermission) "Shizuku: AUTHORIZED" else "Shizuku: UNAUTHORIZED"
-                        } else "Shizuku: NOT RUNNING",
+                        text = shizukuText,
                         color = if (shizukuAvailable && shizukuPermission) Color(0xFF2E7D32) else Color(
                             0xFFC62828
                         ),
                         style = MaterialTheme.typography.bodyMedium
                     )
-                    if (shizukuAvailable && !shizukuPermission) {
-                        Spacer(modifier = Modifier.height(4.dp))
-                        Button(onClick = {
-                            try {
-                                Shizuku.requestPermission(0)
-                            } catch (e: Exception) {
-                                Log.e("MainActivity", "Shizuku request error", e)
-                            }
-                        }, contentPadding = PaddingValues(4.dp)) {
-                            Text("Authorize", style = MaterialTheme.typography.bodySmall)
-                        }
-                    }
                 }
             }
 
@@ -1032,6 +1034,44 @@ fun TogglesContainer(
                     }, modifier = Modifier.fillMaxWidth(), contentPadding = PaddingValues(8.dp)
                 ) {
                     Text("Media Control Settings", style = MaterialTheme.typography.bodySmall)
+                }
+            }
+
+            if (!(shizukuAvailable && shizukuPermission)) {
+                Spacer(modifier = Modifier.height(4.dp))
+                Button(
+                    onClick = {
+                        when {
+                            !shizukuInstalled -> {
+                                val appId = "moe.shizuku.privileged.api"
+                                try {
+                                    context.startActivity(Intent(Intent.ACTION_VIEW, "market://details?id=$appId".toUri()))
+                                } catch (e: Exception) {
+                                    context.startActivity(Intent(Intent.ACTION_VIEW, "https://play.google.com/store/apps/details?id=$appId".toUri()))
+                                }
+                            }
+                            !shizukuAvailable -> {
+                                val intent = context.packageManager.getLaunchIntentForPackage("moe.shizuku.privileged.api")
+                                if (intent != null) context.startActivity(intent)
+                            }
+                            else -> {
+                                try {
+                                    Shizuku.requestPermission(0)
+                                } catch (e: Exception) {
+                                    Log.e("MainActivity", "Shizuku request error", e)
+                                }
+                            }
+                        }
+                    },
+                    modifier = Modifier.fillMaxWidth(),
+                    contentPadding = PaddingValues(8.dp)
+                ) {
+                    val buttonText = when {
+                        !shizukuInstalled -> "Install Shizuku"
+                        !shizukuAvailable -> "Open Shizuku"
+                        else -> "Authorize Shizuku"
+                    }
+                    Text(buttonText, style = MaterialTheme.typography.bodySmall)
                 }
             }
 
