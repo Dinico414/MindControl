@@ -245,40 +245,14 @@ private val SHIZUKU_REQUIRED_ACTIONS = setOf(
     SettingsManager.ACTION_SHOW_MENU,
 )
 
-private val SCREEN_OFF_INCOMPATIBLE_ACTIONS = setOf(
-    SettingsManager.ACTION_HOME,
-    SettingsManager.ACTION_BACK,
-    SettingsManager.ACTION_RECENTS,
-    SettingsManager.ACTION_NOTIFICATIONS,
-    SettingsManager.ACTION_QUICK_SETTINGS,
-    SettingsManager.ACTION_POWER_DIALOG,
-    SettingsManager.ACTION_SHOW_MENU,
-    SettingsManager.ACTION_LAST_APP,
-    SettingsManager.ACTION_APP_INFO,
-    SettingsManager.ACTION_GOOGLE_SEARCH,
-    SettingsManager.ACTION_ASSISTANT,
-    SettingsManager.ACTION_SCROLL_UP,
-    SettingsManager.ACTION_SCROLL_DOWN,
-    SettingsManager.ACTION_SCROLL_UP_SMOOTH,
-    SettingsManager.ACTION_SCROLL_DOWN_SMOOTH,
-    SettingsManager.ACTION_COPY,
-    SettingsManager.ACTION_CUT,
-    SettingsManager.ACTION_PASTE,
-    SettingsManager.ACTION_SCREENSHOT,
-    SettingsManager.ACTION_VOLUME_DIALOG,
-    SettingsManager.ACTION_SPEED_DIAL,
-    SettingsManager.ACTION_URL,
-    SettingsManager.ACTION_QR_CODE,
-)
 
 private fun isActionDisabled(action: String, isScreenOff: Boolean, shizukuReady: Boolean): Boolean {
-    if (isScreenOff && action in SCREEN_OFF_INCOMPATIBLE_ACTIONS) return true
+    if (isScreenOff) return true
     if (!shizukuReady && action in SHIZUKU_REQUIRED_ACTIONS) return true
     return false
 }
 
-private fun disabledReasonFor(action: String, isScreenOff: Boolean, shizukuReady: Boolean): String? = when {
-    isScreenOff && action in SCREEN_OFF_INCOMPATIBLE_ACTIONS -> "Requires screen on"
+private fun disabledReasonFor(action: String, shizukuReady: Boolean): String? = when {
     !shizukuReady && action in SHIZUKU_REQUIRED_ACTIONS -> "Requires Shizuku"
     else -> null
 }
@@ -2064,7 +2038,7 @@ fun ActionList(
         items(actions.size) { index ->
             val action = actions[index]
             val disabled = isActionDisabled(action, isScreenOff, shizukuReady)
-            val disabledReason = disabledReasonFor(action, isScreenOff, shizukuReady)
+            val disabledReason = disabledReasonFor(action, shizukuReady)
 
             val displayName = action.split("_").joinToString(" ") { word ->
                 word.lowercase().replaceFirstChar { if (it.isLowerCase()) it.titlecase() else it.toString() }
