@@ -1,3 +1,5 @@
+@file:Suppress("AssignedValueIsNeverRead")
+
 package com.xenonware.mindcontrol
 
 import android.accessibilityservice.AccessibilityServiceInfo
@@ -8,7 +10,6 @@ import android.content.Intent
 import android.content.pm.PackageManager
 import android.content.res.Configuration
 import android.graphics.drawable.Drawable
-import android.os.Build
 import android.os.Bundle
 import android.provider.Settings
 import android.util.Log
@@ -40,6 +41,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.asPaddingValues
+import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -246,9 +248,8 @@ private val SHIZUKU_REQUIRED_ACTIONS = setOf(
 )
 
 
-private fun isActionDisabled(action: String, isScreenOff: Boolean, shizukuReady: Boolean): Boolean {
-    if (!shizukuReady && action in SHIZUKU_REQUIRED_ACTIONS) return true
-    return false
+private fun isActionDisabled(action: String, shizukuReady: Boolean): Boolean {
+    return !shizukuReady && action in SHIZUKU_REQUIRED_ACTIONS
 }
 
 private fun disabledReasonFor(action: String, shizukuReady: Boolean): String? = when {
@@ -266,14 +267,23 @@ fun MindControlMainScreen(
     onDevicePaletteChange: (Palette) -> Unit,
     onKeyboardPaletteChange: (Palette) -> Unit,
 ) {
-    var selectedButton by rememberSaveable(stateSaver = PairSaver) { mutableStateOf<Pair<Int, String>?>(null) }
+    val context = LocalContext.current
+    var selectedButton by rememberSaveable(stateSaver = PairSaver) { mutableStateOf(null) }
     var showKeyboard by rememberSaveable { mutableStateOf(false) }
     var configFromKeyboard by rememberSaveable { mutableStateOf(false) }
-    var actionSelectionConfig by rememberSaveable(stateSaver = ActionConfigSaver) { mutableStateOf<ActionConfig?>(null) }
+    var actionSelectionConfig by rememberSaveable(stateSaver = ActionConfigSaver) { mutableStateOf(null) }
     var isScreenOff by rememberSaveable { mutableStateOf(false) }
 
     var shizukuPermission by remember { mutableStateOf(false) }
+
+    val notificationPermissionLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.RequestPermission()
+    ) { _ -> }
+
     LaunchedEffect(Unit) {
+        if (context.checkSelfPermission(android.Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) {
+            notificationPermissionLauncher.launch(android.Manifest.permission.POST_NOTIFICATIONS)
+        }
         while (true) {
             shizukuPermission = try {
                 Shizuku.pingBinder() &&
@@ -292,7 +302,6 @@ fun MindControlMainScreen(
         else -> "grid"
     }
 
-    val context = LocalContext.current
     val view = LocalView.current
     val isDark = isSystemInDarkTheme()
 
@@ -324,7 +333,7 @@ fun MindControlMainScreen(
                 }
                 "keyboard" -> showKeyboard = false
             }
-        } catch (e: Exception) {
+        } catch (_: Exception) {
             // Cancelled
         }
     }
@@ -914,6 +923,7 @@ fun TogglesContainer(
     var shizukuAvailable by remember { mutableStateOf(false) }
     var shizukuInstalled by remember { mutableStateOf(false) }
     var isNotificationListenerEnabled by remember { mutableStateOf(false) }
+    var showAccessibilityDisclosure by rememberSaveable { mutableStateOf(false) }
 
     LaunchedEffect(Unit) {
         while (true) {
@@ -966,7 +976,7 @@ fun TogglesContainer(
         ) {
             val versionName = try {
                 context.packageManager.getPackageInfo(context.packageName, 0).versionName
-            } catch (e: Exception) {
+            } catch (_: Exception) {
                 "Unknown"
             }
 
@@ -994,10 +1004,18 @@ fun TogglesContainer(
                 )
             }
 
+            // --- Accessibility Status (Always Visible) ---
             Card(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(vertical = 4.dp),
+                    .padding(vertical = 4.dp)
+                    .clickable {
+                        if (!isServiceEnabled) showAccessibilityDisclosure = true
+                        else {
+                            val intent = Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS)
+                            context.startActivity(intent)
+                        }
+                    },
                 colors = CardDefaults.cardColors(
                     containerColor = if (isServiceEnabled) Color(0xFFE8F5E9) else Color(0xFFFFEBEE)
                 ),
@@ -1007,99 +1025,25 @@ fun TogglesContainer(
             ) {
                 Column(modifier = Modifier.padding(12.dp)) {
                     Text(
-                        text = if (isServiceEnabled) "Accessibility: ACTIVE" else "Accessibility: INACTIVE",
+                        text = if (isServiceEnabled) "Accessibility: ACTIVE" else "Accessibility: INACTIVE (Tap to Enable)",
                         color = if (isServiceEnabled) Color(0xFF2E7D32) else Color(0xFFC62828),
                         style = MaterialTheme.typography.bodyMedium
                     )
                 }
             }
 
+            // --- Shizuku Status (Always Visible) ---
             Card(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(vertical = 4.dp),
-                colors = CardDefaults.cardColors(
-                    containerColor = if (shizukuAvailable && shizukuPermission) Color(0xFFE8F5E9) else Color(
-                        0xFFFFEBEE
-                    )
-                ),
-                border = BorderStroke(
-                    1.dp, if (shizukuAvailable && shizukuPermission) Color(0xFF2E7D32) else Color(
-                        0xFFC62828
-                    )
-                )
-            ) {
-                Column(modifier = Modifier.padding(12.dp)) {
-                    val shizukuText = when {
-                        shizukuAvailable && shizukuPermission -> "Shizuku: AUTHORIZED"
-                        shizukuAvailable && !shizukuPermission -> "Shizuku: UNAUTHORIZED"
-                        shizukuInstalled -> "Shizuku: NOT RUNNING"
-                        else -> "Shizuku: NOT INSTALLED"
-                    }
-                    Text(
-                        text = shizukuText,
-                        color = if (shizukuAvailable && shizukuPermission) Color(0xFF2E7D32) else Color(
-                            0xFFC62828
-                        ),
-                        style = MaterialTheme.typography.bodyMedium
-                    )
-                }
-            }
-
-            Card(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(vertical = 4.dp),
-                colors = CardDefaults.cardColors(
-                    containerColor = if (isNotificationListenerEnabled) Color(0xFFE8F5E9) else Color(0xFFFFEBEE)
-                ),
-                border = BorderStroke(
-                    1.dp, if (isNotificationListenerEnabled) Color(0xFF2E7D32) else Color(0xFFC62828)
-                )
-            ) {
-                Column(modifier = Modifier.padding(12.dp)) {
-                    Text(
-                        text = if (isNotificationListenerEnabled) "Media Control: ACTIVE" else "Media Control: INACTIVE",
-                        color = if (isNotificationListenerEnabled) Color(0xFF2E7D32) else Color(0xFFC62828),
-                        style = MaterialTheme.typography.bodyMedium
-                    )
-                }
-            }
-
-            if (!isServiceEnabled) {
-                Spacer(modifier = Modifier.height(8.dp))
-                Button(
-                    onClick = {
-                        val intent = Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS)
-                        context.startActivity(intent)
-                    }, modifier = Modifier.fillMaxWidth(), contentPadding = PaddingValues(8.dp)
-                ) {
-                    Text("Accessibility Settings", style = MaterialTheme.typography.bodySmall)
-                }
-            }
-
-            if (!isNotificationListenerEnabled) {
-                Spacer(modifier = Modifier.height(4.dp))
-                Button(
-                    onClick = {
-                        val intent = Intent(Settings.ACTION_NOTIFICATION_LISTENER_SETTINGS)
-                        context.startActivity(intent)
-                    }, modifier = Modifier.fillMaxWidth(), contentPadding = PaddingValues(8.dp)
-                ) {
-                    Text("Media Control Settings", style = MaterialTheme.typography.bodySmall)
-                }
-            }
-
-            if (!(shizukuAvailable && shizukuPermission)) {
-                Spacer(modifier = Modifier.height(4.dp))
-                Button(
-                    onClick = {
+                    .padding(vertical = 4.dp)
+                    .clickable {
                         when {
                             !shizukuInstalled -> {
                                 val appId = "moe.shizuku.privileged.api"
                                 try {
                                     context.startActivity(Intent(Intent.ACTION_VIEW, "market://details?id=$appId".toUri()))
-                                } catch (e: Exception) {
+                                } catch (_: Exception) {
                                     context.startActivity(Intent(Intent.ACTION_VIEW, "https://play.google.com/store/apps/details?id=$appId".toUri()))
                                 }
                             }
@@ -1107,57 +1051,148 @@ fun TogglesContainer(
                                 val intent = context.packageManager.getLaunchIntentForPackage("moe.shizuku.privileged.api")
                                 if (intent != null) context.startActivity(intent)
                             }
-                            else -> {
-                                try {
-                                    Shizuku.requestPermission(0)
-                                } catch (e: Exception) {
-                                    Log.e("MainActivity", "Shizuku request error", e)
-                                }
+                            !shizukuPermission -> {
+                                try { Shizuku.requestPermission(0) } catch (e: Exception) { Log.e("MainActivity", "Shizuku request error", e) }
                             }
                         }
                     },
-                    modifier = Modifier.fillMaxWidth(),
-                    contentPadding = PaddingValues(8.dp)
-                ) {
-                    val buttonText = when {
-                        !shizukuInstalled -> "Install Shizuku"
-                        !shizukuAvailable -> "Open Shizuku"
-                        else -> "Authorize Shizuku"
+                colors = CardDefaults.cardColors(
+                    containerColor = if (shizukuAvailable && shizukuPermission) Color(0xFFE8F5E9) else Color(0xFFFFEBEE)
+                ),
+                border = BorderStroke(
+                    1.dp, if (shizukuAvailable && shizukuPermission) Color(0xFF2E7D32) else Color(0xFFC62828)
+                )
+            ) {
+                Column(modifier = Modifier.padding(12.dp)) {
+                    val shizukuText = when {
+                        shizukuAvailable && shizukuPermission -> "Shizuku: AUTHORIZED"
+                        shizukuAvailable && !shizukuPermission -> "Shizuku: UNAUTHORIZED (Tap to Authorize)"
+                        shizukuInstalled -> "Shizuku: NOT RUNNING (Tap to Open)"
+                        else -> "Shizuku: NOT INSTALLED (Tap to Install)"
                     }
-                    Text(buttonText, style = MaterialTheme.typography.bodySmall)
+                    Text(
+                        text = shizukuText,
+                        color = if (shizukuAvailable && shizukuPermission) Color(0xFF2E7D32) else Color(0xFFC62828),
+                        style = MaterialTheme.typography.bodyMedium
+                    )
                 }
             }
 
-            if (!Settings.System.canWrite(context)) {
-                Spacer(modifier = Modifier.height(4.dp))
-                Button(
-                    onClick = {
-                        val intent = Intent(Settings.ACTION_MANAGE_WRITE_SETTINGS)
-                        intent.data = ("package:" + context.packageName).toUri()
-                        context.startActivity(intent)
-                    },
-                    modifier = Modifier.fillMaxWidth(),
-                    colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.secondary),
-                    contentPadding = PaddingValues(8.dp)
+            // --- Media Control / Notification Listener (Hide if Active) ---
+            if (!isNotificationListenerEnabled) {
+                Card(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(vertical = 4.dp)
+                        .clickable {
+                            val intent = Intent(Settings.ACTION_NOTIFICATION_LISTENER_SETTINGS)
+                            context.startActivity(intent)
+                        },
+                    colors = CardDefaults.cardColors(containerColor = Color(0xFFFFEBEE)),
+                    border = BorderStroke(1.dp, Color(0xFFC62828))
                 ) {
-                    Text("Allow Sys Settings", style = MaterialTheme.typography.bodySmall)
+                    Column(modifier = Modifier.padding(12.dp)) {
+                        Text(
+                            text = "Media Control: INACTIVE (Tap to Enable)",
+                            color = Color(0xFFC62828),
+                            style = MaterialTheme.typography.bodyMedium
+                        )
+                    }
                 }
             }
 
+            // --- System Settings (Hide if Active) ---
+            if (!Settings.System.canWrite(context)) {
+                Card(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(vertical = 4.dp)
+                        .clickable {
+                            val intent = Intent(Settings.ACTION_MANAGE_WRITE_SETTINGS)
+                            intent.data = ("package:" + context.packageName).toUri()
+                            context.startActivity(intent)
+                        },
+                    colors = CardDefaults.cardColors(containerColor = Color(0xFFFFEBEE)),
+                    border = BorderStroke(1.dp, Color(0xFFC62828))
+                ) {
+                    Column(modifier = Modifier.padding(12.dp)) {
+                        Text(
+                            text = "Modify System Settings: DENIED (Tap to Allow)",
+                            color = Color(0xFFC62828),
+                            style = MaterialTheme.typography.bodyMedium
+                        )
+                    }
+                }
+            }
+
+            // --- Notification Policy / DND (Hide if Active) ---
             val notificationManager = context.getSystemService(Context.NOTIFICATION_SERVICE) as android.app.NotificationManager
             if (!notificationManager.isNotificationPolicyAccessGranted) {
-                Spacer(modifier = Modifier.height(4.dp))
-                Button(
-                    onClick = {
-                        val intent = Intent(Settings.ACTION_NOTIFICATION_POLICY_ACCESS_SETTINGS)
+                Card(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(vertical = 4.dp)
+                        .clickable {
+                            val intent = Intent(Settings.ACTION_NOTIFICATION_POLICY_ACCESS_SETTINGS)
+                            context.startActivity(intent)
+                        },
+                    colors = CardDefaults.cardColors(containerColor = Color(0xFFFFEBEE)),
+                    border = BorderStroke(1.dp, Color(0xFFC62828))
+                ) {
+                    Column(modifier = Modifier.padding(12.dp)) {
+                        Text(
+                            text = "DND Access: DENIED (Tap to Allow)",
+                            color = Color(0xFFC62828),
+                            style = MaterialTheme.typography.bodyMedium
+                        )
+                    }
+                }
+            }
+
+            // --- POST_NOTIFICATIONS (Hide if Active) ---
+            if (context.checkSelfPermission(android.Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) {
+                Card(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(vertical = 4.dp)
+                        .clickable {
+                            val intent = Intent(Settings.ACTION_APP_NOTIFICATION_SETTINGS)
+                            intent.putExtra(Settings.EXTRA_APP_PACKAGE, context.packageName)
+                            context.startActivity(intent)
+                        },
+                    colors = CardDefaults.cardColors(containerColor = Color(0xFFFFEBEE)),
+                    border = BorderStroke(1.dp, Color(0xFFC62828))
+                ) {
+                    Column(modifier = Modifier.padding(12.dp)) {
+                        Text(
+                            text = "Notifications: BLOCKED (Tap to Allow)",
+                            color = Color(0xFFC62828),
+                            style = MaterialTheme.typography.bodyMedium
+                        )
+                    }
+                }
+            }
+
+            if (showAccessibilityDisclosure) {
+                XenonDialog(
+                    onDismissRequest = { showAccessibilityDisclosure = false },
+                    title = "Accessibility Disclosure",
+                    confirmButtonText = "Grant Permission",
+                    onConfirmButtonClick = {
+                        showAccessibilityDisclosure = false
+                        val intent = Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS)
                         context.startActivity(intent)
                     },
-                    modifier = Modifier.fillMaxWidth(),
-                    colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.tertiary),
-                    contentPadding = PaddingValues(8.dp)
-                ) {
-                    Text("Allow DND Settings", style = MaterialTheme.typography.bodySmall)
-                }
+                    content = {
+                        Text(
+                            "MindControl uses Accessibility Services to detect hardware button presses (such as volume and camera buttons) and map them to custom actions.\n\n" +
+                                    "• This service is required for the app's core functionality.\n" +
+                                    "• No personal data is collected or shared.\n" +
+                                    "• Key presses are processed locally on your device.",
+                            style = MaterialTheme.typography.bodyMedium
+                        )
+                    }
+                )
             }
             Spacer(modifier = Modifier.height(8.dp))
             Row(
@@ -1452,7 +1487,7 @@ fun MindControlActionSelector(
         try {
             val pm = context.packageManager
             pm.getApplicationLabel(pm.getApplicationInfo(pkg, 0)).toString()
-        } catch (e: Exception) {
+        } catch (_: Exception) {
             pkg
         }
     } else if (action.startsWith(SettingsManager.PREFIX_SHORTCUT)) {
@@ -1522,13 +1557,13 @@ fun MindControlActionSelector(
 @Composable
 fun ActionIcon(action: String, modifier: Modifier = Modifier, tint: Color = LocalContentColor.current) {
     val context = LocalContext.current
-    val icon: Any? = when {
+    val icon: Any = when {
         action.startsWith(SettingsManager.PREFIX_APP) -> {
             val pkg = action.removePrefix(SettingsManager.PREFIX_APP)
             remember(pkg) {
                 try {
                     context.packageManager.getApplicationIcon(pkg)
-                } catch (e: Exception) {
+                } catch (_: Exception) {
                     Icons.Rounded.Apps
                 }
             }
@@ -1688,11 +1723,11 @@ fun ActionSelectionScreen(
                 beyondViewportPageCount = 1
             ) { page ->
                 when (page) {
-                    0 -> ActionsTab(config, onActionSelected, isScreenOff, shizukuReady)
+                    0 -> ActionsTab(config, onActionSelected, shizukuReady)
                     1 -> AppsTab(config, onActionSelected, isScreenOff)
                     2 -> ShortcutsTab(config, onActionSelected, isScreenOff)
-                    3 -> SystemTab(config, onActionSelected, isScreenOff, shizukuReady)
-                    4 -> MediaTab(config, onActionSelected, isScreenOff, shizukuReady)
+                    3 -> SystemTab(config, onActionSelected, shizukuReady)
+                    4 -> MediaTab(config, onActionSelected, shizukuReady)
                 }
             }
         }
@@ -1703,7 +1738,6 @@ fun ActionSelectionScreen(
 fun ActionsTab(
     config: ActionConfig,
     onActionSelected: (String) -> Unit,
-    isScreenOff: Boolean,
     shizukuReady: Boolean,
 ) {
     val actions = listOf(
@@ -1733,7 +1767,7 @@ fun ActionsTab(
         SettingsManager.ACTION_URL,
         SettingsManager.ACTION_QR_CODE,
     )
-    ActionList(actions, config, onActionSelected, isScreenOff, shizukuReady)
+    ActionList(actions, config, onActionSelected, shizukuReady)
 }
 
 @Composable
@@ -1784,7 +1818,6 @@ fun AppsTab(
         }
         items(apps.size) { index ->
             val app = apps[index]
-            val disabled = isScreenOff
             val shape = when {
                 apps.size == 1 -> RoundedCornerShape(30.dp)
                 index == 0 -> RoundedCornerShape(topStart = 30.dp, topEnd = 30.dp, bottomStart = 4.dp, bottomEnd = 4.dp)
@@ -1792,7 +1825,7 @@ fun AppsTab(
                 else -> RoundedCornerShape(4.dp)
             }
             Surface(
-                color = if (disabled)
+                color = if (isScreenOff)
                     MaterialTheme.colorScheme.surfaceContainer.copy(alpha = 0.4f)
                 else MaterialTheme.colorScheme.surfaceContainer,
                 shape = shape,
@@ -1802,7 +1835,7 @@ fun AppsTab(
                     headlineContent = {
                         Text(
                             app.name,
-                            color = if (disabled)
+                            color = if (isScreenOff)
                                 MaterialTheme.colorScheme.onSurface.copy(alpha = 0.38f)
                             else MaterialTheme.colorScheme.onSurface
                         )
@@ -1810,7 +1843,7 @@ fun AppsTab(
                     supportingContent = {
                         Text(
                             app.packageName,
-                            color = if (disabled)
+                            color = if (isScreenOff)
                                 MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.38f)
                             else MaterialTheme.colorScheme.onSurfaceVariant,
                             style = MaterialTheme.typography.bodySmall
@@ -1823,11 +1856,11 @@ fun AppsTab(
                             contentDescription = null,
                             modifier = Modifier
                                 .size(40.dp)
-                                .then(if (disabled) Modifier.alpha(0.38f) else Modifier)
+                                .then(if (isScreenOff) Modifier.alpha(0.38f) else Modifier)
                         )
                     },
                     modifier = Modifier
-                        .clickable(enabled = !disabled) {
+                        .clickable(enabled = !isScreenOff) {
                             SettingsManager.setAction(
                                 context,
                                 config.keyCode,
@@ -1869,12 +1902,8 @@ fun ShortcutsTab(
             // Log for debugging
             Log.d("ShortcutsTab", "Shortcut picker returned data: ${data.extras?.keySet()}")
 
-            val shortcutIntent = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            val shortcutIntent =
                 data.getParcelableExtra(Intent.EXTRA_SHORTCUT_INTENT, Intent::class.java)
-            } else {
-                @Suppress("DEPRECATION")
-                data.getParcelableExtra<Intent>(Intent.EXTRA_SHORTCUT_INTENT)
-            }
 
             val name = data.getStringExtra(Intent.EXTRA_SHORTCUT_NAME) ?: "Shortcut"
             val uri = shortcutIntent?.toUri(Intent.URI_INTENT_SCHEME)
@@ -1936,7 +1965,6 @@ fun ShortcutsTab(
             }
             items(shortcutItems.size) { index ->
                 val item = shortcutItems[index]
-                val disabled = isScreenOff
                 val shape = when {
                     shortcutItems.size == 1 -> RoundedCornerShape(30.dp)
                     index == 0 -> RoundedCornerShape(topStart = 30.dp, topEnd = 30.dp, bottomStart = 4.dp, bottomEnd = 4.dp)
@@ -1944,7 +1972,7 @@ fun ShortcutsTab(
                     else -> RoundedCornerShape(4.dp)
                 }
                 Surface(
-                    color = if (disabled)
+                    color = if (isScreenOff)
                         MaterialTheme.colorScheme.surfaceContainer.copy(alpha = 0.4f)
                     else MaterialTheme.colorScheme.surfaceContainer,
                     shape = shape,
@@ -1954,7 +1982,7 @@ fun ShortcutsTab(
                         headlineContent = {
                             Text(
                                 item.name,
-                                color = if (disabled)
+                                color = if (isScreenOff)
                                     MaterialTheme.colorScheme.onSurface.copy(alpha = 0.38f)
                                 else MaterialTheme.colorScheme.onSurface
                             )
@@ -1962,7 +1990,7 @@ fun ShortcutsTab(
                         supportingContent = {
                             Text(
                                 item.packageName,
-                                color = if (disabled)
+                                color = if (isScreenOff)
                                     MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.38f)
                                 else MaterialTheme.colorScheme.onSurfaceVariant,
                                 style = MaterialTheme.typography.bodySmall
@@ -1975,11 +2003,11 @@ fun ShortcutsTab(
                                 contentDescription = null,
                                 modifier = Modifier
                                     .size(40.dp)
-                                    .then(if (disabled) Modifier.alpha(0.38f) else Modifier)
+                                    .then(if (isScreenOff) Modifier.alpha(0.38f) else Modifier)
                             )
                         },
                         modifier = Modifier
-                            .clickable(enabled = !disabled) {
+                            .clickable(enabled = !isScreenOff) {
                                 val intent = Intent(Intent.ACTION_CREATE_SHORTCUT).apply {
                                     component = ComponentName(item.packageName, item.className)
                                     addCategory(Intent.CATEGORY_DEFAULT)
@@ -2003,7 +2031,6 @@ fun ShortcutsTab(
 fun SystemTab(
     config: ActionConfig,
     onActionSelected: (String) -> Unit,
-    isScreenOff: Boolean,
     shizukuReady: Boolean,
 ) {
     val actions = listOf(
@@ -2023,14 +2050,13 @@ fun SystemTab(
         SettingsManager.ACTION_ROTATE_360,
         SettingsManager.ACTION_AUTOROTATE_TOGGLE
     )
-    ActionList(actions, config, onActionSelected, isScreenOff, shizukuReady)
+    ActionList(actions, config, onActionSelected, shizukuReady)
 }
 
 @Composable
 fun MediaTab(
     config: ActionConfig,
     onActionSelected: (String) -> Unit,
-    isScreenOff: Boolean,
     shizukuReady: Boolean,
 ) {
     val actions = listOf(
@@ -2048,7 +2074,7 @@ fun MediaTab(
         SettingsManager.ACTION_STEP_FORWARD,
         SettingsManager.ACTION_STEP_BACKWARD,
     )
-    ActionList(actions, config, onActionSelected, isScreenOff, shizukuReady)
+    ActionList(actions, config, onActionSelected, shizukuReady)
 }
 
 @Composable
@@ -2056,7 +2082,6 @@ fun ActionList(
     actions: List<String>,
     config: ActionConfig,
     onActionSelected: (String) -> Unit,
-    isScreenOff: Boolean = false,
     shizukuReady: Boolean = true,
 ) {
     val context = LocalContext.current
@@ -2118,7 +2143,7 @@ fun ActionList(
     ) {
         items(actions.size) { index ->
             val action = actions[index]
-            val disabled = isActionDisabled(action, isScreenOff, shizukuReady)
+            val disabled = isActionDisabled(action, shizukuReady)
             val disabledReason = disabledReasonFor(action, shizukuReady)
 
             val displayName = action.split("_").joinToString(" ") { word ->

@@ -1,4 +1,4 @@
 <resources>
     <string name="app_name">MindControl</string>
-    <string name="accessibility_service_description">Interprets and remaps iKKO MindOne hardware buttons for custom actions.</string>
+    <string name="accessibility_service_description">This service monitors physical button presses (such as volume and camera buttons) to provide custom remapping. It does not collect or share any personal data and is required for the app\'s core button-mapping functionality.</string>
 </resources>

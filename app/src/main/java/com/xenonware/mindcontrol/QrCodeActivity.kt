@@ -214,8 +214,8 @@ fun ModernQrCode(
                     val isInsideGrid = x in 0 until matrixSize && y in 0 until matrixSize
 
                     // Determine if we are in a "Corner Zone" (The 2-row deep 7x7 cloud areas)
-                    val isNearXCorner = x < 0 || x >= matrixSize
-                    val isNearYCorner = y < 0 || y >= matrixSize
+                    val isNearXCorner = x !in 0..<matrixSize
+                    val isNearYCorner = y !in 0..<matrixSize
                     val isDeepOuter = x == -2 || x == matrixSize + 1 || y == -2 || y == matrixSize + 1
 
                     // The 8-Point Spawn Rule Logic:
@@ -308,7 +308,7 @@ private fun DrawScope.drawOffDotShape(
         }
         else -> { // Teardrop
             val path = Path().apply {
-                val size = radius * 2f
+                radius * 2f
                 val rect = Rect(center.x - radius, center.y - radius, center.x + radius, center.y + radius)
                 val k = (x * 7 + y * 3).mod(4) // Randomize sharp corner direction
                 addRoundRect(
@@ -583,12 +583,12 @@ private fun partitionRun(totalLen: Int, posKey: Int): List<Segment> {
 
     var rem = totalLen
     while (rem > 0) {
-        when {
-            rem == 1 || rem == 2 -> {
+        when (rem) {
+            1, 2 -> {
                 lengths.add(rem)
                 rem = 0
             }
-            rem == 3 -> {
+            3 -> {
                 // 1/2 or 2/1 (Grouped)
                 if (posKey % 2 == 0) {
                     lengths.add(1); flatAfter.add(true); lengths.add(2)
@@ -597,7 +597,7 @@ private fun partitionRun(totalLen: Int, posKey: Int): List<Segment> {
                 }
                 rem = 0
             }
-            rem == 4 -> {
+            4 -> {
                 // 1/3 or 3/1 or 4
                 if (posKey % 3 == 0) {
                     lengths.add(1); flatAfter.add(true); lengths.add(3)
@@ -608,7 +608,7 @@ private fun partitionRun(totalLen: Int, posKey: Int): List<Segment> {
                 }
                 rem = 0
             }
-            rem == 5 -> {
+            5 -> {
                 // 1/4 or 4/1 (Grouped)
                 if (posKey % 2 == 0) {
                     lengths.add(1); flatAfter.add(true); lengths.add(4)
@@ -617,7 +617,7 @@ private fun partitionRun(totalLen: Int, posKey: Int): List<Segment> {
                 }
                 rem = 0
             }
-            rem == 6 -> {
+            6 -> {
                 // 4 + 2 or 2 + 4 (Separate)
                 if (posKey % 2 == 0) {
                     lengths.add(4); flatAfter.add(false); lengths.add(2)
@@ -626,7 +626,7 @@ private fun partitionRun(totalLen: Int, posKey: Int): List<Segment> {
                 }
                 rem = 0
             }
-            rem == 7 -> {
+            7 -> {
                 // 4 + 3 or 3 + 4 (Separate)
                 if (posKey % 2 == 0) {
                     lengths.add(4); flatAfter.add(false); lengths.add(3)
