@@ -68,7 +68,7 @@ class ButtonMapperService : AccessibilityService() {
     )
 
     private fun hasCustomMapping(keyCode: Int, state: String): Boolean {
-        val types = listOf("SINGLE", "DOUBLE", "TRIPLE", "LONG")
+        val types = listOf("SINGLE_PRESS", "DOUBLE_PRESS", "TRIPLE_PRESS", "HOLD", "PRESS_AND_HOLD")
         return types.any {
             SettingsManager.getAction(this, keyCode, state, it) != SettingsManager.ACTION_DEFAULT
         }
@@ -223,33 +223,27 @@ class ButtonMapperService : AccessibilityService() {
 
         if (isDown) {
             isLongPress[keyCode] = false
-            if (keyCode != lastKeyCode || !isVolumeKey) {
-                // For volume keys, we might want to allow consecutive long-presses without changing lastKeyCode
-                // but usually, a new DOWN should reset the state for that key.
-                if (keyCode != lastKeyCode) {
-                    clickCount = 0
-                    pendingMultiClick?.let { handler.removeCallbacks(it) }
-                    if (lastKeyCode != -1) stopContinuousAction(lastKeyCode)
-                }
-                stopContinuousAction(keyCode)
+            if (keyCode != lastKeyCode) {
+                clickCount = 0
+                if (lastKeyCode != -1) stopContinuousAction(lastKeyCode)
             }
             lastKeyCode = keyCode
 
+            pendingMultiClick?.let { handler.removeCallbacks(it) }
+            stopContinuousAction(keyCode)
             longPressRunnables.remove(keyCode)?.let { handler.removeCallbacks(it) }
 
             if (keyCode == 132 || keyCode == 133) return
 
             val capturedState = state
+            val capturedClickCount = clickCount
             val longPressRunnable = Runnable {
-                // If it's a volume skip, we trigger it even if clickCount > 0 
-                // because we handle volume clicks differently (responsively)
-                if (clickCount == 0 || isVolumeSkipActive) {
-                    isLongPress[keyCode] = true
-                    Log.d(tag, "Long Press triggered for $keyCode (state=$capturedState)")
-                    performAction(keyCode, capturedState, "LONG")
-                    if (!isVolumeSkipActive) {
-                        startContinuousAction(keyCode, capturedState, "LONG")
-                    }
+                isLongPress[keyCode] = true
+                val type = if (capturedClickCount == 0) "HOLD" else "PRESS_AND_HOLD"
+                Log.d(tag, "Long Press triggered: $type for $keyCode (state=$capturedState)")
+                performAction(keyCode, capturedState, type)
+                if (!isVolumeSkipActive) {
+                    startContinuousAction(keyCode, capturedState, type)
                 }
             }
             longPressRunnables[keyCode] = longPressRunnable
@@ -268,13 +262,12 @@ class ButtonMapperService : AccessibilityService() {
 
             if (keyCode == 132 || keyCode == 133) {
                 Log.d(tag, "Single-click triggered for $keyCode (state=$state)")
-                performAction(keyCode, state, "SINGLE")
+                performAction(keyCode, state, "SINGLE_PRESS")
                 return
             }
 
-            // Special responsive handling for volume keys when skip is active
             if (isVolumeSkipActive) {
-                performAction(keyCode, state, "SINGLE")
+                performAction(keyCode, state, "SINGLE_PRESS")
                 return
             }
 
@@ -282,10 +275,9 @@ class ButtonMapperService : AccessibilityService() {
             val capturedKeyCode = keyCode
             val capturedState = state
 
-            pendingMultiClick?.let { handler.removeCallbacks(it) }
             val multiClickRunnable = Runnable {
                 val type = when (clickCount) {
-                    1 -> "SINGLE"; 2 -> "DOUBLE"; 3 -> "TRIPLE"; else -> "MULTI"
+                    1 -> "SINGLE_PRESS"; 2 -> "DOUBLE_PRESS"; 3 -> "TRIPLE_PRESS"; else -> "MULTI"
                 }
                 Log.d(tag, "Multi-click triggered: $type for $capturedKeyCode (state=$capturedState)")
                 performAction(capturedKeyCode, capturedState, type)
@@ -499,6 +491,8 @@ class ButtonMapperService : AccessibilityService() {
                 action == SettingsManager.ACTION_VOLUME_DOWN ||
                 action == SettingsManager.ACTION_SCROLL_UP_SMOOTH ||
                 action == SettingsManager.ACTION_SCROLL_DOWN_SMOOTH ||
+                action == SettingsManager.ACTION_SCROLL_UP_SMOOTH_FAST ||
+                action == SettingsManager.ACTION_SCROLL_DOWN_SMOOTH_FAST ||
                 action == "TAP_SCROLL_UP_SMOOTH" ||
                 action == "TAP_SCROLL_DOWN_SMOOTH" ||
                 action == SettingsManager.ACTION_BRIGHTNESS_UP ||
@@ -512,7 +506,12 @@ class ButtonMapperService : AccessibilityService() {
 
         if (!actualIsContinuous) return
 
-        val isScroll = action == SettingsManager.ACTION_SCROLL_UP_SMOOTH || action == SettingsManager.ACTION_SCROLL_DOWN_SMOOTH || action == "TAP_SCROLL_UP_SMOOTH" || action == "TAP_SCROLL_DOWN_SMOOTH"
+        val isScroll = action == SettingsManager.ACTION_SCROLL_UP_SMOOTH ||
+                action == SettingsManager.ACTION_SCROLL_DOWN_SMOOTH ||
+                action == SettingsManager.ACTION_SCROLL_UP_SMOOTH_FAST ||
+                action == SettingsManager.ACTION_SCROLL_DOWN_SMOOTH_FAST ||
+                action == "TAP_SCROLL_UP_SMOOTH" ||
+                action == "TAP_SCROLL_DOWN_SMOOTH"
         val delay = if (isScroll) 250L else 150L
 
         val task = object : Runnable {
@@ -628,6 +627,8 @@ class ButtonMapperService : AccessibilityService() {
             SettingsManager.ACTION_SCROLL_DOWN, "TAP_SCROLL_DOWN" -> { performScroll(false); true }
             SettingsManager.ACTION_SCROLL_UP_SMOOTH, "TAP_SCROLL_UP_SMOOTH" -> { performScroll(true); true }
             SettingsManager.ACTION_SCROLL_DOWN_SMOOTH, "TAP_SCROLL_DOWN_SMOOTH" -> { performScroll(false); true }
+            SettingsManager.ACTION_SCROLL_UP_SMOOTH_FAST -> { performScroll(true, multiplier = 2f); true }
+            SettingsManager.ACTION_SCROLL_DOWN_SMOOTH_FAST -> { performScroll(false, multiplier = 2f); true }
             SettingsManager.ACTION_NONE -> { Log.d(tag, "Action is NONE, key blocked."); true }
             else -> {
                 if (finalAction.startsWith(SettingsManager.PREFIX_APP)) {
@@ -1215,25 +1216,54 @@ class ButtonMapperService : AccessibilityService() {
         }
     }
 
-    private fun performScroll(up: Boolean) {
-        val wm = getSystemService(WINDOW_SERVICE) as WindowManager
-        val bounds = wm.currentWindowMetrics.bounds
-        val centerX = bounds.width() / 2f
-        val centerY = bounds.height() / 2f
+    private fun performScroll(up: Boolean, multiplier: Float = 1f) {
+        val metrics = resources.displayMetrics
+        val width = metrics.widthPixels
+        val height = metrics.heightPixels
+        val centerX = width / 2f
+        val centerY = height / 2f
 
         val path = Path()
-        val distance = 112.5f
+        // Standard Smooth Scroll (Pixel-based as requested)
+        val distance = 112.5f * multiplier
         if (up) {
-            path.moveTo(centerX, centerY - distance)
-            path.lineTo(centerX, centerY + distance)
+            path.moveTo(centerX, (centerY - distance).coerceAtLeast(0f))
+            path.lineTo(centerX, (centerY + distance).coerceAtMost(height.toFloat()))
         } else {
-            path.moveTo(centerX, centerY + distance)
-            path.lineTo(centerX, centerY - distance)
+            path.moveTo(centerX, (centerY + distance).coerceAtMost(height.toFloat()))
+            path.lineTo(centerX, (centerY - distance).coerceAtLeast(0f))
         }
 
-        val stroke = GestureDescription.StrokeDescription(path, 0, 200)
-        val gesture = GestureDescription.Builder().addStroke(stroke).build()
+        val gesture = GestureDescription.Builder()
+            .addStroke(GestureDescription.StrokeDescription(path, 0, 200))
+            .build()
         dispatchGesture(gesture, null, null)
+    }
+
+    private fun findBestScrollableNode(root: AccessibilityNodeInfo): AccessibilityNodeInfo? {
+        val deque = java.util.ArrayDeque<AccessibilityNodeInfo>()
+        deque.add(root)
+        var bestNode: AccessibilityNodeInfo? = null
+        var maxArea = -1
+
+        while (deque.isNotEmpty()) {
+            val node = deque.removeFirst()
+            if (node.isScrollable) {
+                val rect = android.graphics.Rect()
+                node.getBoundsInScreen(rect)
+                val area = rect.width() * rect.height()
+                if (area > maxArea) {
+                    maxArea = area
+                    bestNode?.recycle()
+                    bestNode = AccessibilityNodeInfo.obtain(node)
+                }
+            }
+            for (i in 0 until node.childCount) {
+                node.getChild(i)?.let { deque.add(it) }
+            }
+            if (node != bestNode) node.recycle()
+        }
+        return bestNode
     }
 
     override fun onDestroy() {

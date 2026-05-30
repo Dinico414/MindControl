@@ -30,6 +30,8 @@ object SettingsManager {
     const val ACTION_SCROLL_DOWN = "SCROLL_DOWN"
     const val ACTION_SCROLL_UP_SMOOTH = "SCROLL_UP_SMOOTH"
     const val ACTION_SCROLL_DOWN_SMOOTH = "SCROLL_DOWN_SMOOTH"
+    const val ACTION_SCROLL_UP_SMOOTH_FAST = "SCROLL_UP_SMOOTH_FAST"
+    const val ACTION_SCROLL_DOWN_SMOOTH_FAST = "SCROLL_DOWN_SMOOTH_FAST"
 
     const val ACTION_SHOW_MENU = "SHOW_MENU"
     const val ACTION_LAST_APP = "LAST_APP"
@@ -82,8 +84,23 @@ object SettingsManager {
         context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
 
     fun getAction(context: Context, keyCode: Int, state: String, type: String): String {
-        return prefs(context).getString("btn_${keyCode}_${state}_${type}", ACTION_DEFAULT)
-            ?: ACTION_DEFAULT
+        val prefs = prefs(context)
+        val value = prefs.getString("btn_${keyCode}_${state}_${type}", null)
+        if (value != null) return value
+
+        // Fallback for old naming to preserve user settings
+        val oldType = when (type) {
+            "SINGLE_PRESS" -> "SINGLE"
+            "DOUBLE_PRESS" -> "DOUBLE"
+            "TRIPLE_PRESS" -> "TRIPLE"
+            "HOLD" -> "LONG"
+            else -> null
+        }
+        if (oldType != null) {
+            return prefs.getString("btn_${keyCode}_${state}_${oldType}", ACTION_DEFAULT) ?: ACTION_DEFAULT
+        }
+
+        return ACTION_DEFAULT
     }
 
     fun setAction(context: Context, keyCode: Int, state: String, type: String, action: String) {

@@ -67,6 +67,8 @@ import androidx.compose.material.icons.automirrored.rounded.VolumeUp
 import androidx.compose.material.icons.filled.AddCircle
 import androidx.compose.material.icons.filled.RemoveCircle
 import androidx.compose.material.icons.rounded.Apps
+import androidx.compose.material.icons.rounded.ArrowCircleDown
+import androidx.compose.material.icons.rounded.ArrowCircleUp
 import androidx.compose.material.icons.rounded.Assistant
 import androidx.compose.material.icons.rounded.Block
 import androidx.compose.material.icons.rounded.Bluetooth
@@ -115,6 +117,8 @@ import androidx.compose.material.icons.rounded.SkipNext
 import androidx.compose.material.icons.rounded.SkipPrevious
 import androidx.compose.material.icons.rounded.Stop
 import androidx.compose.material.icons.rounded.Tune
+import androidx.compose.material.icons.rounded.VerticalAlignBottom
+import androidx.compose.material.icons.rounded.VerticalAlignTop
 import androidx.compose.material.icons.rounded.Vibration
 import androidx.compose.material.icons.rounded.Wifi
 import androidx.compose.material3.Button
@@ -1428,8 +1432,10 @@ fun ButtonConfigScreen(
 
                 Spacer(modifier = Modifier.height(16.dp))
 
-                val types = if (keyCode == 132 || keyCode == 133) listOf("SINGLE")
-                else listOf("SINGLE", "DOUBLE", "TRIPLE", "LONG")
+                val pressTypes = if (keyCode == 132 || keyCode == 133) listOf("SINGLE_PRESS")
+                else listOf("SINGLE_PRESS", "DOUBLE_PRESS", "TRIPLE_PRESS")
+                val holdTypes = if (keyCode == 132 || keyCode == 133) emptyList()
+                else listOf("HOLD", "PRESS_AND_HOLD")
 
                 Column(
                     modifier = Modifier
@@ -1438,16 +1444,16 @@ fun ButtonConfigScreen(
                         .padding(horizontal = 16.dp),
                     verticalArrangement = Arrangement.spacedBy(2.dp)
                 ) {
-                    types.forEachIndexed { index, type ->
+                    pressTypes.forEachIndexed { index, type ->
                         val shape = when {
-                            types.size == 1 -> RoundedCornerShape(MediumCornerRadius)
+                            pressTypes.size == 1 -> RoundedCornerShape(MediumCornerRadius)
                             index == 0 -> RoundedCornerShape(
                                 topStart = MediumCornerRadius,
                                 topEnd = MediumCornerRadius,
                                 bottomStart = SmallestCornerRadius,
                                 bottomEnd = SmallestCornerRadius
                             )
-                            index == types.size - 1 -> RoundedCornerShape(
+                            index == pressTypes.size - 1 -> RoundedCornerShape(
                                 topStart = SmallestCornerRadius,
                                 topEnd = SmallestCornerRadius,
                                 bottomStart = MediumCornerRadius,
@@ -1462,6 +1468,36 @@ fun ButtonConfigScreen(
                             modifier = Modifier.fillMaxWidth()
                         ) {
                             MindControlActionSelector(keyCode, stateStr, type, onSelectAction)
+                        }
+                    }
+
+                    if (holdTypes.isNotEmpty()) {
+                        Spacer(modifier = Modifier.height(14.dp)) // 14 + 2 (from verticalArrangement) = 16dp
+                        holdTypes.forEachIndexed { index, type ->
+                            val shape = when {
+                                holdTypes.size == 1 -> RoundedCornerShape(MediumCornerRadius)
+                                index == 0 -> RoundedCornerShape(
+                                    topStart = MediumCornerRadius,
+                                    topEnd = MediumCornerRadius,
+                                    bottomStart = SmallestCornerRadius,
+                                    bottomEnd = SmallestCornerRadius
+                                )
+                                index == holdTypes.size - 1 -> RoundedCornerShape(
+                                    topStart = SmallestCornerRadius,
+                                    topEnd = SmallestCornerRadius,
+                                    bottomStart = MediumCornerRadius,
+                                    bottomEnd = MediumCornerRadius
+                                )
+                                else -> RoundedCornerShape(SmallestCornerRadius)
+                            }
+
+                            Surface(
+                                color = MaterialTheme.colorScheme.surfaceContainer,
+                                shape = shape,
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
+                                MindControlActionSelector(keyCode, stateStr, type, onSelectAction)
+                            }
                         }
                     }
                 }
@@ -1505,6 +1541,10 @@ fun MindControlActionSelector(
         }
     }
 
+    val displayType = type.split("_").joinToString(" ") { word ->
+        word.lowercase().replaceFirstChar { if (it.isLowerCase()) it.titlecase() else it.toString() }
+    }
+
     Row(
         verticalAlignment = Alignment.CenterVertically,
         modifier = Modifier
@@ -1513,7 +1553,7 @@ fun MindControlActionSelector(
             .padding(horizontal = 16.dp)
     ) {
         Text(
-            text = "$type: ",
+            text = "$displayType: ",
             modifier = Modifier.widthIn(min = 80.dp),
             color = MaterialTheme.colorScheme.onSurface,
             style = MaterialTheme.typography.bodyLarge,
@@ -1587,10 +1627,12 @@ fun ActionIcon(action: String, modifier: Modifier = Modifier, tint: Color = Loca
         action == SettingsManager.ACTION_POWER_DIALOG -> Icons.Rounded.PowerSettingsNew
         action == SettingsManager.ACTION_GOOGLE_SEARCH -> Icons.Rounded.Search
         action == SettingsManager.ACTION_ASSISTANT -> Icons.Rounded.Assistant
-        action == SettingsManager.ACTION_SCROLL_UP -> Icons.Rounded.KeyboardArrowUp
-        action == SettingsManager.ACTION_SCROLL_DOWN -> Icons.Rounded.KeyboardArrowDown
-        action == SettingsManager.ACTION_SCROLL_UP_SMOOTH -> Icons.Rounded.KeyboardDoubleArrowUp
-        action == SettingsManager.ACTION_SCROLL_DOWN_SMOOTH -> Icons.Rounded.KeyboardDoubleArrowDown
+        action == SettingsManager.ACTION_SCROLL_UP -> Icons.Rounded.ArrowCircleUp
+        action == SettingsManager.ACTION_SCROLL_DOWN -> Icons.Rounded.ArrowCircleDown
+        action == SettingsManager.ACTION_SCROLL_UP_SMOOTH -> Icons.Rounded.KeyboardArrowUp
+        action == SettingsManager.ACTION_SCROLL_DOWN_SMOOTH -> Icons.Rounded.KeyboardArrowDown
+        action == SettingsManager.ACTION_SCROLL_UP_SMOOTH_FAST -> Icons.Rounded.KeyboardDoubleArrowUp
+        action == SettingsManager.ACTION_SCROLL_DOWN_SMOOTH_FAST -> Icons.Rounded.KeyboardDoubleArrowDown
         action == SettingsManager.ACTION_COPY -> Icons.Rounded.ContentCopy
         action == SettingsManager.ACTION_CUT -> Icons.Rounded.ContentCut
         action == SettingsManager.ACTION_PASTE -> Icons.Rounded.ContentPaste
@@ -1660,6 +1702,10 @@ fun ActionSelectionScreen(
         }
     }
 
+    val displayType = config.type.split("_").joinToString(" ") { word ->
+        word.lowercase().replaceFirstChar { if (it.isLowerCase()) it.titlecase() else it.toString() }
+    }
+
     Surface(color = backgroundColor, modifier = Modifier.fillMaxSize()) {
         Column(modifier = modifier.fillMaxSize()) {
             Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(8.dp)) {
@@ -1671,7 +1717,7 @@ fun ActionSelectionScreen(
                     )
                 }
                 Text(
-                    "Select Action for ${config.type}",
+                    "Select Action for $displayType",
                     style = MaterialTheme.typography.titleLarge,
                     color = MaterialTheme.colorScheme.onBackground
                 )
@@ -1760,6 +1806,8 @@ fun ActionsTab(
         SettingsManager.ACTION_SCROLL_DOWN,
         SettingsManager.ACTION_SCROLL_UP_SMOOTH,
         SettingsManager.ACTION_SCROLL_DOWN_SMOOTH,
+        SettingsManager.ACTION_SCROLL_UP_SMOOTH_FAST,
+        SettingsManager.ACTION_SCROLL_DOWN_SMOOTH_FAST,
         SettingsManager.ACTION_COPY,
         SettingsManager.ACTION_CUT,
         SettingsManager.ACTION_PASTE,
