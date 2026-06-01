@@ -2,6 +2,7 @@ package com.xenonware.mindcontrol
 
 import android.accessibilityservice.AccessibilityService
 import android.accessibilityservice.GestureDescription
+import android.annotation.SuppressLint
 import android.app.ActivityOptions
 import android.app.KeyguardManager
 import android.app.Notification
@@ -9,31 +10,27 @@ import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.app.PendingIntent
 import android.content.ComponentName
-import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
-import android.content.res.Configuration
 import android.graphics.Path
 import android.hardware.camera2.CameraManager
 import android.location.LocationManager
 import android.media.AudioManager
-import android.media.session.MediaController
 import android.media.session.MediaSessionManager
 import android.os.Build
-import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
 import android.os.PowerManager
 import android.provider.Settings
 import android.util.Log
 import android.view.KeyEvent
-import android.view.WindowManager
 import android.view.accessibility.AccessibilityEvent
 import android.view.accessibility.AccessibilityNodeInfo
-import android.widget.Toast // TOAST
+import androidx.core.net.toUri
 import rikka.shizuku.Shizuku
 import kotlin.math.max
 
+@SuppressLint("AccessibilityPolicy")
 class ButtonMapperService : AccessibilityService() {
 
     private val tag = "ButtonMapper"
@@ -75,23 +72,16 @@ class ButtonMapperService : AccessibilityService() {
     }
 
     private fun isTextFieldFocused(): Boolean {
-        var focusedNode: AccessibilityNodeInfo? = null
         try {
             val rootNode = rootInActiveWindow ?: return false
             // Find the node that currently has keyboard input focus
-            focusedNode = rootNode.findFocus(AccessibilityNodeInfo.FOCUS_INPUT)
-
-            if (focusedNode != null) {
-                // Check if the node is marked as editable or is an EditText class
-                val isEditable = focusedNode.isEditable
-                val isEditText = focusedNode.className?.toString()?.contains("EditText") == true
-                return isEditable || isEditText
-            }
+            val focusedNode = rootNode.findFocus(AccessibilityNodeInfo.FOCUS_INPUT) ?: return false
+            // Check if the node is marked as editable or is an EditText class
+            val isEditable = focusedNode.isEditable
+            val isEditText = focusedNode.className?.toString()?.contains("EditText") == true
+            return isEditable || isEditText
         } catch (e: Exception) {
             Log.e(tag, "Error checking focused node", e)
-        } finally {
-            // Always recycle nodes to prevent memory leaks
-            focusedNode?.recycle()
         }
         return false
     }
@@ -122,7 +112,7 @@ class ButtonMapperService : AccessibilityService() {
         cameraManager.registerAvailabilityCallback(cameraCallback, handler)
 
         wakeLock = powerManager.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "MindControl:KeyCaptureLock")
-        wakeLock?.acquire()
+        wakeLock?.acquire(10*60*1000L /*10 minutes*/)
 
         Shizuku.addBinderReceivedListenerSticky(binderListener)
         Shizuku.addRequestPermissionResultListener(permissionListener)
@@ -235,15 +225,14 @@ class ButtonMapperService : AccessibilityService() {
 
             if (keyCode == 132 || keyCode == 133) return
 
-            val capturedState = state
             val capturedClickCount = clickCount
             val longPressRunnable = Runnable {
                 isLongPress[keyCode] = true
                 val type = if (capturedClickCount == 0) "HOLD" else "PRESS_AND_HOLD"
-                Log.d(tag, "Long Press triggered: $type for $keyCode (state=$capturedState)")
-                performAction(keyCode, capturedState, type)
+                Log.d(tag, "Long Press triggered: $type for $keyCode (state=$state)")
+                performAction(keyCode, state, type)
                 if (!isVolumeSkipActive) {
-                    startContinuousAction(keyCode, capturedState, type)
+                    startContinuousAction(keyCode, state, type)
                 }
             }
             longPressRunnables[keyCode] = longPressRunnable
@@ -272,15 +261,13 @@ class ButtonMapperService : AccessibilityService() {
             }
 
             clickCount++
-            val capturedKeyCode = keyCode
-            val capturedState = state
 
             val multiClickRunnable = Runnable {
                 val type = when (clickCount) {
                     1 -> "SINGLE_PRESS"; 2 -> "DOUBLE_PRESS"; 3 -> "TRIPLE_PRESS"; else -> "MULTI"
                 }
-                Log.d(tag, "Multi-click triggered: $type for $capturedKeyCode (state=$capturedState)")
-                performAction(capturedKeyCode, capturedState, type)
+                Log.d(tag, "Multi-click triggered: $type for $keyCode (state=$state)")
+                performAction(keyCode, state, type)
                 clickCount = 0
                 pendingMultiClick = null
             }
@@ -369,9 +356,7 @@ class ButtonMapperService : AccessibilityService() {
         }
         
         // ── Volume panel pass-through ──────────────────────────────────────────
-        if (isVolumeKey && isInteractive
-            && SettingsManager.isDefaultWhenVolumeVisible(this)
-            && isVolumePanelVisibleState
+        if (isVolumeKey && SettingsManager.isDefaultWhenVolumeVisible(this) && isVolumePanelVisibleState
         ) {
             markVolumePanelVisible()
             updateButtonState()
@@ -709,7 +694,7 @@ class ButtonMapperService : AccessibilityService() {
         intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
         try {
             startActivity(intent)
-        } catch (e: Exception) {
+        } catch (_: Exception) {
             Log.d(tag, "ACTION_VOICE_COMMAND failed, falling back to Assist")
             // Fallback to the standard assist overlay if the voice intent is not handled
             if (!performGlobalAction(16)) { // GLOBAL_ACTION_ASSIST
@@ -775,20 +760,12 @@ class ButtonMapperService : AccessibilityService() {
     }
 
     private fun performClipboardAction(actionId: Int): Boolean {
-        // Try to find the node with input focus first
-        var node = rootInActiveWindow?.findFocus(AccessibilityNodeInfo.FOCUS_INPUT)
-        
-        // If not found, try to find the generally focused node
-        if (node == null) {
-            node = rootInActiveWindow?.findFocus(AccessibilityNodeInfo.FOCUS_ACCESSIBILITY)
-        }
+        // Try the input-focused node first, then fall back to the accessibility-focused node
+        val node = rootInActiveWindow?.findFocus(AccessibilityNodeInfo.FOCUS_INPUT)
+            ?: rootInActiveWindow?.findFocus(AccessibilityNodeInfo.FOCUS_ACCESSIBILITY)
+            ?: return false
 
-        if (node != null) {
-            val success = node.performAction(actionId)
-            node.recycle()
-            return success
-        }
-        return false
+        return node.performAction(actionId)
     }
 
     private fun launchApp(packageName: String): Boolean {
@@ -819,15 +796,16 @@ class ButtonMapperService : AccessibilityService() {
                 val flags = PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT
                 val pendingIntent = PendingIntent.getActivity(this, 0, intent, flags)
 
-                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
-                    val bundle = ActivityOptions.makeBasic()
-                        .setPendingIntentBackgroundActivityStartMode(
-                            ActivityOptions.MODE_BACKGROUND_ACTIVITY_START_ALLOWED
-                        ).toBundle()
-                    pendingIntent.send(bundle)
+                val startMode = if (Build.VERSION.SDK_INT >= 36) {
+                    ActivityOptions.MODE_BACKGROUND_ACTIVITY_START_ALLOW_ALWAYS
                 } else {
-                    pendingIntent.send()
+                    @Suppress("DEPRECATION")
+                    ActivityOptions.MODE_BACKGROUND_ACTIVITY_START_ALLOWED
                 }
+                val bundle = ActivityOptions.makeBasic()
+                    .setPendingIntentBackgroundActivityStartMode(startMode)
+                    .toBundle()
+                pendingIntent.send(bundle)
             } else {
                 Log.d(tag, "Launching shortcut via package name: $data")
                 val intent = packageManager.getLaunchIntentForPackage(data)
@@ -843,7 +821,7 @@ class ButtonMapperService : AccessibilityService() {
 
     private fun launchSpeedDial(number: String) {
         val intent = Intent(Intent.ACTION_CALL)
-        intent.data = android.net.Uri.parse("tel:$number")
+        intent.data = "tel:$number".toUri()
         intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
         try {
             startActivity(intent)
@@ -851,7 +829,7 @@ class ButtonMapperService : AccessibilityService() {
             Log.e(tag, "Speed dial error", e)
             // Fallback to dialer if CALL permission is not granted
             val dialIntent = Intent(Intent.ACTION_DIAL)
-            dialIntent.data = android.net.Uri.parse("tel:$number")
+            dialIntent.data = "tel:$number".toUri()
             dialIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
             try {
                 startActivity(dialIntent)
@@ -867,7 +845,7 @@ class ButtonMapperService : AccessibilityService() {
             finalUrl = "https://$finalUrl"
         }
         val intent = Intent(Intent.ACTION_VIEW)
-        intent.data = android.net.Uri.parse(finalUrl)
+        intent.data = finalUrl.toUri()
         intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
         try {
             startActivity(intent)
@@ -1015,7 +993,7 @@ class ButtonMapperService : AccessibilityService() {
             
             val current = try {
                 Settings.System.getInt(contentResolver, Settings.System.USER_ROTATION)
-            } catch (e: Exception) { 0 }
+            } catch (_: Exception) { 0 }
             
             // Toggle specifically between Portrait (0) and Landscape (1)
             val next = if (current == 0) 1 else 0
@@ -1034,7 +1012,7 @@ class ButtonMapperService : AccessibilityService() {
             
             val current = try {
                 Settings.System.getInt(contentResolver, Settings.System.USER_ROTATION)
-            } catch (e: Exception) { 0 }
+            } catch (_: Exception) { 0 }
             
             // Cycle through all 4 orientations (0, 1, 2, 3)
             val next = (current + 1) % 4
@@ -1050,7 +1028,7 @@ class ButtonMapperService : AccessibilityService() {
         try {
             val current = try {
                 Settings.System.getInt(contentResolver, Settings.System.ACCELEROMETER_ROTATION)
-            } catch (e: Exception) { 0 }
+            } catch (_: Exception) { 0 }
             
             val next = if (current == 1) 0 else 1
             Settings.System.putInt(contentResolver, Settings.System.ACCELEROMETER_ROTATION, next)
@@ -1064,7 +1042,7 @@ class ButtonMapperService : AccessibilityService() {
         try {
             val mode = try {
                 Settings.System.getInt(contentResolver, Settings.System.SCREEN_BRIGHTNESS_MODE)
-            } catch (e: Exception) { Settings.System.SCREEN_BRIGHTNESS_MODE_MANUAL }
+            } catch (_: Exception) { Settings.System.SCREEN_BRIGHTNESS_MODE_MANUAL }
 
             val next = if (mode == Settings.System.SCREEN_BRIGHTNESS_MODE_AUTOMATIC) {
                 Settings.System.SCREEN_BRIGHTNESS_MODE_MANUAL
@@ -1207,7 +1185,7 @@ class ButtonMapperService : AccessibilityService() {
                 Log.d(tag, "Media Skip: No active media session, using fallback key events")
                 dispatchMediaKey(if (forward) KeyEvent.KEYCODE_MEDIA_NEXT else KeyEvent.KEYCODE_MEDIA_PREVIOUS)
             }
-        } catch (e: SecurityException) {
+        } catch (_: SecurityException) {
             Log.e(tag, "Media Skip: Notification Access NOT granted!")
             dispatchMediaKey(if (forward) KeyEvent.KEYCODE_MEDIA_NEXT else KeyEvent.KEYCODE_MEDIA_PREVIOUS)
         } catch (e: Exception) {
@@ -1238,32 +1216,6 @@ class ButtonMapperService : AccessibilityService() {
             .addStroke(GestureDescription.StrokeDescription(path, 0, 200))
             .build()
         dispatchGesture(gesture, null, null)
-    }
-
-    private fun findBestScrollableNode(root: AccessibilityNodeInfo): AccessibilityNodeInfo? {
-        val deque = java.util.ArrayDeque<AccessibilityNodeInfo>()
-        deque.add(root)
-        var bestNode: AccessibilityNodeInfo? = null
-        var maxArea = -1
-
-        while (deque.isNotEmpty()) {
-            val node = deque.removeFirst()
-            if (node.isScrollable) {
-                val rect = android.graphics.Rect()
-                node.getBoundsInScreen(rect)
-                val area = rect.width() * rect.height()
-                if (area > maxArea) {
-                    maxArea = area
-                    bestNode?.recycle()
-                    bestNode = AccessibilityNodeInfo.obtain(node)
-                }
-            }
-            for (i in 0 until node.childCount) {
-                node.getChild(i)?.let { deque.add(it) }
-            }
-            if (node != bestNode) node.recycle()
-        }
-        return bestNode
     }
 
     override fun onDestroy() {

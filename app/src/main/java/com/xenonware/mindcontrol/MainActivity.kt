@@ -41,7 +41,6 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.asPaddingValues
-import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -117,8 +116,6 @@ import androidx.compose.material.icons.rounded.SkipNext
 import androidx.compose.material.icons.rounded.SkipPrevious
 import androidx.compose.material.icons.rounded.Stop
 import androidx.compose.material.icons.rounded.Tune
-import androidx.compose.material.icons.rounded.VerticalAlignBottom
-import androidx.compose.material.icons.rounded.VerticalAlignTop
 import androidx.compose.material.icons.rounded.Vibration
 import androidx.compose.material.icons.rounded.Wifi
 import androidx.compose.material3.Button
@@ -156,7 +153,6 @@ import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.asImageBitmap
-import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
@@ -312,8 +308,6 @@ fun MindControlMainScreen(
     SideEffect {
         val window = (context as ComponentActivity).window
         val insetsController = WindowCompat.getInsetsController(window, view)
-        window.statusBarColor = Color.Transparent.toArgb()
-        window.navigationBarColor = Color.Transparent.toArgb()
 
         if (state == "grid" || state == "keyboard") {
             insetsController.isAppearanceLightStatusBars = false
@@ -323,6 +317,7 @@ fun MindControlMainScreen(
             insetsController.isAppearanceLightNavigationBars = !isDark
         }
     }
+
     PredictiveBackHandler(enabled = state != "grid") { progress ->
         try {
             progress.collect { }
@@ -1474,15 +1469,14 @@ fun ButtonConfigScreen(
                     if (holdTypes.isNotEmpty()) {
                         Spacer(modifier = Modifier.height(14.dp)) // 14 + 2 (from verticalArrangement) = 16dp
                         holdTypes.forEachIndexed { index, type ->
-                            val shape = when {
-                                holdTypes.size == 1 -> RoundedCornerShape(MediumCornerRadius)
-                                index == 0 -> RoundedCornerShape(
+                            val shape = when (index) {
+                                0 -> RoundedCornerShape(
                                     topStart = MediumCornerRadius,
                                     topEnd = MediumCornerRadius,
                                     bottomStart = SmallestCornerRadius,
                                     bottomEnd = SmallestCornerRadius
                                 )
-                                index == holdTypes.size - 1 -> RoundedCornerShape(
+                                holdTypes.size - 1 -> RoundedCornerShape(
                                     topStart = SmallestCornerRadius,
                                     topEnd = SmallestCornerRadius,
                                     bottomStart = MediumCornerRadius,
@@ -1941,6 +1935,7 @@ fun ShortcutsTab(
     val scope = rememberCoroutineScope()
     val shortcutItems = remember { mutableStateListOf<ShortcutItem>() }
 
+    @Suppress("DEPRECATION")
     val shortcutLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.StartActivityForResult()
     ) { result ->
