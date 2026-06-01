@@ -12,6 +12,7 @@ import android.app.PendingIntent
 import android.content.ComponentName
 import android.content.Intent
 import android.content.pm.PackageManager
+import android.content.pm.ServiceInfo
 import android.graphics.Path
 import android.hardware.camera2.CameraManager
 import android.location.LocationManager
@@ -104,7 +105,7 @@ class ButtonMapperService : AccessibilityService() {
             .setContentText("Monitoring hardware buttons...")
             .setSmallIcon(android.R.drawable.ic_menu_preferences)
             .build()
-        startForeground(1, notification)
+        startForeground(1, notification, ServiceInfo.FOREGROUND_SERVICE_TYPE_SPECIAL_USE)
 
         cameraManager = getSystemService(CAMERA_SERVICE) as CameraManager
         audioManager = getSystemService(AUDIO_SERVICE) as AudioManager

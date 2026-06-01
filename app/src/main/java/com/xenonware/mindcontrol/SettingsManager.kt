@@ -1,6 +1,7 @@
 package com.xenonware.mindcontrol
 
 import android.content.Context
+import android.content.SharedPreferences
 import androidx.core.content.edit
 import com.xenonware.mindcontrol.ui.theme.Palette
 
@@ -80,8 +81,14 @@ object SettingsManager {
     private const val KEY_DEVICE_PALETTE = "device_palette"
     private const val KEY_KEYBOARD_PALETTE = "keyboard_palette"
 
-    private fun prefs(context: Context) =
-        context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+    private fun prefs(context: Context): SharedPreferences {
+        val deviceProtectedContext = context.createDeviceProtectedStorageContext()
+        
+        // Migrate existing preferences if necessary
+        deviceProtectedContext.moveSharedPreferencesFrom(context, PREFS_NAME)
+        
+        return deviceProtectedContext.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+    }
 
     fun getAction(context: Context, keyCode: Int, state: String, type: String): String {
         val prefs = prefs(context)
