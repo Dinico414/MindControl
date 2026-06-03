@@ -19,7 +19,7 @@ object SettingsManager {
     const val ACTION_SCREENSHOT = "SCREENSHOT"
     const val ACTION_LOCK = "LOCK"
     const val ACTION_LOCK_AOD = "LOCK_AOD"
-    const val ACTION_PIXEL_WATCH = "PIXEL_WATCH"
+    const val ACTION_LOCK_MEDIA_AOD = "LOCK_MEDIA_AOD"
     const val ACTION_BRIGHTNESS_UP = "BRIGHTNESS_UP"
     const val ACTION_BRIGHTNESS_DOWN = "BRIGHTNESS_DOWN"
     const val ACTION_HOME = "HOME"

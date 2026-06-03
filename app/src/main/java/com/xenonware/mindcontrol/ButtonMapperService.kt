@@ -586,7 +586,11 @@ class ButtonMapperService : AccessibilityService() {
                 handler.postDelayed({ startWatchActivity() }, 500)
                 true
             }
-            SettingsManager.ACTION_PIXEL_WATCH -> { startWatchActivity(); true }
+            SettingsManager.ACTION_LOCK_MEDIA_AOD -> {
+                performGlobalAction(GLOBAL_ACTION_LOCK_SCREEN)
+                handler.postDelayed({ startMediaWatchActivity() }, 500)
+                true
+            }
             SettingsManager.ACTION_HOME -> performGlobalAction(GLOBAL_ACTION_HOME)
             SettingsManager.ACTION_BACK -> performGlobalAction(GLOBAL_ACTION_BACK)
             SettingsManager.ACTION_RECENTS -> performGlobalAction(GLOBAL_ACTION_RECENTS)
@@ -882,6 +886,18 @@ class ButtonMapperService : AccessibilityService() {
             startActivity(intent)
         } catch (e: Exception) {
             Log.e(tag, "Watch show error", e)
+        }
+    }
+
+    private fun startMediaWatchActivity() {
+        val intent = Intent(this, MediaWatchActivity::class.java)
+        intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+        intent.addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP)
+        intent.addFlags(Intent.FLAG_ACTIVITY_NO_ANIMATION)
+        try {
+            startActivity(intent)
+        } catch (e: Exception) {
+            Log.e(tag, "Media Watch show error", e)
         }
     }
 

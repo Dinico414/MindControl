@@ -1615,7 +1615,7 @@ fun ActionIcon(action: String, modifier: Modifier = Modifier, tint: Color = Loca
         action == SettingsManager.ACTION_SHOW_MENU -> Icons.Rounded.Menu
         action == SettingsManager.ACTION_LOCK -> Icons.Rounded.Lock
         action == SettingsManager.ACTION_LOCK_AOD -> Icons.Rounded.Lock
-        action == SettingsManager.ACTION_PIXEL_WATCH -> Icons.Rounded.Watch
+        action == SettingsManager.ACTION_LOCK_MEDIA_AOD -> Icons.Rounded.Watch
         action == SettingsManager.ACTION_FLASHLIGHT -> Icons.Rounded.FlashlightOn
         action == SettingsManager.ACTION_SCREENSHOT -> Icons.Rounded.Screenshot
         action == SettingsManager.ACTION_QUICK_SETTINGS -> Icons.Rounded.Settings
@@ -1792,7 +1792,7 @@ fun ActionsTab(
         SettingsManager.ACTION_SHOW_MENU,
         SettingsManager.ACTION_LOCK,
         SettingsManager.ACTION_LOCK_AOD,
-        SettingsManager.ACTION_PIXEL_WATCH,
+        SettingsManager.ACTION_LOCK_MEDIA_AOD,
         SettingsManager.ACTION_FLASHLIGHT,
         SettingsManager.ACTION_SCREENSHOT,
         SettingsManager.ACTION_QUICK_SETTINGS,
@@ -2108,6 +2108,7 @@ fun MediaTab(
     shizukuReady: Boolean,
 ) {
     val actions = listOf(
+        SettingsManager.ACTION_LOCK_MEDIA_AOD,
         SettingsManager.ACTION_VOLUME_UP,
         SettingsManager.ACTION_VOLUME_DOWN,
         SettingsManager.ACTION_MUTE_VOL,
