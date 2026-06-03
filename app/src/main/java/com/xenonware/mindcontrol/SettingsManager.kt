@@ -18,6 +18,7 @@ object SettingsManager {
     const val ACTION_FLASHLIGHT = "FLASHLIGHT"
     const val ACTION_SCREENSHOT = "SCREENSHOT"
     const val ACTION_LOCK = "LOCK"
+    const val ACTION_AOD = "AOD"
     const val ACTION_LOCK_AOD = "LOCK_AOD"
     const val ACTION_LOCK_MEDIA_AOD = "LOCK_MEDIA_AOD"
     const val ACTION_BRIGHTNESS_UP = "BRIGHTNESS_UP"
@@ -82,6 +83,11 @@ object SettingsManager {
     private const val KEY_VOLUME_LONG_PRESS_SKIP = "volume_long_press_skip"
     private const val KEY_DEVICE_PALETTE = "device_palette"
     private const val KEY_KEYBOARD_PALETTE = "keyboard_palette"
+    private const val KEY_AOD_STYLE = "aod_style"
+
+    enum class AodStyle {
+        CONCENTRIC, STACKED, INLINE
+    }
 
     private fun prefs(context: Context): SharedPreferences {
         val deviceProtectedContext = context.createDeviceProtectedStorageContext()
@@ -156,5 +162,12 @@ object SettingsManager {
 
     fun setKeyboardPalette(context: Context, palette: Palette) {
         prefs(context).edit { putString(KEY_KEYBOARD_PALETTE, palette.name) }
+    }
+
+    fun getAodStyle(context: Context): AodStyle =
+        AodStyle.valueOf(prefs(context).getString(KEY_AOD_STYLE, AodStyle.CONCENTRIC.name)!!)
+
+    fun setAodStyle(context: Context, style: AodStyle) {
+        prefs(context).edit { putString(KEY_AOD_STYLE, style.name) }
     }
 }

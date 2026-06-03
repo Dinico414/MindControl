@@ -41,6 +41,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.asPaddingValues
+import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -53,6 +54,7 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
@@ -96,7 +98,6 @@ import androidx.compose.material.icons.rounded.KeyboardDoubleArrowUp
 import androidx.compose.material.icons.rounded.Language
 import androidx.compose.material.icons.rounded.LocationOn
 import androidx.compose.material.icons.rounded.Lock
-import androidx.compose.material.icons.rounded.Watch
 import androidx.compose.material.icons.rounded.Menu
 import androidx.compose.material.icons.rounded.MicOff
 import androidx.compose.material.icons.rounded.Nfc
@@ -118,11 +119,13 @@ import androidx.compose.material.icons.rounded.SkipPrevious
 import androidx.compose.material.icons.rounded.Stop
 import androidx.compose.material.icons.rounded.Tune
 import androidx.compose.material.icons.rounded.Vibration
+import androidx.compose.material.icons.rounded.Watch
 import androidx.compose.material.icons.rounded.Wifi
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -136,6 +139,8 @@ import androidx.compose.material3.PrimaryScrollableTabRow
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
+import androidx.compose.material3.carousel.HorizontalCenteredHeroCarousel
+import androidx.compose.material3.carousel.rememberCarouselState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.SideEffect
@@ -159,6 +164,7 @@ import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -170,6 +176,9 @@ import com.xenon.mylibrary.res.XenonDialog
 import com.xenon.mylibrary.theme.QuicksandTitleVariable
 import com.xenon.mylibrary.values.MediumCornerRadius
 import com.xenon.mylibrary.values.SmallestCornerRadius
+import com.xenonware.mindcontrol.ui.ConcentricAodStyle
+import com.xenonware.mindcontrol.ui.InlineAodStyle
+import com.xenonware.mindcontrol.ui.StackedAodStyle
 import com.xenonware.mindcontrol.ui.theme.BlueTheme
 import com.xenonware.mindcontrol.ui.theme.GreenTheme
 import com.xenonware.mindcontrol.ui.theme.Palette
@@ -1175,6 +1184,7 @@ fun TogglesContainer(
 
             if (showAccessibilityDisclosure) {
                 XenonDialog(
+                    properties = DialogProperties(usePlatformDefaultWidth = true),
                     onDismissRequest = { showAccessibilityDisclosure = false },
                     title = "Accessibility Disclosure",
                     confirmButtonText = "Grant Permission",
@@ -1614,6 +1624,7 @@ fun ActionIcon(action: String, modifier: Modifier = Modifier, tint: Color = Loca
         action == SettingsManager.ACTION_RECENTS -> Icons.Rounded.History
         action == SettingsManager.ACTION_SHOW_MENU -> Icons.Rounded.Menu
         action == SettingsManager.ACTION_LOCK -> Icons.Rounded.Lock
+        action == SettingsManager.ACTION_AOD -> Icons.Rounded.Watch
         action == SettingsManager.ACTION_LOCK_AOD -> Icons.Rounded.Lock
         action == SettingsManager.ACTION_LOCK_MEDIA_AOD -> Icons.Rounded.Watch
         action == SettingsManager.ACTION_FLASHLIGHT -> Icons.Rounded.FlashlightOn
@@ -1791,8 +1802,7 @@ fun ActionsTab(
         SettingsManager.ACTION_RECENTS,
         SettingsManager.ACTION_SHOW_MENU,
         SettingsManager.ACTION_LOCK,
-        SettingsManager.ACTION_LOCK_AOD,
-        SettingsManager.ACTION_LOCK_MEDIA_AOD,
+        SettingsManager.ACTION_AOD,
         SettingsManager.ACTION_FLASHLIGHT,
         SettingsManager.ACTION_SCREENSHOT,
         SettingsManager.ACTION_QUICK_SETTINGS,
@@ -2108,7 +2118,7 @@ fun MediaTab(
     shizukuReady: Boolean,
 ) {
     val actions = listOf(
-        SettingsManager.ACTION_LOCK_MEDIA_AOD,
+        SettingsManager.ACTION_AOD,
         SettingsManager.ACTION_VOLUME_UP,
         SettingsManager.ACTION_VOLUME_DOWN,
         SettingsManager.ACTION_MUTE_VOL,
@@ -2126,6 +2136,198 @@ fun MediaTab(
     ActionList(actions, config, onActionSelected, shizukuReady)
 }
 
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun AodStylePickerDialog(
+    onDismissRequest: () -> Unit,
+    onStyleSelected: (SettingsManager.AodStyle) -> Unit
+) {
+    val styles = SettingsManager.AodStyle.entries
+    val carouselState = rememberCarouselState(itemCount = { styles.size })
+    val selectedIndex = carouselState.currentItem
+    val scope = rememberCoroutineScope()
+    val configuration = LocalConfiguration.current
+    val screenWidth = configuration.screenWidthDp.dp
+    val estimatedCenterItemWidth = (screenWidth - 220.dp).coerceIn(140.dp, 260.dp)
+    val estimatedItemHeight = estimatedCenterItemWidth * 1.15f
+    val carouselHeight = estimatedItemHeight + 16.dp
+
+    XenonDialog(
+        onDismissRequest = onDismissRequest,
+        properties = DialogProperties(usePlatformDefaultWidth = true),
+        title = "Select AOD Style",
+        confirmButtonText = "Select",
+        onConfirmButtonClick = {
+            onStyleSelected(styles[selectedIndex])
+        },
+        contentManagesScrolling = true,
+        content = {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth(),
+                horizontalAlignment = Alignment.CenterHorizontally
+            ) {
+                HorizontalCenteredHeroCarousel(
+                    state = carouselState,
+                    maxItemWidth = estimatedCenterItemWidth,
+                    modifier = Modifier
+                        .height(carouselHeight)
+                        .fillMaxWidth(),
+                    itemSpacing = 8.dp,
+                    contentPadding = PaddingValues(horizontal = 24.dp)
+                ) { index ->
+                    val style = styles[index]
+                    val isSelected = selectedIndex == index
+                    
+                    val borderStroke = BorderStroke(
+                        if (isSelected) 4.dp else 2.dp, 
+                        if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.primary.copy(alpha = 0.5f)
+                    )
+                    val itemShape = MaterialTheme.shapes.extraLarge
+
+                    val styleName = when (style) {
+                        SettingsManager.AodStyle.CONCENTRIC -> "Concentric"
+                        SettingsManager.AodStyle.STACKED -> "Stacked"
+                        SettingsManager.AodStyle.INLINE -> "Inline"
+                    }
+
+                    AodStyleOption(
+                        name = styleName,
+                        style = style,
+                        isSelected = isSelected,
+                        onClick = { 
+                            scope.launch {
+                                carouselState.animateScrollToItem(index)
+                            }
+                        },
+                        modifier = Modifier
+                            .padding(vertical = 8.dp)
+                            .aspectRatio(1f / 1.15f)
+                            .maskClip(itemShape)
+                            .maskBorder(borderStroke, itemShape)
+                    )
+                }
+                
+//                Spacer(modifier = Modifier.height(16.dp))
+//
+//                // Page Indicator
+//                Row(
+//                    horizontalArrangement = Arrangement.Center,
+//                    verticalAlignment = Alignment.CenterVertically,
+//                    modifier = Modifier.padding(bottom = 8.dp)
+//                ) {
+//                    repeat(styles.size) { i ->
+//                        val active = selectedIndex == i
+//                        Box(
+//                            modifier = Modifier
+//                                .padding(4.dp)
+//                                .size(if (active) 10.dp else 8.dp)
+//                                .clip(CircleShape)
+//                                .background(
+//                                    if (active) MaterialTheme.colorScheme.primary
+//                                    else MaterialTheme.colorScheme.primary.copy(alpha = 0.3f)
+//                                )
+//                                .clickable {
+//                                    scope.launch {
+//                                        carouselState.animateScrollToItem(i)
+//                                    }
+//                                }
+//                        )
+//                    }
+//                }
+            }
+        }
+    )
+}
+
+@Composable
+fun AodStyleOption(
+    name: String,
+    style: SettingsManager.AodStyle,
+    isSelected: Boolean,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    Card(
+        modifier = modifier
+            .fillMaxSize()
+            .clickable(onClick = onClick),
+        colors = CardDefaults.cardColors(containerColor = Color.Black),
+        shape = androidx.compose.ui.graphics.RectangleShape
+    ) {
+        Box(modifier = Modifier.fillMaxSize()) {
+            // Preview
+            Box(modifier = Modifier.fillMaxSize().alpha(0.8f)) {
+                when (style) {
+                    SettingsManager.AodStyle.CONCENTRIC -> {
+                        ConcentricAodStyle(
+                            isActive = true,
+                            notifications = emptyList(),
+                            mediaInfo = null,
+                            isCharging = false,
+                            batteryLevel = 80,
+                            animatedTextAlpha = 0f,
+                            offsetY = 0f
+                        )
+                    }
+                    SettingsManager.AodStyle.STACKED -> {
+                        StackedAodStyle(
+                            isActive = true,
+                            notifications = emptyList(),
+                            mediaInfo = null,
+                            isCharging = false,
+                            batteryLevel = 80,
+                            animatedTextAlpha = 0f,
+                            offsetY = 0f
+                        )
+                    }
+                    SettingsManager.AodStyle.INLINE -> {
+                        InlineAodStyle(
+                            isActive = true,
+                            notifications = emptyList(),
+                            mediaInfo = null,
+                            isCharging = false,
+                            batteryLevel = 80,
+                            animatedTextAlpha = 0f,
+                            offsetY = 0f
+                        )
+                    }
+                }
+            }
+            
+            // Label overlay
+            Box(
+                modifier = Modifier
+                    .align(Alignment.BottomCenter)
+                    .fillMaxWidth()
+                    .background(Color.Black.copy(alpha = 0.6f))
+                    .padding(8.dp),
+                contentAlignment = Alignment.Center
+            ) {
+                Text(name, color = Color.White, fontWeight = FontWeight.Bold)
+            }
+            
+            if (isSelected) {
+                Box(
+                    modifier = Modifier
+                        .align(Alignment.TopEnd)
+                        .padding(8.dp)
+                        .size(24.dp)
+                        .clip(CircleShape)
+                        .background(MaterialTheme.colorScheme.primary),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(
+                        imageVector = Icons.Rounded.Watch,
+                        contentDescription = null,
+                        modifier = Modifier.size(16.dp),
+                        tint = MaterialTheme.colorScheme.onPrimary
+                    )
+                }
+            }
+        }
+    }
+}
 @Composable
 fun ActionList(
     actions: List<String>,
@@ -2135,7 +2337,20 @@ fun ActionList(
 ) {
     val context = LocalContext.current
     var showInputDialog by rememberSaveable { mutableStateOf<String?>(null) }
+    var showAodStyleDialog by rememberSaveable { mutableStateOf(false) }
     var inputValue by rememberSaveable { mutableStateOf("") }
+
+    if (showAodStyleDialog) {
+        AodStylePickerDialog(
+            onDismissRequest = { showAodStyleDialog = false },
+            onStyleSelected = { style ->
+                SettingsManager.setAodStyle(context, style)
+                SettingsManager.setAction(context, config.keyCode, config.state, config.type, SettingsManager.ACTION_AOD)
+                onActionSelected("AOD: ${style.name}")
+                showAodStyleDialog = false
+            }
+        )
+    }
 
     if (showInputDialog != null) {
         val title = when (showInputDialog) {
@@ -2242,7 +2457,9 @@ fun ActionList(
                     },
                     modifier = Modifier
                         .clickable(enabled = !disabled) {
-                            if (action == SettingsManager.ACTION_SPEED_DIAL ||
+                            if (action == SettingsManager.ACTION_AOD) {
+                                showAodStyleDialog = true
+                            } else if (action == SettingsManager.ACTION_SPEED_DIAL ||
                                 action == SettingsManager.ACTION_URL ||
                                 action == SettingsManager.ACTION_QR_CODE
                             ) {
