@@ -1,7 +1,12 @@
 package com.xenonware.mindcontrol
 
+import android.content.BroadcastReceiver
 import android.content.ComponentName
+import android.content.Context
+import android.content.Intent
+import android.content.IntentFilter
 import android.content.pm.PackageManager
+import android.os.BatteryManager
 import android.os.Bundle
 import android.provider.Settings
 import android.service.notification.NotificationListenerService
@@ -10,6 +15,7 @@ import android.util.Log
 import android.view.WindowManager
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
+import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
@@ -17,6 +23,7 @@ import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.scaleIn
 import androidx.compose.animation.scaleOut
+import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.gestures.detectTapGestures
@@ -30,13 +37,19 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.rounded.Bolt
+import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -122,6 +135,39 @@ class WatchActivity : ComponentActivity() {
                 }
             }
 
+            var batteryLevel by remember { mutableIntStateOf(-1) }
+            var isCharging by remember { mutableStateOf(false) }
+
+            DisposableEffect(context) {
+                fun updateBattery(intent: Intent?) {
+                    intent?.let {
+                        val status = it.getIntExtra(BatteryManager.EXTRA_STATUS, -1)
+                        val plugged = it.getIntExtra(BatteryManager.EXTRA_PLUGGED, -1)
+                        isCharging = status == BatteryManager.BATTERY_STATUS_CHARGING ||
+                                     status == BatteryManager.BATTERY_STATUS_FULL ||
+                                     plugged > 0
+                        
+                        val level = it.getIntExtra(BatteryManager.EXTRA_LEVEL, -1)
+                        val scale = it.getIntExtra(BatteryManager.EXTRA_SCALE, -1)
+                        if (level != -1 && scale != -1) {
+                            batteryLevel = (level * 100 / scale.toFloat()).roundToInt()
+                        }
+                        Log.d("WatchActivity", "Battery Update: isCharging=$isCharging, level=$batteryLevel")
+                    }
+                }
+
+                val receiver = object : BroadcastReceiver() {
+                    override fun onReceive(context: Context?, intent: Intent?) {
+                        updateBattery(intent)
+                    }
+                }
+                val intent = context.registerReceiver(receiver, IntentFilter(Intent.ACTION_BATTERY_CHANGED))
+                updateBattery(intent)
+                onDispose {
+                    context.unregisterReceiver(receiver)
+                }
+            }
+
             var isActive by remember { mutableStateOf(true) }
             var offsetY by remember { mutableFloatStateOf(0f) }
             
@@ -131,8 +177,10 @@ class WatchActivity : ComponentActivity() {
                 Log.d("WatchActivity", "UI received ${notifications.size} notifications")
             }
 
+            val textAlphaTarget = if (isCharging) (if (isActive) 0.8f else 0.4f) else (if (isActive) 0.5f else 0f)
+
             val animatedTextAlpha by animateFloatAsState(
-                targetValue = if (isActive) 0.5f else 0f,
+                targetValue = textAlphaTarget,
                 label = "textAlpha",
                 animationSpec = tween(durationMillis = 500)
             )
@@ -192,10 +240,41 @@ class WatchActivity : ComponentActivity() {
                      NotificationIconsRow(notifications = notifications, isActive = isActive)
 
                     Spacer(modifier = Modifier.weight(1f))
-                    Text(
-                        text = "Swipe up to unlock",
-                        color = Color.White.copy(alpha = animatedTextAlpha)
-                    )
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.Center,
+                        modifier = Modifier.alpha(animatedTextAlpha)
+                    ) {
+                        AnimatedContent(
+                            targetState = isCharging,
+                            transitionSpec = {
+                                fadeIn(animationSpec = tween(500)) togetherWith
+                                        fadeOut(animationSpec = tween(500))
+                            },
+                            label = "batteryTransition"
+                        ) { charging ->
+                            if (charging) {
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    Icon(
+                                        imageVector = Icons.Rounded.Bolt,
+                                        contentDescription = null,
+                                        tint = Color.White,
+                                        modifier = Modifier.size(16.dp)
+                                    )
+                                    Spacer(modifier = Modifier.width(4.dp))
+                                    Text(
+                                        text = if (batteryLevel >= 0) "$batteryLevel%" else "Charging",
+                                        color = Color.White
+                                    )
+                                }
+                            } else {
+                                Text(
+                                    text = "Swipe up to unlock",
+                                    color = Color.White
+                                )
+                            }
+                        }
+                    }
                     Spacer(modifier = Modifier.weight(0.2f))
                 }
             }
