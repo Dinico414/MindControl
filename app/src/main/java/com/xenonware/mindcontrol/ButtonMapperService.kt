@@ -581,6 +581,12 @@ class ButtonMapperService : AccessibilityService() {
             SettingsManager.ACTION_FLASHLIGHT -> { toggleFlashlight(); true }
             SettingsManager.ACTION_SCREENSHOT -> performGlobalAction(GLOBAL_ACTION_TAKE_SCREENSHOT)
             SettingsManager.ACTION_LOCK -> performGlobalAction(GLOBAL_ACTION_LOCK_SCREEN)
+            SettingsManager.ACTION_LOCK_AOD -> {
+                performGlobalAction(GLOBAL_ACTION_LOCK_SCREEN)
+                handler.postDelayed({ startWatchActivity() }, 500)
+                true
+            }
+            SettingsManager.ACTION_PIXEL_WATCH -> { startWatchActivity(); true }
             SettingsManager.ACTION_HOME -> performGlobalAction(GLOBAL_ACTION_HOME)
             SettingsManager.ACTION_BACK -> performGlobalAction(GLOBAL_ACTION_BACK)
             SettingsManager.ACTION_RECENTS -> performGlobalAction(GLOBAL_ACTION_RECENTS)
@@ -864,6 +870,18 @@ class ButtonMapperService : AccessibilityService() {
             startActivity(intent)
         } catch (e: Exception) {
             Log.e(tag, "QR show error", e)
+        }
+    }
+
+    private fun startWatchActivity() {
+        val intent = Intent(this, WatchActivity::class.java)
+        intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+        intent.addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP)
+        intent.addFlags(Intent.FLAG_ACTIVITY_NO_ANIMATION)
+        try {
+            startActivity(intent)
+        } catch (e: Exception) {
+            Log.e(tag, "Watch show error", e)
         }
     }
 

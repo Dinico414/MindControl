@@ -96,6 +96,7 @@ import androidx.compose.material.icons.rounded.KeyboardDoubleArrowUp
 import androidx.compose.material.icons.rounded.Language
 import androidx.compose.material.icons.rounded.LocationOn
 import androidx.compose.material.icons.rounded.Lock
+import androidx.compose.material.icons.rounded.Watch
 import androidx.compose.material.icons.rounded.Menu
 import androidx.compose.material.icons.rounded.MicOff
 import androidx.compose.material.icons.rounded.Nfc
@@ -1613,6 +1614,8 @@ fun ActionIcon(action: String, modifier: Modifier = Modifier, tint: Color = Loca
         action == SettingsManager.ACTION_RECENTS -> Icons.Rounded.History
         action == SettingsManager.ACTION_SHOW_MENU -> Icons.Rounded.Menu
         action == SettingsManager.ACTION_LOCK -> Icons.Rounded.Lock
+        action == SettingsManager.ACTION_LOCK_AOD -> Icons.Rounded.Lock
+        action == SettingsManager.ACTION_PIXEL_WATCH -> Icons.Rounded.Watch
         action == SettingsManager.ACTION_FLASHLIGHT -> Icons.Rounded.FlashlightOn
         action == SettingsManager.ACTION_SCREENSHOT -> Icons.Rounded.Screenshot
         action == SettingsManager.ACTION_QUICK_SETTINGS -> Icons.Rounded.Settings
@@ -1788,6 +1791,8 @@ fun ActionsTab(
         SettingsManager.ACTION_RECENTS,
         SettingsManager.ACTION_SHOW_MENU,
         SettingsManager.ACTION_LOCK,
+        SettingsManager.ACTION_LOCK_AOD,
+        SettingsManager.ACTION_PIXEL_WATCH,
         SettingsManager.ACTION_FLASHLIGHT,
         SettingsManager.ACTION_SCREENSHOT,
         SettingsManager.ACTION_QUICK_SETTINGS,
