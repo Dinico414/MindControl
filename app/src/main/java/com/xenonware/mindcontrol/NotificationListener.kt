@@ -1,5 +1,7 @@
 package com.xenonware.mindcontrol
 
+import android.app.Notification
+import android.app.NotificationManager
 import android.graphics.Bitmap
 import android.media.MediaMetadata
 import android.media.session.MediaController
@@ -130,15 +132,32 @@ class NotificationListener : NotificationListenerService() {
                 return
             }
             
-            Log.d(TAG, "updateNotifications: Total raw notifications = ${sbns.size}")
+            val rankingMap = currentRanking
             
             val filtered = sbns.filter { sbn ->
-                // Log every notification to see what's being considered
-                Log.v(TAG, "Notification: ${sbn.packageName} | ongoing=${sbn.isOngoing} | id=${sbn.id}")
+                val notification = sbn.notification
 
-                // Filter out only the most obvious things we don't want
+                // 1. Filter out permanent/ongoing notifications (like Shizuku, or background services)
+                if (sbn.isOngoing) return@filter false
+
+                // 2. Filter out internal Android or our own notifications
                 if (sbn.packageName == "android") return@filter false
                 if (sbn.packageName == "com.xenonware.mindcontrol") return@filter false
+
+                // 3. Filter out media player notifications
+                val template = notification.extras.getString(Notification.EXTRA_TEMPLATE)
+                if (template != null && template.contains("MediaStyle")) return@filter false
+
+                // 4. Filter by importance (only normal or high priority)
+                // This effectively filters out "muted" (LOW or MIN importance) notifications
+                if (rankingMap != null) {
+                    val ranking = Ranking()
+                    if (rankingMap.getRanking(sbn.key, ranking)) {
+                        if (ranking.importance < NotificationManager.IMPORTANCE_DEFAULT) {
+                            return@filter false
+                        }
+                    }
+                }
 
                 true
             }
@@ -146,7 +165,6 @@ class NotificationListener : NotificationListenerService() {
             .sortedByDescending { it.postTime }
             .distinctBy { it.packageName }
 
-            Log.d(TAG, "updateNotifications: Final filtered count = ${filtered.size}")
             _activeNotifications.value = filtered
         } catch (e: Exception) {
             Log.e(TAG, "Error updating notifications", e)

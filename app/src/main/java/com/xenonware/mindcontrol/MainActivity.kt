@@ -11,6 +11,8 @@ import android.content.pm.PackageManager
 import android.content.res.Configuration
 import android.graphics.drawable.Drawable
 import android.os.Bundle
+import android.os.Handler
+import android.os.Looper
 import android.provider.Settings
 import android.util.Log
 import android.view.accessibility.AccessibilityManager
@@ -125,6 +127,7 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.Checkbox
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
@@ -2136,6 +2139,87 @@ fun MediaTab(
     ActionList(actions, config, onActionSelected, shizukuReady)
 }
 
+@Composable
+fun LiftToWakeWarningDialog(
+    onDismissRequest: () -> Unit,
+    onIgnore: (Boolean) -> Unit,
+    onDisable: (Boolean) -> Unit
+) {
+    val context = LocalContext.current
+    var dontShowAgain by remember { mutableStateOf(false) }
+
+    XenonDialog(
+        properties = DialogProperties(usePlatformDefaultWidth = true),
+        onDismissRequest = onDismissRequest,
+        title = "Disable \"Lift to Wake\"",
+        confirmButtonText = "Disable",
+        onConfirmButtonClick = {
+            onDisable(dontShowAgain)
+            try {
+                // Open Display Settings where the user confirmed the setting is located
+                val intent = Intent(Settings.ACTION_DISPLAY_SETTINGS)
+                intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                context.startActivity(intent)
+
+                // If Shizuku is available, scroll to the bottom after a short delay
+                if (ShizukuManager.isAvailable()) {
+                    Handler(Looper.getMainLooper()).postDelayed({
+                        // 1. Slow swipe to collapse the header and move the list
+                        // 2. sleep to let the animation finish
+                        // 3. MOVE_END to jump focus to the bottom
+                        // 4. Repeated DPAD_DOWN to settle on the absolute last item
+                        val scrollCommand = buildString {
+                            append("input swipe 500 1000 500 200 10")
+                            append(" && sleep 0.8")
+                            append(" && input keyevent 123")
+                            repeat(25) { append(" && input keyevent 20") }
+                        }
+                        ShizukuManager.runShellCommand(scrollCommand)
+                    }, 1500L)
+                }
+            } catch (e: Exception) {
+                try {
+                    context.startActivity(Intent(Settings.ACTION_SETTINGS))
+                } catch (e2: Exception) {
+                    // Fallback failed
+                }
+            }
+        },
+        actionButton1Text = "Ignore",
+        onActionButton1Click = {
+            onIgnore(dontShowAgain)
+        }
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            Text(
+                text = "To prevent accidental touches and unnecessary high battery usage, it is recommended to disable 'Lift to wake' in your system settings.",
+                style = MaterialTheme.typography.bodyMedium
+            )
+
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clickable { dontShowAgain = !dontShowAgain }
+            ) {
+                Checkbox(
+                    checked = dontShowAgain,
+                    onCheckedChange = { dontShowAgain = it }
+                )
+                Text(
+                    text = "Don't show anymore",
+                    style = MaterialTheme.typography.bodyMedium
+                )
+            }
+        }
+    }
+}
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun AodStylePickerDialog(
@@ -2293,7 +2377,24 @@ fun ActionList(
     val context = LocalContext.current
     var showInputDialog by rememberSaveable { mutableStateOf<String?>(null) }
     var showAodStyleDialog by rememberSaveable { mutableStateOf(false) }
+    var showLiftToWakeWarning by rememberSaveable { mutableStateOf(false) }
     var inputValue by rememberSaveable { mutableStateOf("") }
+
+    if (showLiftToWakeWarning) {
+        LiftToWakeWarningDialog(
+            onDismissRequest = { showLiftToWakeWarning = false },
+            onIgnore = { dontShowAgain ->
+                if (dontShowAgain) SettingsManager.setShowLiftToWakeWarning(context, false)
+                showLiftToWakeWarning = false
+                showAodStyleDialog = true
+            },
+            onDisable = { dontShowAgain ->
+                if (dontShowAgain) SettingsManager.setShowLiftToWakeWarning(context, false)
+                showLiftToWakeWarning = false
+                showAodStyleDialog = true
+            }
+        )
+    }
 
     if (showAodStyleDialog) {
         AodStylePickerDialog(
@@ -2413,7 +2514,11 @@ fun ActionList(
                     modifier = Modifier
                         .clickable(enabled = !disabled) {
                             if (action == SettingsManager.ACTION_AOD) {
-                                showAodStyleDialog = true
+                                if (SettingsManager.shouldShowLiftToWakeWarning(context)) {
+                                    showLiftToWakeWarning = true
+                                } else {
+                                    showAodStyleDialog = true
+                                }
                             } else if (action == SettingsManager.ACTION_SPEED_DIAL ||
                                 action == SettingsManager.ACTION_URL ||
                                 action == SettingsManager.ACTION_QR_CODE

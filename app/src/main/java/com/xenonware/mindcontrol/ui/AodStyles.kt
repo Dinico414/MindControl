@@ -151,14 +151,14 @@ fun UnifiedAodStyle(
                 Text(
                     text = mediaInfo.title ?: "Unknown",
                     color = Color.White,
-                    fontSize = 14.sp,
+                    fontSize = 18.sp,
                     fontWeight = FontWeight.Medium,
                     modifier = Modifier.alpha(if (isActive) 0.8f else 0.5f)
                 )
                 Text(
                     text = mediaInfo.artist ?: "Unknown Artist",
                     color = Color.White,
-                    fontSize = 12.sp,
+                    fontSize = 14.sp,
                     modifier = Modifier.alpha(if (isActive) 0.6f else 0.4f)
                 )
             }
@@ -240,7 +240,7 @@ fun AodBottomInfo(
                     Text(
                         text = if (batteryLevel >= 0) "$batteryLevel%" else "Charging",
                         color = Color.White,
-                        fontSize = 12.sp
+                        fontSize = 14.sp
                     )
                 }
             } else if (mediaInfo != null) {
@@ -248,14 +248,14 @@ fun AodBottomInfo(
                     Text(
                         text = mediaInfo.title ?: "Unknown",
                         color = Color.White,
-                        fontSize = 14.sp,
+                        fontSize = 18.sp,
                         fontWeight = FontWeight.Medium,
                         modifier = Modifier.alpha(if (isActive) 0.8f else 0.5f)
                     )
                     Text(
                         text = mediaInfo.artist ?: "Unknown Artist",
                         color = Color.White,
-                        fontSize = 12.sp,
+                        fontSize = 14.sp,
                         modifier = Modifier.alpha(if (isActive) 0.6f else 0.4f)
                     )
                 }
@@ -263,7 +263,7 @@ fun AodBottomInfo(
                 Text(
                     text = "Swipe up to unlock",
                     color = Color.White,
-                    fontSize = 12.sp
+                    fontSize = 14.sp
                 )
             }
         }
