@@ -4,10 +4,7 @@ import android.text.format.DateFormat
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Canvas
-import androidx.compose.foundation.gestures.detectTapGestures
-import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.aspectRatio
-import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -28,14 +25,13 @@ import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.drawscope.clipPath
 import androidx.compose.ui.graphics.graphicsLayer
-import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.drawText
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.rememberTextMeasurer
-import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.sp
 import com.xenon.mylibrary.theme.QuicksandTitleVariable
 import kotlinx.coroutines.delay
@@ -43,9 +39,7 @@ import java.util.Calendar
 import java.util.Locale
 import kotlin.math.cos
 import kotlin.math.max
-import kotlin.math.min
 import kotlin.math.sin
-import kotlin.random.Random
 
 @Composable
 fun PixelWatchFace(isActive: Boolean) {
@@ -56,7 +50,7 @@ fun PixelWatchFace(isActive: Boolean) {
     val localDensity = LocalDensity.current
 
     val animatedAlpha by animateFloatAsState(
-        targetValue = if (isActive) 1f else 0.4f, animationSpec = tween(500), label = "alpha"
+        targetValue = if (isActive) 1f else 0.7f, animationSpec = tween(500), label = "alpha"
     )
 
     var isLongInactive by remember { mutableStateOf(false) }
@@ -103,23 +97,6 @@ fun PixelWatchFace(isActive: Boolean) {
 
     var time by remember { mutableLongStateOf(System.currentTimeMillis()) }
     val isFullyInactive = !isActive && pillRightWeight == 0f
-    var burnInOffset by remember { mutableStateOf(Offset.Zero) }
-
-    LaunchedEffect(isFullyInactive) {
-        if (isFullyInactive) {
-            while (true) {
-                delay(20000L)
-                val maxOffset = 80f
-                burnInOffset = Offset(
-                    x = (Random.nextFloat() * 2 - 1) * maxOffset,
-                    y = (Random.nextFloat() * 2 - 1) * maxOffset
-                )
-            }
-        } else {
-            burnInOffset = Offset.Zero
-        }
-    }
-
     LaunchedEffect(isFullyInactive) {
         while (true) {
             time = System.currentTimeMillis()
@@ -152,9 +129,7 @@ fun PixelWatchFace(isActive: Boolean) {
             .fillMaxWidth(0.75f)
             .aspectRatio(1f)
             .graphicsLayer(
-                alpha = animatedAlpha,
-                translationX = burnInOffset.x,
-                translationY = burnInOffset.y
+                alpha = animatedAlpha
             )
     ) {
         val w = size.width
@@ -327,45 +302,249 @@ fun PixelWatchFace(isActive: Boolean) {
     }
 }
 
-// Static preview — no animation state, no tap logic, explicit dark background.
-@Preview(
-    widthDp = 300,
-    heightDp = 300,
-    showBackground = true,
-    backgroundColor = 0xFF000000,
-    apiLevel = 36
-)
 @Composable
-fun PixelWatchFacePreview() {
-    PixelWatchFace(isActive = true)
-}
+fun StackedWatchFace(isActive: Boolean) {
+    val textMeasurer = rememberTextMeasurer()
+    val context = LocalContext.current
+    val is24Hour = DateFormat.is24HourFormat(context)
+    val locale = LocalConfiguration.current.locales[0]
+    val localDensity = LocalDensity.current
 
-@Preview(
-    widthDp = 300,
-    heightDp = 300,
-    showBackground = true,
-    backgroundColor = 0xFF000000,
-    apiLevel = 36
-)
-@Composable
-fun PixelWatchFaceInactivePreview() {
-    PixelWatchFace(isActive = false)
-}
+    val animatedAlpha by animateFloatAsState(
+        targetValue = if (isActive) 1f else 0.7f,
+        animationSpec = tween(500),
+        label = "alpha"
+    )
 
-@Preview(
-    widthDp = 300,
-    heightDp = 300,
-    apiLevel = 36
-)
-@Composable
-fun PixelWatchFaceInteractivePreview() {
-    var isActive by remember { mutableStateOf(true) }
-    Box(modifier = Modifier
-        .fillMaxSize()
-        .pointerInput(Unit) {
-            detectTapGestures { isActive = !isActive }
+    var isLongInactive by remember { mutableStateOf(false) }
+    var isShortInactive by remember { mutableStateOf(false) }
+    var isReappearing by remember { mutableStateOf(false) }
+
+    LaunchedEffect(isActive) {
+        if (isActive) {
+            val wereMinutesHidden = isLongInactive
+            isLongInactive = false
+            if (wereMinutesHidden) {
+                isReappearing = true
+                delay(250L) // Delay seconds/pill expansion if minutes were hidden
+                isReappearing = false
+            }
+            isShortInactive = false
+        } else {
+            isShortInactive = false
+            isLongInactive = false
+            isReappearing = false
+
+            isShortInactive = true
+
+            delay(300_000L)
+            isLongInactive = true
         }
+    }
+
+    val minutesAlpha by animateFloatAsState(
+        targetValue = if (isLongInactive) 0f else 1f,
+        animationSpec = tween(1000),
+        label = "minutesAlpha"
+    )
+
+    var time by remember { mutableLongStateOf(System.currentTimeMillis()) }
+    val isFullyInactive = !isActive
+
+    LaunchedEffect(isFullyInactive) {
+        while (true) {
+            time = System.currentTimeMillis()
+            if (!isFullyInactive) {
+                delay(16)
+            } else {
+                val calendar = Calendar.getInstance().apply { timeInMillis = time }
+                val seconds = calendar.get(Calendar.SECOND)
+                val millis = calendar.get(Calendar.MILLISECOND)
+                val delayToNextMinute = 60000L - (seconds * 1000L + millis)
+                delay(max(delayToNextMinute, 100L))
+            }
+        }
+    }
+
+    val calendar = Calendar.getInstance().apply { timeInMillis = time }
+    val hour = calendar.get(Calendar.HOUR_OF_DAY)
+    val displayHour = if (is24Hour) {
+        hour
+    } else {
+        val hour12 = hour % 12
+        if (hour12 == 0) 12 else hour12
+    }
+    val minute = calendar.get(Calendar.MINUTE)
+
+    Canvas(
+        modifier = Modifier
+            .fillMaxWidth(0.75f)
+            .aspectRatio(1f)
+            .graphicsLayer(
+                alpha = animatedAlpha
+            )
     ) {
-        PixelWatchFace(isActive = isActive)
+        val w = size.width
+        val h = size.height
+        val cx = w / 2f
+        val cy = h / 2f
+        val r = w / 2f
+
+        fun pxToSp(px: Float): androidx.compose.ui.unit.TextUnit =
+            (px / localDensity.density / localDensity.fontScale).sp
+
+        val textStyle = TextStyle(
+            color = Color.White,
+            fontSize = pxToSp(r * 0.705f),
+            fontWeight = FontWeight.Bold,
+            fontFamily = QuicksandTitleVariable
+        )
+
+        val hourText = String.format(locale, "%02d", displayHour)
+        val minuteText = String.format(locale, "%02d", minute)
+
+        val hourLayout = textMeasurer.measure(hourText, textStyle)
+        val minuteLayout = textMeasurer.measure(minuteText, textStyle)
+
+        val hourY = cy - hourLayout.size.height + hourLayout.size.height * 0.20f
+        val minuteY = cy - minuteLayout.size.height * 0.20f
+
+        drawText(
+            textLayoutResult = hourLayout,
+            topLeft = Offset(cx - hourLayout.size.width / 2f, hourY)
+        )
+        drawText(
+            textLayoutResult = minuteLayout,
+            topLeft = Offset(cx - minuteLayout.size.width / 2f, minuteY),
+            alpha = minutesAlpha
+        )
+    }
+}
+
+@Composable
+fun InlineWatchFace(isActive: Boolean) {
+    val textMeasurer = rememberTextMeasurer()
+    val context = LocalContext.current
+    val is24Hour = DateFormat.is24HourFormat(context)
+    val locale = LocalConfiguration.current.locales[0]
+    val localDensity = LocalDensity.current
+
+    val animatedAlpha by animateFloatAsState(
+        targetValue = if (isActive) 0.9f else 0.7f,
+        animationSpec = tween(500),
+        label = "alpha"
+    )
+
+    var isLongInactive by remember { mutableStateOf(false) }
+    var isShortInactive by remember { mutableStateOf(false) }
+    var isReappearing by remember { mutableStateOf(false) }
+
+    LaunchedEffect(isActive) {
+        if (isActive) {
+            val wereMinutesHidden = isLongInactive
+            isLongInactive = false
+            if (wereMinutesHidden) {
+                isReappearing = true
+                delay(250L) // Delay seconds/pill expansion if minutes were hidden
+                isReappearing = false
+            }
+            isShortInactive = false
+        } else {
+            isShortInactive = false
+            isLongInactive = false
+            isReappearing = false
+
+            isShortInactive = true
+
+            delay(300_000L)
+            isLongInactive = true
+        }
+    }
+
+    val minutesAlpha by animateFloatAsState(
+        targetValue = if (isLongInactive) 0f else 1f,
+        animationSpec = tween(1000),
+        label = "minutesAlpha"
+    )
+
+    var time by remember { mutableLongStateOf(System.currentTimeMillis()) }
+    val isFullyInactive = !isActive
+
+    LaunchedEffect(isFullyInactive) {
+        while (true) {
+            time = System.currentTimeMillis()
+            if (!isFullyInactive) {
+                delay(16)
+            } else {
+                val calendar = Calendar.getInstance().apply { timeInMillis = time }
+                val seconds = calendar.get(Calendar.SECOND)
+                val millis = calendar.get(Calendar.MILLISECOND)
+                val delayToNextMinute = 60000L - (seconds * 1000L + millis)
+                delay(max(delayToNextMinute, 100L))
+            }
+        }
+    }
+
+    val calendar = Calendar.getInstance().apply { timeInMillis = time }
+    val hour = calendar.get(Calendar.HOUR_OF_DAY)
+    val displayHour = if (is24Hour) {
+        hour
+    } else {
+        val hour12 = hour % 12
+        if (hour12 == 0) 12 else hour12
+    }
+    val minute = calendar.get(Calendar.MINUTE)
+
+    Canvas(
+        modifier = Modifier
+            .fillMaxWidth(0.75f)
+            .aspectRatio(1f)
+            .graphicsLayer(
+                alpha = animatedAlpha
+            )
+    ) {
+        val w = size.width
+        val h = size.height
+        val cx = w / 2f
+        val cy = h / 2f
+        val r = w / 2f
+
+        fun pxToSp(px: Float): androidx.compose.ui.unit.TextUnit =
+            (px / localDensity.density / localDensity.fontScale).sp
+
+        val textStyle = TextStyle(
+            color = Color.White,
+            fontSize = pxToSp(r * 0.47f),
+            fontWeight = FontWeight.Bold,
+            fontFamily = QuicksandTitleVariable
+        )
+
+        val hourText = String.format(locale, "%02d", displayHour)
+        val colonText = ":"
+        val minuteText = String.format(locale, "%02d", minute)
+
+        val hourLayout = textMeasurer.measure(hourText, textStyle)
+        val colonLayout = textMeasurer.measure(colonText, textStyle)
+        val minuteLayout = textMeasurer.measure(minuteText, textStyle)
+
+        val totalWidth = hourLayout.size.width + colonLayout.size.width + minuteLayout.size.width
+        val hourLeft = cx - totalWidth / 2f
+        val colonLeft = hourLeft + hourLayout.size.width
+        val minuteLeft = colonLeft + colonLayout.size.width
+
+        drawText(
+            textLayoutResult = hourLayout,
+            topLeft = Offset(hourLeft, cy - hourLayout.size.height / 2f)
+        )
+        drawText(
+            textLayoutResult = colonLayout,
+            topLeft = Offset(colonLeft, cy - colonLayout.size.height / 2f),
+            alpha = minutesAlpha
+        )
+        drawText(
+            textLayoutResult = minuteLayout,
+            topLeft = Offset(minuteLeft, cy - minuteLayout.size.height / 2f),
+            alpha = minutesAlpha
+        )
     }
 }

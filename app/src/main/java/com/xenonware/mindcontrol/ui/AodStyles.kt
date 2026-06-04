@@ -21,7 +21,6 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.offset
-import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
@@ -41,7 +40,6 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ColorFilter.Companion.tint
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.layout.ContentScale
-import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.IntOffset
@@ -49,8 +47,6 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.core.graphics.drawable.toBitmap
 import com.xenonware.mindcontrol.MediaInfo
-import java.util.Calendar
-import java.util.Locale
 import kotlin.math.roundToInt
 
 @Composable
@@ -62,6 +58,73 @@ fun ConcentricAodStyle(
     batteryLevel: Int,
     animatedTextAlpha: Float,
     offsetY: Float
+) {
+    UnifiedAodStyle(
+        isActive = isActive,
+        notifications = notifications,
+        mediaInfo = mediaInfo,
+        isCharging = isCharging,
+        batteryLevel = batteryLevel,
+        animatedTextAlpha = animatedTextAlpha,
+        offsetY = offsetY,
+        watchFace = { PixelWatchFace(isActive = isActive) }
+    )
+}
+
+@Composable
+fun StackedAodStyle(
+    isActive: Boolean,
+    notifications: List<StatusBarNotification>,
+    mediaInfo: MediaInfo?,
+    isCharging: Boolean,
+    batteryLevel: Int,
+    animatedTextAlpha: Float,
+    offsetY: Float
+) {
+    UnifiedAodStyle(
+        isActive = isActive,
+        notifications = notifications,
+        mediaInfo = mediaInfo,
+        isCharging = isCharging,
+        batteryLevel = batteryLevel,
+        animatedTextAlpha = animatedTextAlpha,
+        offsetY = offsetY,
+        watchFace = { StackedWatchFace(isActive = isActive) }
+    )
+}
+
+@Composable
+fun InlineAodStyle(
+    isActive: Boolean,
+    notifications: List<StatusBarNotification>,
+    mediaInfo: MediaInfo?,
+    isCharging: Boolean,
+    batteryLevel: Int,
+    animatedTextAlpha: Float,
+    offsetY: Float
+) {
+    UnifiedAodStyle(
+        isActive = isActive,
+        notifications = notifications,
+        mediaInfo = mediaInfo,
+        isCharging = isCharging,
+        batteryLevel = batteryLevel,
+        animatedTextAlpha = animatedTextAlpha,
+        offsetY = offsetY,
+        watchFace = { InlineWatchFace(isActive = isActive) }
+    )
+}
+
+@Composable
+fun UnifiedAodStyle(
+    isActive: Boolean,
+    notifications: List<StatusBarNotification>,
+    mediaInfo: MediaInfo?,
+    isCharging: Boolean,
+    batteryLevel: Int,
+    animatedTextAlpha: Float,
+    offsetY: Float,
+    watchFace: @Composable () -> Unit
 ) {
     Box(
         modifier = Modifier
@@ -76,9 +139,10 @@ fun ConcentricAodStyle(
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
             Spacer(modifier = Modifier.weight(1f))
-            PixelWatchFace(isActive = isActive)
-            
-            Spacer(modifier = Modifier.height(16.dp))
+
+            watchFace()
+
+            Spacer(modifier = Modifier.weight(0.5f))
             
             NotificationIconsRow(notifications = notifications, isActive = isActive)
 
@@ -99,7 +163,7 @@ fun ConcentricAodStyle(
                 )
             }
 
-            Spacer(modifier = Modifier.weight(1f))
+            Spacer(modifier = Modifier.weight(0.5f))
             
             AodBottomInfo(
                 isCharging = isCharging,
@@ -109,89 +173,6 @@ fun ConcentricAodStyle(
                 isActive = isActive
             )
             Spacer(modifier = Modifier.weight(0.2f))
-        }
-    }
-}
-
-@Composable
-fun StackedAodStyle(
-    isActive: Boolean,
-    notifications: List<StatusBarNotification>,
-    mediaInfo: MediaInfo?,
-    isCharging: Boolean,
-    batteryLevel: Int,
-    animatedTextAlpha: Float,
-    offsetY: Float
-) {
-    val locale = LocalConfiguration.current.locales[0]
-    Box(
-        modifier = Modifier
-            .fillMaxSize()
-            .offset { IntOffset(0, offsetY.roundToInt()) }
-    ) {
-        // Background: Album Art darkened with vignette
-        AodAlbumArtBackground(mediaInfo = mediaInfo, isActive = isActive)
-
-        Column(
-            modifier = Modifier.fillMaxSize(),
-            horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.Center
-        ) {
-            val calendar = Calendar.getInstance()
-            val hour = calendar.get(Calendar.HOUR_OF_DAY)
-            val minute = calendar.get(Calendar.MINUTE)
-            
-            Text(
-                text = String.format(locale, "%02d", hour),
-                fontSize = 120.sp,
-                fontWeight = FontWeight.Bold,
-                color = Color.White,
-                modifier = Modifier.alpha(if (isActive) 0.9f else 0.7f)
-            )
-            Text(
-                text = String.format(locale, "%02d", minute),
-                fontSize = 120.sp,
-                fontWeight = FontWeight.Bold,
-                color = Color.White,
-                modifier = Modifier.alpha(if (isActive) 0.9f else 0.7f)
-            )
-            
-            Spacer(modifier = Modifier.height(24.dp))
-            
-            NotificationIconsRow(notifications = notifications, isActive = isActive)
-            
-            if (mediaInfo != null) {
-                Spacer(modifier = Modifier.height(16.dp))
-                Text(
-                    text = mediaInfo.title ?: "Unknown",
-                    color = Color.White,
-                    fontSize = 18.sp,
-                    fontWeight = FontWeight.Medium,
-                    modifier = Modifier.alpha(if (isActive) 0.8f else 0.5f)
-                )
-                Text(
-                    text = mediaInfo.artist ?: "Unknown Artist",
-                    color = Color.White,
-                    fontSize = 14.sp,
-                    modifier = Modifier.alpha(if (isActive) 0.6f else 0.4f)
-                )
-            }
-        }
-        
-        // Bottom battery/charging info
-        Box(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(bottom = 32.dp),
-            contentAlignment = Alignment.BottomCenter
-        ) {
-            AodBottomInfo(
-                isCharging = isCharging,
-                batteryLevel = batteryLevel,
-                animatedTextAlpha = animatedTextAlpha,
-                mediaInfo = null, // Already shown in center for Stacked
-                isActive = isActive
-            )
         }
     }
 }
@@ -361,82 +342,6 @@ fun NotificationIconsRow(notifications: List<StatusBarNotification>, isActive: B
                     .size(6.dp)
                     .clip(CircleShape)
                     .background(Color.White)
-            )
-        }
-    }
-}
-
-@Composable
-fun InlineAodStyle(
-    isActive: Boolean,
-    notifications: List<StatusBarNotification>,
-    mediaInfo: MediaInfo?,
-    isCharging: Boolean,
-    batteryLevel: Int,
-    animatedTextAlpha: Float,
-    offsetY: Float
-) {
-    val locale = LocalConfiguration.current.locales[0]
-    Box(
-        modifier = Modifier
-            .fillMaxSize()
-            .offset { IntOffset(0, offsetY.roundToInt()) }
-    ) {
-        // Background: Album Art darkened with vignette
-        AodAlbumArtBackground(mediaInfo = mediaInfo, isActive = isActive)
-
-        Column(
-            modifier = Modifier.fillMaxSize(),
-            horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.Center
-        ) {
-            val calendar = Calendar.getInstance()
-            val hour = calendar.get(Calendar.HOUR_OF_DAY)
-            val minute = calendar.get(Calendar.MINUTE)
-            
-            Text(
-                text = String.format(locale, "%02d:%02d", hour, minute),
-                fontSize = 80.sp,
-                fontWeight = FontWeight.Bold,
-                color = Color.White,
-                modifier = Modifier.alpha(if (isActive) 0.9f else 0.7f)
-            )
-            
-            Spacer(modifier = Modifier.height(24.dp))
-            
-            NotificationIconsRow(notifications = notifications, isActive = isActive)
-            
-            if (mediaInfo != null) {
-                Spacer(modifier = Modifier.height(16.dp))
-                Text(
-                    text = mediaInfo.title ?: "Unknown",
-                    color = Color.White,
-                    fontSize = 18.sp,
-                    fontWeight = FontWeight.Medium,
-                    modifier = Modifier.alpha(if (isActive) 0.8f else 0.5f)
-                )
-                Text(
-                    text = mediaInfo.artist ?: "Unknown Artist",
-                    color = Color.White,
-                    fontSize = 14.sp,
-                    modifier = Modifier.alpha(if (isActive) 0.6f else 0.4f)
-                )
-            }
-        }
-        
-        // Bottom battery/charging info
-        Box(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(bottom = 32.dp),
-            contentAlignment = Alignment.BottomCenter
-        ) {
-            AodBottomInfo(
-                isCharging = isCharging,
-                batteryLevel = batteryLevel,
-                animatedTextAlpha = animatedTextAlpha,
-                mediaInfo = null, // Already shown in center for Inline
-                isActive = isActive
             )
         }
     }
