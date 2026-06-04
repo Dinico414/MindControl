@@ -2207,34 +2207,6 @@ fun AodStylePickerDialog(
                             .maskBorder(borderStroke, itemShape)
                     )
                 }
-                
-//                Spacer(modifier = Modifier.height(16.dp))
-//
-//                // Page Indicator
-//                Row(
-//                    horizontalArrangement = Arrangement.Center,
-//                    verticalAlignment = Alignment.CenterVertically,
-//                    modifier = Modifier.padding(bottom = 8.dp)
-//                ) {
-//                    repeat(styles.size) { i ->
-//                        val active = selectedIndex == i
-//                        Box(
-//                            modifier = Modifier
-//                                .padding(4.dp)
-//                                .size(if (active) 10.dp else 8.dp)
-//                                .clip(CircleShape)
-//                                .background(
-//                                    if (active) MaterialTheme.colorScheme.primary
-//                                    else MaterialTheme.colorScheme.primary.copy(alpha = 0.3f)
-//                                )
-//                                .clickable {
-//                                    scope.launch {
-//                                        carouselState.animateScrollToItem(i)
-//                                    }
-//                                }
-//                        )
-//                    }
-//                }
             }
         }
     )
@@ -2307,24 +2279,7 @@ fun AodStyleOption(
                 Text(name, color = Color.White, fontWeight = FontWeight.Bold)
             }
             
-            if (isSelected) {
-                Box(
-                    modifier = Modifier
-                        .align(Alignment.TopEnd)
-                        .padding(8.dp)
-                        .size(24.dp)
-                        .clip(CircleShape)
-                        .background(MaterialTheme.colorScheme.primary),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Icon(
-                        imageVector = Icons.Rounded.Watch,
-                        contentDescription = null,
-                        modifier = Modifier.size(16.dp),
-                        tint = MaterialTheme.colorScheme.onPrimary
-                    )
-                }
-            }
+
         }
     }
 }
