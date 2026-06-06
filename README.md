@@ -2,7 +2,7 @@
 
 [![Latest Release](https://img.shields.io/github/v/release/Dinico414/MindControll?label=Latest%20Release)](https://github.com/Dinico414/MindControll/releases/latest)
 [![Total Downloads](https://img.shields.io/github/downloads/Dinico414/MindControll/total?label=Total%20Downloads&color=blue)](https://github.com/Dinico414/MindControll/releases)
-[![Android](https://img.shields.io/badge/Platform-Android%2012%2B-green.svg)](https://developer.android.com)
+[![Android](https://img.shields.io/badge/Platform-Android%2015%2B-green.svg)](https://developer.android.com)
 [![Kotlin](https://img.shields.io/badge/Language-Kotlin-purple.svg)](https://kotlinlang.org)
 [![Shizuku](https://img.shields.io/badge/Power-Shizuku%20Compatible-informational)](https://shizuku.rikka.app/)
 
