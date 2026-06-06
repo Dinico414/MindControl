@@ -52,6 +52,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeDrawing
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.pager.HorizontalPager
@@ -1025,7 +1026,7 @@ fun TogglesContainer(
             ) {
                 Column(modifier = Modifier.padding(12.dp)) {
                     Text(
-                        text = if (isServiceEnabled) "Accessibility: ACTIVE" else "Accessibility: INACTIVE (Tap to Enable)",
+                        text = if (isServiceEnabled) "Accessibility: ACTIVE" else "Accessibility: INACTIVE\n(Tap to Enable)",
                         color = if (isServiceEnabled) Color(0xFF2E7D32) else Color(0xFFC62828),
                         style = MaterialTheme.typography.bodyMedium
                     )
@@ -1066,9 +1067,9 @@ fun TogglesContainer(
                 Column(modifier = Modifier.padding(12.dp)) {
                     val shizukuText = when {
                         shizukuAvailable && shizukuPermission -> "Shizuku: AUTHORIZED"
-                        shizukuAvailable && !shizukuPermission -> "Shizuku: UNAUTHORIZED (Tap to Authorize)"
-                        shizukuInstalled -> "Shizuku: NOT RUNNING (Tap to Open)"
-                        else -> "Shizuku: NOT INSTALLED (Tap to Install)"
+                        shizukuAvailable && !shizukuPermission -> "Shizuku: UNAUTHORIZED\n(Tap to Authorize)"
+                        shizukuInstalled -> "Shizuku: NOT RUNNING\n(Tap to Open)"
+                        else -> "Shizuku: NOT INSTALLED\n(Tap to Install)"
                     }
                     Text(
                         text = shizukuText,
@@ -1102,7 +1103,7 @@ fun TogglesContainer(
                 ) {
                     Column(modifier = Modifier.padding(12.dp)) {
                         Text(
-                            text = "Battery Optimization: ON (Tap to Disable)",
+                            text = "Battery Optimization: ON\n(Tap to Disable)",
                             color = Color(0xFFC62828),
                             style = MaterialTheme.typography.bodyMedium
                         )
@@ -1130,7 +1131,7 @@ fun TogglesContainer(
                 ) {
                     Column(modifier = Modifier.padding(12.dp)) {
                         Text(
-                            text = "Media Control: INACTIVE (Tap to Enable)",
+                            text = "Media Control: INACTIVE\n(Tap to Enable)",
                             color = Color(0xFFC62828),
                             style = MaterialTheme.typography.bodyMedium
                         )
@@ -1154,7 +1155,7 @@ fun TogglesContainer(
                 ) {
                     Column(modifier = Modifier.padding(12.dp)) {
                         Text(
-                            text = "Modify System Settings: DENIED (Tap to Allow)",
+                            text = "Modify System Settings: DENIED\n(Tap to Allow)",
                             color = Color(0xFFC62828),
                             style = MaterialTheme.typography.bodyMedium
                         )
@@ -1178,7 +1179,7 @@ fun TogglesContainer(
                 ) {
                     Column(modifier = Modifier.padding(12.dp)) {
                         Text(
-                            text = "DND Access: DENIED (Tap to Allow)",
+                            text = "DND Access: DENIED\n(Tap to Allow)",
                             color = Color(0xFFC62828),
                             style = MaterialTheme.typography.bodyMedium
                         )
@@ -1202,7 +1203,7 @@ fun TogglesContainer(
                 ) {
                     Column(modifier = Modifier.padding(12.dp)) {
                         Text(
-                            text = "Notifications: BLOCKED (Tap to Allow)",
+                            text = "Notifications: DENIED\n(Tap to Allow)",
                             color = Color(0xFFC62828),
                             style = MaterialTheme.typography.bodyMedium
                         )
@@ -1587,11 +1588,13 @@ fun MindControlActionSelector(
     ) {
         Text(
             text = "$displayType: ",
-            modifier = Modifier.widthIn(min = 80.dp),
+            modifier = Modifier.width(130.dp),
             color = MaterialTheme.colorScheme.onSurface,
             style = MaterialTheme.typography.bodyLarge,
-            maxLines = 1
+            maxLines = 1,
+            textAlign = TextAlign.Start
         )
+        Spacer(modifier = Modifier.width(8.dp))
         OutlinedButton(
             onClick = { onSelectAction(keyCode, state, type) },
             border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline),
