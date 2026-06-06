@@ -14,7 +14,10 @@ import android.util.Log
 import android.view.WindowManager
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
+import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.gestures.detectDragGestures
@@ -41,6 +44,7 @@ import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -157,12 +161,15 @@ class WatchActivity : ComponentActivity() {
             }
 
             var isActive by remember { mutableStateOf(true) }
+            var isFinishing by remember { mutableStateOf(false) }
             var totalDragX by remember { mutableFloatStateOf(0f) }
             var totalDragY by remember { mutableFloatStateOf(0f) }
-            var offsetX by remember { mutableFloatStateOf(0f) }
-            var offsetY by remember { mutableFloatStateOf(0f) }
-            var dragRadius by remember { mutableFloatStateOf(0f) }
+            val animOffsetX = remember { Animatable(0f) }
+            val animOffsetY = remember { Animatable(0f) }
+            val animDragRadius = remember { Animatable(0f) }
             var lockedDirection by remember { mutableStateOf<String?>(null) }
+            
+            val scope = rememberCoroutineScope()
             
             val notifications by NotificationListener.activeNotificationsFlow.collectAsState()
             val mediaInfo by NotificationListener.activeMediaInfoFlow.collectAsState()
@@ -197,7 +204,7 @@ class WatchActivity : ComponentActivity() {
                 Box(
                     modifier = Modifier
                         .fillMaxSize()
-                        .pointerInput(Unit) {
+                        .pointerInput(mediaInfo) {
                             coroutineScope {
                                 launch {
                                     detectTapGestures(onPress = {
@@ -211,52 +218,85 @@ class WatchActivity : ComponentActivity() {
 
                                     detectDragGestures(
                                         onDragStart = { 
+                                            Log.d("WatchActivity", "Drag started")
                                             isActive = true
                                             totalDragX = 0f
                                             totalDragY = 0f
-                                            offsetX = 0f
-                                            offsetY = 0f
-                                            dragRadius = 0f
+                                            scope.launch { animOffsetX.snapTo(0f) }
+                                            scope.launch { animOffsetY.snapTo(0f) }
+                                            scope.launch { animDragRadius.snapTo(0f) }
                                             lockedDirection = null
                                         },
                                         onDragEnd = {
+                                            Log.d("WatchActivity", "Drag ended: dir=$lockedDirection, dx=$totalDragX, dy=$totalDragY")
                                             val currentMedia = mediaInfo
+                                            val bounceSpec = spring<Float>(
+                                                dampingRatio = Spring.DampingRatioMediumBouncy,
+                                                stiffness = Spring.StiffnessLow
+                                            )
                                             
-                                            when (lockedDirection) {
-                                                "V" -> {
-                                                    if (totalDragY < -actionThreshold) {
-                                                        // Swipe UP to unlock
-                                                        finish()
-                                                        overridePendingTransition(0, android.R.anim.fade_out)
-                                                    } else if (totalDragY > actionThreshold && currentMedia != null) {
-                                                        // Swipe DOWN for pause/play
+                                            if (lockedDirection == "V" && totalDragY < -actionThreshold && !isFinishing) {
+                                                isFinishing = true
+                                                Log.d("WatchActivity", "Triggering UNLOCK")
+                                                // Swipe UP to unlock - Bounce off screen
+                                                scope.launch {
+                                                    animOffsetY.animateTo(
+                                                        targetValue = -screenHeight,
+                                                        animationSpec = spring(
+                                                            dampingRatio = Spring.DampingRatioLowBouncy,
+                                                            stiffness = Spring.StiffnessLow
+                                                        )
+                                                    )
+                                                    finish()
+                                                    overridePendingTransition(0, android.R.anim.fade_out)
+                                                }
+                                            } else {
+                                                // Media control or canceled unlock - Bounce back to center
+                                                try {
+                                                    if (lockedDirection == "V" && totalDragY > actionThreshold && currentMedia != null) {
+                                                        Log.d("WatchActivity", "Triggering Play/Pause")
                                                         if (currentMedia.isPlaying == true) {
                                                             currentMedia.controller?.transportControls?.pause()
                                                         } else {
                                                             currentMedia.controller?.transportControls?.play()
                                                         }
-                                                    }
-                                                }
-                                                "H" -> {
-                                                    if (currentMedia != null) {
+                                                    } else if (lockedDirection == "H" && currentMedia != null) {
                                                         if (totalDragX < -actionThreshold) {
-                                                            // Swipe LEFT for next
+                                                            Log.d("WatchActivity", "Triggering Skip Next")
                                                             currentMedia.controller?.transportControls?.skipToNext()
                                                         } else if (totalDragX > actionThreshold) {
-                                                            // Swipe RIGHT for previous
+                                                            Log.d("WatchActivity", "Triggering Skip Previous")
                                                             currentMedia.controller?.transportControls?.skipToPrevious()
                                                         }
+                                                    } else {
+                                                        Log.d("WatchActivity", "No action triggered, bouncing back")
                                                     }
+                                                } catch (e: Exception) {
+                                                    Log.e("WatchActivity", "Media action failed", e)
                                                 }
+
+                                                scope.launch { animOffsetX.animateTo(0f, bounceSpec) }
+                                                scope.launch { animOffsetY.animateTo(0f, bounceSpec) }
+                                                scope.launch { animDragRadius.animateTo(0f, bounceSpec) }
                                             }
                                             
-                                            offsetX = 0f
-                                            offsetY = 0f
                                             totalDragX = 0f
                                             totalDragY = 0f
-                                            dragRadius = 0f
                                             lockedDirection = null
                                         },
+                                        onDragCancel = {
+                                            Log.d("WatchActivity", "Drag canceled")
+                                            val bounceSpec = spring<Float>(
+                                                dampingRatio = Spring.DampingRatioMediumBouncy,
+                                                stiffness = Spring.StiffnessLow
+                                            )
+                                            scope.launch { animOffsetX.animateTo(0f, bounceSpec) }
+                                            scope.launch { animOffsetY.animateTo(0f, bounceSpec) }
+                                            scope.launch { animDragRadius.animateTo(0f, bounceSpec) }
+                                            totalDragX = 0f
+                                            totalDragY = 0f
+                                            lockedDirection = null
+                                        }
                                     ) { change, dragAmount ->
                                         change.consume()
                                         
@@ -276,7 +316,8 @@ class WatchActivity : ComponentActivity() {
                                             val maxDrag = kotlin.math.max(absX, absY)
 
                                             if (maxDrag > 15 * densityVal) {
-                                                lockedDirection = if (currentMedia == null) "V" else (if (absY > absX) "V" else "H")
+                                                lockedDirection = if (absY > absX || currentMedia == null) "V" else "H"
+                                                Log.d("WatchActivity", "Locking direction to: $lockedDirection")
                                             }
                                         } else {
                                             if (lockedDirection == "V") totalDragY += dragAmount.y
@@ -287,11 +328,15 @@ class WatchActivity : ComponentActivity() {
                                         val absY = kotlin.math.abs(totalDragY)
                                         val maxDrag = kotlin.math.max(absX, absY)
 
+                                        var targetX = 0f
+                                        var targetY = 0f
+                                        var targetRadius = 0f
+
                                         if (currentMedia == null) {
                                             // STRICT MODE: No media player active
-                                            offsetX = 0f
-                                            offsetY = totalDragY.coerceIn(-maxVisualY, 0f)
-                                            dragRadius = if (totalDragY < 0) {
+                                            targetX = 0f
+                                            targetY = totalDragY.coerceIn(-maxVisualY, 0f)
+                                            targetRadius = if (totalDragY < 0) {
                                                 ((kotlin.math.abs(totalDragY) - deadzone) / (actionThreshold - deadzone)).coerceIn(0f, 1f) * maxRadius
                                             } else 0f
                                         } else {
@@ -300,17 +345,23 @@ class WatchActivity : ComponentActivity() {
                                             val snap = (progress / 0.1f).coerceIn(0f, 1f)
 
                                             if (lockedDirection == "V") {
-                                                offsetY = totalDragY.coerceIn(-maxVisualY, maxVisualY)
-                                                offsetX = (totalDragX * (1f - snap)).coerceIn(-maxVisualX, maxVisualX)
+                                                targetY = totalDragY.coerceIn(-maxVisualY, maxVisualY)
+                                                targetX = (totalDragX * (1f - snap)).coerceIn(-maxVisualX, maxVisualX)
                                             } else if (lockedDirection == "H") {
-                                                offsetX = totalDragX.coerceIn(-maxVisualX, maxVisualX)
-                                                offsetY = (totalDragY * (1f - snap)).coerceIn(-maxVisualY, maxVisualY)
+                                                targetX = totalDragX.coerceIn(-maxVisualX, maxVisualX)
+                                                targetY = (totalDragY * (1f - snap)).coerceIn(-maxVisualY, maxVisualY)
                                             } else {
-                                                offsetX = (totalDragX * (1f - snap)).coerceIn(-maxVisualX, maxVisualX)
-                                                offsetY = (totalDragY * (1f - snap)).coerceIn(-maxVisualY, maxVisualY)
+                                                targetX = (totalDragX * (1f - snap)).coerceIn(-maxVisualX, maxVisualX)
+                                                targetY = (totalDragY * (1f - snap)).coerceIn(-maxVisualY, maxVisualY)
                                             }
                                             
-                                            dragRadius = ((maxDrag - deadzone) / (actionThreshold - deadzone)).coerceIn(0f, 1f) * maxRadius
+                                            targetRadius = ((maxDrag - deadzone) / (actionThreshold - deadzone)).coerceIn(0f, 1f) * maxRadius
+                                        }
+
+                                        scope.launch {
+                                            animOffsetX.snapTo(targetX)
+                                            animOffsetY.snapTo(targetY)
+                                            animDragRadius.snapTo(targetRadius)
                                         }
                                     }
                                 }
@@ -320,8 +371,12 @@ class WatchActivity : ComponentActivity() {
                     Box(
                         modifier = Modifier
                             .fillMaxSize()
-                            .offset { IntOffset(offsetX.roundToInt(), offsetY.roundToInt()) }
-                            .clip(RoundedCornerShape(with(LocalDensity.current) { dragRadius.toDp() }))
+                            .offset { IntOffset(animOffsetX.value.roundToInt(), animOffsetY.value.roundToInt()) }
+                            .clip(RoundedCornerShape(with(LocalDensity.current) { 
+                                // Coerce to 0 because bouncy springs can produce negative values during overshoot,
+                                // which causes RoundedCornerShape to throw an IllegalArgumentException.
+                                animDragRadius.value.coerceAtLeast(0f).toDp() 
+                            }))
                     ) {
                         when (aodStyle) {
                             SettingsManager.AodStyle.CONCENTRIC -> {
@@ -361,7 +416,7 @@ class WatchActivity : ComponentActivity() {
                     }
                     
                     // Swipe Visual Indicator
-                    if (dragRadius > 0) {
+                    if (animDragRadius.value > 0) {
                         val indicatorAlignment = when {
                             lockedDirection == "V" && totalDragY < 0 -> Alignment.BottomCenter
                             lockedDirection == "V" && totalDragY > 0 -> Alignment.TopCenter
@@ -371,7 +426,7 @@ class WatchActivity : ComponentActivity() {
                         }
 
                         val circleAlpha by animateFloatAsState(
-                            targetValue = if (dragRadius > 10 * densityVal) 0.6f else 0f,
+                            targetValue = if (animDragRadius.value > 10 * densityVal) 0.6f else 0f,
                             label = "circleAlpha",
                             animationSpec = tween(150)
                         )
@@ -379,13 +434,13 @@ class WatchActivity : ComponentActivity() {
                         Box(
                             modifier = Modifier
                                 .align(indicatorAlignment)
-                                .size(with(LocalDensity.current) { (dragRadius * 2).toDp() })
+                                .size(with(LocalDensity.current) { (animDragRadius.value * 2).toDp() })
                                 .clip(CircleShape)
                                 .background(Color.Black.copy(alpha = circleAlpha)),
                             contentAlignment = Alignment.Center
                         ) {
                             val iconAlpha by animateFloatAsState(
-                                targetValue = if (dragRadius > 30 * densityVal) 0.7f else 0f,
+                                targetValue = if (animDragRadius.value > 30 * densityVal) 0.7f else 0f,
                                 label = "iconAlpha",
                                 animationSpec = tween(300)
                             )
@@ -404,7 +459,7 @@ class WatchActivity : ComponentActivity() {
                                     contentDescription = null,
                                     tint = Color.White,
                                     modifier = Modifier
-                                        .size(with(LocalDensity.current) { dragRadius.toDp() })
+                                        .size(with(LocalDensity.current) { animDragRadius.value.toDp() })
                                         .alpha(iconAlpha)
                                 )
                             }
