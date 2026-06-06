@@ -47,6 +47,8 @@ class ButtonMapperService : AccessibilityService() {
     private var volumePanelTimeoutRunnable: Runnable? = null
     private var lastKeyCode: Int = -1
     private var lastKnownRingVolume: Int = -1
+    private var isTextFocusActive = false
+    private var lastFocusCheckTime = 0L
 
     private var isShutterKeyPressed = false
     private var ignoreNextFocusUp = false
@@ -73,6 +75,12 @@ class ButtonMapperService : AccessibilityService() {
     }
 
     private fun isTextFieldFocused(): Boolean {
+        if (isTextFocusActive) return true
+        
+        val now = System.currentTimeMillis()
+        if (now - lastFocusCheckTime < 2000L) return false // Only check root once every 2s to avoid spamming
+        lastFocusCheckTime = now
+
         try {
             val rootNode = rootInActiveWindow ?: return false
             // Find the node that currently has keyboard input focus
@@ -80,7 +88,8 @@ class ButtonMapperService : AccessibilityService() {
             // Check if the node is marked as editable or is an EditText class
             val isEditable = focusedNode.isEditable
             val isEditText = focusedNode.className?.toString()?.contains("EditText") == true
-            return isEditable || isEditText
+            isTextFocusActive = isEditable || isEditText
+            return isTextFocusActive
         } catch (e: Exception) {
             Log.e(tag, "Error checking focused node", e)
         }
@@ -113,7 +122,7 @@ class ButtonMapperService : AccessibilityService() {
         cameraManager.registerAvailabilityCallback(cameraCallback, handler)
 
         wakeLock = powerManager.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "MindControl:KeyCaptureLock")
-        wakeLock?.acquire(10*60*1000L /*10 minutes*/)
+        wakeLock?.acquire()
 
         Shizuku.addBinderReceivedListenerSticky(binderListener)
         Shizuku.addRequestPermissionResultListener(permissionListener)
@@ -153,30 +162,42 @@ class ButtonMapperService : AccessibilityService() {
 
     override fun onAccessibilityEvent(event: AccessibilityEvent?) {
         if (event == null) return
-        if (event.eventType == AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED) {
-            val pkg = event.packageName?.toString()
-            val className = event.className?.toString()
-            
-            if (pkg != null && pkg != packageName && pkg != "com.android.systemui") {
-                if (pkg != lastPackageName) {
-                    previousPackageName = lastPackageName
-                    lastPackageName = pkg
-                    Log.d(tag, "App Track: Current=$lastPackageName, Previous=$previousPackageName")
+        
+        when (event.eventType) {
+            AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED -> {
+                isTextFocusActive = false // Reset focus on window change to force re-check
+                val pkg = event.packageName?.toString()
+                val className = event.className?.toString()
+                
+                if (pkg != null && pkg != packageName && pkg != "com.android.systemui") {
+                    if (pkg != lastPackageName) {
+                        previousPackageName = lastPackageName
+                        lastPackageName = pkg
+                        Log.d(tag, "App Track: Current=$lastPackageName, Previous=$previousPackageName")
+                    }
+                }
+
+                if (pkg == "com.android.systemui") {
+                    val isVolumeDialog = className?.contains("Volume", ignoreCase = true) == true ||
+                            className?.contains("Dialog", ignoreCase = true) == true
+                    if (isVolumeDialog) {
+                        if (!isVolumePanelVisibleState) Log.d(tag, "Volume Panel Visible (detected via AccessibilityEvent)")
+                        isVolumePanelVisibleState = true
+                        volumePanelTimeoutRunnable?.let { handler.removeCallbacks(it) }
+                        volumePanelTimeoutRunnable = Runnable {
+                            Log.d(tag, "Volume Panel Invisible (timeout)")
+                            isVolumePanelVisibleState = false
+                        }
+                        handler.postDelayed(volumePanelTimeoutRunnable!!, 3500L)
+                    }
                 }
             }
-
-            if (pkg == "com.android.systemui") {
-                val isVolumeDialog = className?.contains("Volume", ignoreCase = true) == true ||
-                        className?.contains("Dialog", ignoreCase = true) == true
-                if (isVolumeDialog) {
-                    if (!isVolumePanelVisibleState) Log.d(tag, "Volume Panel Visible (detected via AccessibilityEvent)")
-                    isVolumePanelVisibleState = true
-                    volumePanelTimeoutRunnable?.let { handler.removeCallbacks(it) }
-                    volumePanelTimeoutRunnable = Runnable {
-                        Log.d(tag, "Volume Panel Invisible (timeout)")
-                        isVolumePanelVisibleState = false
-                    }
-                    handler.postDelayed(volumePanelTimeoutRunnable!!, 3500L)
+            AccessibilityEvent.TYPE_VIEW_FOCUSED,
+            AccessibilityEvent.TYPE_VIEW_CLICKED -> {
+                val source = event.source
+                if (source != null) {
+                    isTextFocusActive = source.isEditable || source.className?.toString()?.contains("EditText", ignoreCase = true) == true
+                    source.recycle()
                 }
             }
         }
@@ -331,7 +352,7 @@ class ButtonMapperService : AccessibilityService() {
             }
         }
 
-        val currentPackage = rootInActiveWindow?.packageName?.toString() ?: lastPackageName
+        val currentPackage = lastPackageName
         val isCameraApp = currentPackage?.contains("camera", ignoreCase = true) == true
 
         val updateButtonState = {

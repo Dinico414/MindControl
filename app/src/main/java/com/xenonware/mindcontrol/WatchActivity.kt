@@ -204,7 +204,7 @@ class WatchActivity : ComponentActivity() {
                 Box(
                     modifier = Modifier
                         .fillMaxSize()
-                        .pointerInput(mediaInfo) {
+                        .pointerInput(Unit) {
                             coroutineScope {
                                 launch {
                                     detectTapGestures(onPress = {
@@ -213,8 +213,9 @@ class WatchActivity : ComponentActivity() {
                                     })
                                 }
                                 launch {
-                                    val actionThreshold = 160 * densityVal
-                                    val deadzone = 25 * densityVal
+                                    val unlockThreshold = 150 * densityVal
+                                    val mediaThreshold = 60 * densityVal
+                                    val deadzone = 20 * densityVal
 
                                     detectDragGestures(
                                         onDragStart = { 
@@ -235,7 +236,7 @@ class WatchActivity : ComponentActivity() {
                                                 stiffness = Spring.StiffnessLow
                                             )
                                             
-                                            if (lockedDirection == "V" && totalDragY < -actionThreshold && !isFinishing) {
+                                            if (lockedDirection == "V" && totalDragY < -unlockThreshold && !isFinishing) {
                                                 isFinishing = true
                                                 Log.d("WatchActivity", "Triggering UNLOCK")
                                                 // Swipe UP to unlock - Bounce off screen
@@ -253,7 +254,7 @@ class WatchActivity : ComponentActivity() {
                                             } else {
                                                 // Media control or canceled unlock - Bounce back to center
                                                 try {
-                                                    if (lockedDirection == "V" && totalDragY > actionThreshold && currentMedia != null) {
+                                                    if (lockedDirection == "V" && totalDragY > mediaThreshold && currentMedia != null) {
                                                         Log.d("WatchActivity", "Triggering Play/Pause")
                                                         if (currentMedia.isPlaying == true) {
                                                             currentMedia.controller?.transportControls?.pause()
@@ -261,10 +262,10 @@ class WatchActivity : ComponentActivity() {
                                                             currentMedia.controller?.transportControls?.play()
                                                         }
                                                     } else if (lockedDirection == "H" && currentMedia != null) {
-                                                        if (totalDragX < -actionThreshold) {
+                                                        if (totalDragX < -mediaThreshold) {
                                                             Log.d("WatchActivity", "Triggering Skip Next")
                                                             currentMedia.controller?.transportControls?.skipToNext()
-                                                        } else if (totalDragX > actionThreshold) {
+                                                        } else if (totalDragX > mediaThreshold) {
                                                             Log.d("WatchActivity", "Triggering Skip Previous")
                                                             currentMedia.controller?.transportControls?.skipToPrevious()
                                                         }
@@ -337,11 +338,12 @@ class WatchActivity : ComponentActivity() {
                                             targetX = 0f
                                             targetY = totalDragY.coerceIn(-maxVisualY, 0f)
                                             targetRadius = if (totalDragY < 0) {
-                                                ((kotlin.math.abs(totalDragY) - deadzone) / (actionThreshold - deadzone)).coerceIn(0f, 1f) * maxRadius
+                                                ((kotlin.math.abs(totalDragY) - deadzone) / (unlockThreshold - deadzone)).coerceIn(0f, 1f) * maxRadius
                                             } else 0f
                                         } else {
                                             // NORMAL MODE: Media player active
-                                            val progress = (maxDrag / actionThreshold).coerceIn(0f, 1f)
+                                            val activeThreshold = if (lockedDirection == "V" && totalDragY < 0) unlockThreshold else mediaThreshold
+                                            val progress = (maxDrag / activeThreshold).coerceIn(0f, 1f)
                                             val snap = (progress / 0.1f).coerceIn(0f, 1f)
 
                                             if (lockedDirection == "V") {
@@ -355,7 +357,7 @@ class WatchActivity : ComponentActivity() {
                                                 targetY = (totalDragY * (1f - snap)).coerceIn(-maxVisualY, maxVisualY)
                                             }
                                             
-                                            targetRadius = ((maxDrag - deadzone) / (actionThreshold - deadzone)).coerceIn(0f, 1f) * maxRadius
+                                            targetRadius = ((maxDrag - deadzone) / (activeThreshold - deadzone)).coerceIn(0f, 1f) * maxRadius
                                         }
 
                                         scope.launch {

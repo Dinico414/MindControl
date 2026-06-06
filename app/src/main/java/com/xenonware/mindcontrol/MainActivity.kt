@@ -13,6 +13,7 @@ import android.graphics.drawable.Drawable
 import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
+import android.os.PowerManager
 import android.provider.Settings
 import android.util.Log
 import android.view.accessibility.AccessibilityManager
@@ -476,15 +477,14 @@ fun GridScreen(
         ) {
             // AI Button
             RedTheme {
-                Box(
+                Surface(
+                    onClick = { onButtonSelected(131, "AI Button") },
                     modifier = Modifier
                         .weight(1f)
                         .fillMaxHeight()
-                        .padding(end = 4.dp, bottom = 4.dp)
-                        .clip(RoundedCornerShape(16.dp))
-                        .background(if (pressedKeys.contains(131)) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.primaryContainer)
-                        .clickable { onButtonSelected(131, "AI Button") },
-                    contentAlignment = Alignment.Center
+                        .padding(end = 4.dp, bottom = 4.dp),
+                    shape = RoundedCornerShape(16.dp),
+                    color = if (pressedKeys.contains(131)) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.primaryContainer
                 ) {
                     Row(
                         verticalAlignment = Alignment.CenterVertically,
@@ -524,22 +524,19 @@ fun GridScreen(
             ) {
                 YellowTheme {
                     // Camera Up
-                    Box(
+                    Surface(
+                        onClick = { onButtonSelected(133, "Camera Up") },
                         modifier = Modifier
                             .weight(1f)
                             .fillMaxWidth()
-                            .padding(start = 4.dp, bottom = 1.dp)
-                            .clip(
-                                RoundedCornerShape(
-                                    topStart = 16.dp,
-                                    topEnd = 16.dp,
-                                    bottomStart = 4.dp,
-                                    bottomEnd = 4.dp
-                                )
-                            )
-                            .background(if (pressedKeys.contains(133)) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.primaryContainer)
-                            .clickable { onButtonSelected(133, "Camera Up") },
-                        contentAlignment = Alignment.Center
+                            .padding(start = 4.dp, bottom = 1.dp),
+                        shape = RoundedCornerShape(
+                            topStart = 16.dp,
+                            topEnd = 16.dp,
+                            bottomStart = 4.dp,
+                            bottomEnd = 4.dp
+                        ),
+                        color = if (pressedKeys.contains(133)) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.primaryContainer
                     ) {
                         Row(
                             verticalAlignment = Alignment.CenterVertically,
@@ -572,22 +569,19 @@ fun GridScreen(
                         }
                     }
                     // Camera Down
-                    Box(
+                    Surface(
+                        onClick = { onButtonSelected(132, "Camera Down") },
                         modifier = Modifier
                             .weight(1f)
                             .fillMaxWidth()
-                            .padding(start = 4.dp, top = 1.dp, bottom = 4.dp)
-                            .clip(
-                                RoundedCornerShape(
-                                    topStart = 4.dp,
-                                    topEnd = 4.dp,
-                                    bottomStart = 16.dp,
-                                    bottomEnd = 16.dp
-                                )
-                            )
-                            .background(if (pressedKeys.contains(132)) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.primaryContainer)
-                            .clickable { onButtonSelected(132, "Camera Down") },
-                        contentAlignment = Alignment.Center
+                            .padding(start = 4.dp, top = 1.dp, bottom = 4.dp),
+                        shape = RoundedCornerShape(
+                            topStart = 4.dp,
+                            topEnd = 4.dp,
+                            bottomStart = 16.dp,
+                            bottomEnd = 16.dp
+                        ),
+                        color = if (pressedKeys.contains(132)) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.primaryContainer
                     ) {
                         Row(
                             verticalAlignment = Alignment.CenterVertically,
@@ -650,16 +644,14 @@ fun GridScreen(
 
                 if (hasKeyboard) {
                     PaletteTheme(palette = keyboardPalette) {
-                        Box(
+                        Surface(
+                            onClick = { onButtonSelected(111, "Keyboard Button") },
                             modifier = Modifier
                                 .weight(1f)
                                 .fillMaxWidth()
-                                .padding(end = 4.dp, top = 4.dp)
-                                .clip(RoundedCornerShape(16.dp))
-                                // Now uses the primary color from keyboardPalette
-                                .background(if (pressedKeys.contains(111)) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.primaryContainer)
-                                .clickable { onButtonSelected(111, "Keyboard Button") },
-                            contentAlignment = Alignment.Center
+                                .padding(end = 4.dp, top = 4.dp),
+                            shape = RoundedCornerShape(16.dp),
+                            color = if (pressedKeys.contains(111)) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.primaryContainer
                         ) {
                             Row(
                                 verticalAlignment = Alignment.CenterVertically,
@@ -704,22 +696,19 @@ fun GridScreen(
             ) {
                 GreenTheme {
                     // Volume Up
-                    Box(
+                    Surface(
+                        onClick = { onButtonSelected(24, "Volume Up") },
                         modifier = Modifier
                             .weight(1f)
                             .fillMaxWidth()
-                            .padding(start = 4.dp, top = 4.dp, bottom = 1.dp)
-                            .clip(
-                                RoundedCornerShape(
-                                    topStart = 16.dp,
-                                    topEnd = 16.dp,
-                                    bottomStart = 4.dp,
-                                    bottomEnd = 4.dp
-                                )
-                            )
-                            .background(if (pressedKeys.contains(24)) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.primaryContainer)
-                            .clickable { onButtonSelected(24, "Volume Up") },
-                        contentAlignment = Alignment.Center
+                            .padding(start = 4.dp, top = 4.dp, bottom = 1.dp),
+                        shape = RoundedCornerShape(
+                            topStart = 16.dp,
+                            topEnd = 16.dp,
+                            bottomStart = 4.dp,
+                            bottomEnd = 4.dp
+                        ),
+                        color = if (pressedKeys.contains(24)) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.primaryContainer
                     ) {
                         Row(
                             verticalAlignment = Alignment.CenterVertically,
@@ -752,22 +741,19 @@ fun GridScreen(
                         }
                     }
                     // Volume Down
-                    Box(
+                    Surface(
+                        onClick = { onButtonSelected(25, "Volume Down") },
                         modifier = Modifier
                             .weight(1f)
                             .fillMaxWidth()
-                            .padding(start = 4.dp, top = 1.dp, bottom = 4.dp)
-                            .clip(
-                                RoundedCornerShape(
-                                    topStart = 4.dp,
-                                    topEnd = 4.dp,
-                                    bottomStart = 16.dp,
-                                    bottomEnd = 16.dp
-                                )
-                            )
-                            .background(if (pressedKeys.contains(25)) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.primaryContainer)
-                            .clickable { onButtonSelected(25, "Volume Down") },
-                        contentAlignment = Alignment.Center
+                            .padding(start = 4.dp, top = 1.dp, bottom = 4.dp),
+                        shape = RoundedCornerShape(
+                            topStart = 4.dp,
+                            topEnd = 4.dp,
+                            bottomStart = 16.dp,
+                            bottomEnd = 16.dp
+                        ),
+                        color = if (pressedKeys.contains(25)) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.primaryContainer
                     ) {
                         Row(
                             verticalAlignment = Alignment.CenterVertically,
@@ -808,25 +794,23 @@ fun GridScreen(
                 ) {
                     BlueTheme {
                         // Camera Button
-                        Box(
+                        Surface(
+                            onClick = { onButtonSelected(27, "Camera Button") },
                             modifier = Modifier
                                 .weight(1f)
                                 .fillMaxHeight()
-                                .padding(start = 4.dp, end = 1.dp, top = 4.dp)
-                                .clip(
-                                    RoundedCornerShape(
-                                        topStart = 16.dp,
-                                        topEnd = 4.dp,
-                                        bottomStart = 16.dp,
-                                        bottomEnd = 4.dp
-                                    )
-                                )
-                                .background(if (pressedKeys.contains(27)) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.primaryContainer)
-                                .clickable { onButtonSelected(27, "Camera Button") },
-                            contentAlignment = Alignment.Center
+                                .padding(start = 4.dp, end = 1.dp, top = 4.dp),
+                            shape = RoundedCornerShape(
+                                topStart = 16.dp,
+                                topEnd = 4.dp,
+                                bottomStart = 16.dp,
+                                bottomEnd = 4.dp
+                            ),
+                            color = if (pressedKeys.contains(27)) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.primaryContainer
                         ) {
                             Column(
                                 horizontalAlignment = Alignment.CenterHorizontally,
+                                verticalArrangement = Arrangement.Center,
                                 modifier = Modifier.padding(8.dp)
                             ) {
                                 Icon(
@@ -845,25 +829,23 @@ fun GridScreen(
                             }
                         }
                         // Focus Button
-                        Box(
+                        Surface(
+                            onClick = { onButtonSelected(134, "Focus Button") },
                             modifier = Modifier
                                 .weight(1f)
                                 .fillMaxHeight()
-                                .padding(start = 1.dp, top = 4.dp)
-                                .clip(
-                                    RoundedCornerShape(
-                                        topStart = 4.dp,
-                                        topEnd = 16.dp,
-                                        bottomStart = 4.dp,
-                                        bottomEnd = 16.dp
-                                    )
-                                )
-                                .background(if (pressedKeys.contains(134)) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.primaryContainer)
-                                .clickable { onButtonSelected(134, "Focus Button") },
-                            contentAlignment = Alignment.Center
+                                .padding(start = 1.dp, top = 4.dp),
+                            shape = RoundedCornerShape(
+                                topStart = 4.dp,
+                                topEnd = 16.dp,
+                                bottomStart = 4.dp,
+                                bottomEnd = 16.dp
+                            ),
+                            color = if (pressedKeys.contains(134)) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.primaryContainer
                         ) {
                             Column(
                                 horizontalAlignment = Alignment.CenterHorizontally,
+                                verticalArrangement = Arrangement.Center,
                                 modifier = Modifier.padding(8.dp)
                             ) {
                                 Icon(
@@ -935,6 +917,10 @@ fun TogglesContainer(
     var shizukuAvailable by remember { mutableStateOf(false) }
     var shizukuInstalled by remember { mutableStateOf(false) }
     var isNotificationListenerEnabled by remember { mutableStateOf(false) }
+    val powerManager = remember { context.getSystemService(Context.POWER_SERVICE) as PowerManager }
+    var isBatteryOptimized by remember {
+        mutableStateOf(!powerManager.isIgnoringBatteryOptimizations(context.packageName))
+    }
     var showAccessibilityDisclosure by rememberSaveable { mutableStateOf(false) }
 
     LaunchedEffect(Unit) {
@@ -945,6 +931,8 @@ fun TogglesContainer(
 
             isNotificationListenerEnabled = Settings.Secure.getString(context.contentResolver, "enabled_notification_listeners")
                 ?.contains(context.packageName) == true
+            
+            isBatteryOptimized = !powerManager.isIgnoringBatteryOptimizations(context.packageName)
 
             shizukuInstalled = try {
                 context.packageManager.getPackageInfo("moe.shizuku.privileged.api", PackageManager.PackageInfoFlags.of(0))
@@ -1018,16 +1006,16 @@ fun TogglesContainer(
 
             // --- Accessibility Status (Always Visible) ---
             Card(
+                onClick = {
+                    if (!isServiceEnabled) showAccessibilityDisclosure = true
+                    else {
+                        val intent = Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS)
+                        context.startActivity(intent)
+                    }
+                },
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(vertical = 4.dp)
-                    .clickable {
-                        if (!isServiceEnabled) showAccessibilityDisclosure = true
-                        else {
-                            val intent = Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS)
-                            context.startActivity(intent)
-                        }
-                    },
+                    .padding(vertical = 4.dp),
                 colors = CardDefaults.cardColors(
                     containerColor = if (isServiceEnabled) Color(0xFFE8F5E9) else Color(0xFFFFEBEE)
                 ),
@@ -1046,28 +1034,28 @@ fun TogglesContainer(
 
             // --- Shizuku Status (Always Visible) ---
             Card(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(vertical = 4.dp)
-                    .clickable {
-                        when {
-                            !shizukuInstalled -> {
-                                val appId = "moe.shizuku.privileged.api"
-                                try {
-                                    context.startActivity(Intent(Intent.ACTION_VIEW, "market://details?id=$appId".toUri()))
-                                } catch (_: Exception) {
-                                    context.startActivity(Intent(Intent.ACTION_VIEW, "https://play.google.com/store/apps/details?id=$appId".toUri()))
-                                }
-                            }
-                            !shizukuAvailable -> {
-                                val intent = context.packageManager.getLaunchIntentForPackage("moe.shizuku.privileged.api")
-                                if (intent != null) context.startActivity(intent)
-                            }
-                            !shizukuPermission -> {
-                                try { Shizuku.requestPermission(0) } catch (e: Exception) { Log.e("MainActivity", "Shizuku request error", e) }
+                onClick = {
+                    when {
+                        !shizukuInstalled -> {
+                            val appId = "moe.shizuku.privileged.api"
+                            try {
+                                context.startActivity(Intent(Intent.ACTION_VIEW, "market://details?id=$appId".toUri()))
+                            } catch (_: Exception) {
+                                context.startActivity(Intent(Intent.ACTION_VIEW, "https://play.google.com/store/apps/details?id=$appId".toUri()))
                             }
                         }
-                    },
+                        !shizukuAvailable -> {
+                            val intent = context.packageManager.getLaunchIntentForPackage("moe.shizuku.privileged.api")
+                            if (intent != null) context.startActivity(intent)
+                        }
+                        !shizukuPermission -> {
+                            try { Shizuku.requestPermission(0) } catch (e: Exception) { Log.e("MainActivity", "Shizuku request error", e) }
+                        }
+                    }
+                },
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(vertical = 4.dp),
                 colors = CardDefaults.cardColors(
                     containerColor = if (shizukuAvailable && shizukuPermission) Color(0xFFE8F5E9) else Color(0xFFFFEBEE)
                 ),
@@ -1090,16 +1078,53 @@ fun TogglesContainer(
                 }
             }
 
+            // --- Battery Optimization Status ---
+            if (isBatteryOptimized) {
+                Card(
+                    onClick = {
+                        try {
+                            val intent = Intent(Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS).apply {
+                                data = android.net.Uri.parse("package:${context.packageName}")
+                            }
+                            context.startActivity(intent)
+                        } catch (e: Exception) {
+                            Log.e("MainActivity", "Error opening battery optimization settings", e)
+                            // Fallback to general settings if package-specific fails
+                            val fallbackIntent = Intent(Settings.ACTION_IGNORE_BATTERY_OPTIMIZATION_SETTINGS)
+                            context.startActivity(fallbackIntent)
+                        }
+                    },
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(vertical = 4.dp),
+                    colors = CardDefaults.cardColors(containerColor = Color(0xFFFFEBEE)),
+                    border = BorderStroke(1.dp, Color(0xFFC62828))
+                ) {
+                    Column(modifier = Modifier.padding(12.dp)) {
+                        Text(
+                            text = "Battery Optimization: ON (Tap to Disable)",
+                            color = Color(0xFFC62828),
+                            style = MaterialTheme.typography.bodyMedium
+                        )
+                        Text(
+                            text = "System may kill MindControl to save battery. Disable this for better stability.",
+                            color = Color(0xFFC62828).copy(alpha = 0.7f),
+                            style = MaterialTheme.typography.labelSmall
+                        )
+                    }
+                }
+            }
+
             // --- Media Control / Notification Listener (Hide if Active) ---
             if (!isNotificationListenerEnabled) {
                 Card(
+                    onClick = {
+                        val intent = Intent(Settings.ACTION_NOTIFICATION_LISTENER_SETTINGS)
+                        context.startActivity(intent)
+                    },
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(vertical = 4.dp)
-                        .clickable {
-                            val intent = Intent(Settings.ACTION_NOTIFICATION_LISTENER_SETTINGS)
-                            context.startActivity(intent)
-                        },
+                        .padding(vertical = 4.dp),
                     colors = CardDefaults.cardColors(containerColor = Color(0xFFFFEBEE)),
                     border = BorderStroke(1.dp, Color(0xFFC62828))
                 ) {
@@ -1116,14 +1141,14 @@ fun TogglesContainer(
             // --- System Settings (Hide if Active) ---
             if (!Settings.System.canWrite(context)) {
                 Card(
+                    onClick = {
+                        val intent = Intent(Settings.ACTION_MANAGE_WRITE_SETTINGS)
+                        intent.data = android.net.Uri.parse("package:${context.packageName}")
+                        context.startActivity(intent)
+                    },
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(vertical = 4.dp)
-                        .clickable {
-                            val intent = Intent(Settings.ACTION_MANAGE_WRITE_SETTINGS)
-                            intent.data = ("package:" + context.packageName).toUri()
-                            context.startActivity(intent)
-                        },
+                        .padding(vertical = 4.dp),
                     colors = CardDefaults.cardColors(containerColor = Color(0xFFFFEBEE)),
                     border = BorderStroke(1.dp, Color(0xFFC62828))
                 ) {
@@ -1141,13 +1166,13 @@ fun TogglesContainer(
             val notificationManager = context.getSystemService(Context.NOTIFICATION_SERVICE) as android.app.NotificationManager
             if (!notificationManager.isNotificationPolicyAccessGranted) {
                 Card(
+                    onClick = {
+                        val intent = Intent(Settings.ACTION_NOTIFICATION_POLICY_ACCESS_SETTINGS)
+                        context.startActivity(intent)
+                    },
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(vertical = 4.dp)
-                        .clickable {
-                            val intent = Intent(Settings.ACTION_NOTIFICATION_POLICY_ACCESS_SETTINGS)
-                            context.startActivity(intent)
-                        },
+                        .padding(vertical = 4.dp),
                     colors = CardDefaults.cardColors(containerColor = Color(0xFFFFEBEE)),
                     border = BorderStroke(1.dp, Color(0xFFC62828))
                 ) {
@@ -1164,14 +1189,14 @@ fun TogglesContainer(
             // --- POST_NOTIFICATIONS (Hide if Active) ---
             if (context.checkSelfPermission(android.Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) {
                 Card(
+                    onClick = {
+                        val intent = Intent(Settings.ACTION_APP_NOTIFICATION_SETTINGS)
+                        intent.putExtra(Settings.EXTRA_APP_PACKAGE, context.packageName)
+                        context.startActivity(intent)
+                    },
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(vertical = 4.dp)
-                        .clickable {
-                            val intent = Intent(Settings.ACTION_APP_NOTIFICATION_SETTINGS)
-                            intent.putExtra(Settings.EXTRA_APP_PACKAGE, context.packageName)
-                            context.startActivity(intent)
-                        },
+                        .padding(vertical = 4.dp),
                     colors = CardDefaults.cardColors(containerColor = Color(0xFFFFEBEE)),
                     border = BorderStroke(1.dp, Color(0xFFC62828))
                 ) {
