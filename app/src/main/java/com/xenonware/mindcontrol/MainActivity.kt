@@ -181,9 +181,14 @@ import com.xenon.mylibrary.res.XenonDialog
 import com.xenon.mylibrary.theme.QuicksandTitleVariable
 import com.xenon.mylibrary.values.MediumCornerRadius
 import com.xenon.mylibrary.values.SmallestCornerRadius
+import com.xenonware.mindcontrol.ui.AnalogAodStyle
 import com.xenonware.mindcontrol.ui.ConcentricAodStyle
 import com.xenonware.mindcontrol.ui.InlineAodStyle
+import com.xenonware.mindcontrol.ui.InlineDigitalAodStyle
+import com.xenonware.mindcontrol.ui.InlineDotAodStyle
 import com.xenonware.mindcontrol.ui.StackedAodStyle
+import com.xenonware.mindcontrol.ui.StackedDigitalAodStyle
+import com.xenonware.mindcontrol.ui.StackedDotAodStyle
 import com.xenonware.mindcontrol.ui.theme.BlueTheme
 import com.xenonware.mindcontrol.ui.theme.GreenTheme
 import com.xenonware.mindcontrol.ui.theme.Palette
@@ -2395,6 +2400,11 @@ fun AodStylePickerDialog(
                         SettingsManager.AodStyle.CONCENTRIC -> stringResource(R.string.style_concentric)
                         SettingsManager.AodStyle.STACKED -> stringResource(R.string.style_stacked)
                         SettingsManager.AodStyle.INLINE -> stringResource(R.string.style_inline)
+                        SettingsManager.AodStyle.ANALOG -> stringResource(R.string.style_analog)
+                        SettingsManager.AodStyle.STACKED_DOT -> stringResource(R.string.style_stacked_dot)
+                        SettingsManager.AodStyle.STACKED_DIGITAL -> stringResource(R.string.style_stacked_digital)
+                        SettingsManager.AodStyle.INLINE_DOT -> stringResource(R.string.style_inline_dot)
+                        SettingsManager.AodStyle.INLINE_DIGITAL -> stringResource(R.string.style_inline_digital)
                     }
 
                     AodStyleOption(
@@ -2490,6 +2500,61 @@ fun AodStyleOption(
                             offsetY = 0f
                         )
                     }
+                    SettingsManager.AodStyle.ANALOG -> {
+                        AnalogAodStyle(
+                            isActive = true,
+                            notifications = emptyList(),
+                            mediaInfo = null,
+                            isCharging = false,
+                            batteryLevel = 80,
+                            animatedTextAlpha = 0f,
+                            offsetY = 0f
+                        )
+                    }
+                    SettingsManager.AodStyle.STACKED_DOT -> {
+                        StackedDotAodStyle(
+                            isActive = true,
+                            notifications = emptyList(),
+                            mediaInfo = null,
+                            isCharging = false,
+                            batteryLevel = 80,
+                            animatedTextAlpha = 0f,
+                            offsetY = 0f
+                        )
+                    }
+                    SettingsManager.AodStyle.STACKED_DIGITAL -> {
+                        StackedDigitalAodStyle(
+                            isActive = true,
+                            notifications = emptyList(),
+                            mediaInfo = null,
+                            isCharging = false,
+                            batteryLevel = 80,
+                            animatedTextAlpha = 0f,
+                            offsetY = 0f
+                        )
+                    }
+                    SettingsManager.AodStyle.INLINE_DOT -> {
+                        InlineDotAodStyle(
+                            isActive = true,
+                            notifications = emptyList(),
+                            mediaInfo = null,
+                            isCharging = false,
+                            batteryLevel = 80,
+                            animatedTextAlpha = 0f,
+                            offsetY = 0f
+                        )
+                    }
+                    SettingsManager.AodStyle.INLINE_DIGITAL -> {
+                        InlineDigitalAodStyle(
+                            isActive = true,
+                            notifications = emptyList(),
+                            mediaInfo = null,
+                            isCharging = false,
+                            batteryLevel = 80,
+                            animatedTextAlpha = 0f,
+                            offsetY = 0f
+                        )
+                    }
                 }
             }
             
@@ -2526,6 +2591,11 @@ fun ActionList(
     val styleConcentric = stringResource(R.string.style_concentric)
     val styleStacked = stringResource(R.string.style_stacked)
     val styleInline = stringResource(R.string.style_inline)
+    val styleAnalog = stringResource(R.string.style_analog)
+    val styleStackedDot = stringResource(R.string.style_stacked_dot)
+    val styleStackedDigital = stringResource(R.string.style_stacked_digital)
+    val styleInlineDot = stringResource(R.string.style_inline_dot)
+    val styleInlineDigital = stringResource(R.string.style_inline_digital)
     val speedDialName = stringResource(R.string.speed_dial)
     val urlName = stringResource(R.string.url)
     val qrCodeName = stringResource(R.string.qr_code)
@@ -2557,6 +2627,11 @@ fun ActionList(
                     SettingsManager.AodStyle.CONCENTRIC -> styleConcentric
                     SettingsManager.AodStyle.STACKED -> styleStacked
                     SettingsManager.AodStyle.INLINE -> styleInline
+                    SettingsManager.AodStyle.ANALOG -> styleAnalog
+                    SettingsManager.AodStyle.STACKED_DOT -> styleStackedDot
+                    SettingsManager.AodStyle.STACKED_DIGITAL -> styleStackedDigital
+                    SettingsManager.AodStyle.INLINE_DOT -> styleInlineDot
+                    SettingsManager.AodStyle.INLINE_DIGITAL -> styleInlineDigital
                 }
                 onActionSelected("$aodActionName: $styleName")
                 showAodStyleDialog = false

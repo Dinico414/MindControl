@@ -58,9 +58,14 @@ import androidx.compose.ui.unit.IntOffset
 import androidx.core.view.WindowCompat
 import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.WindowInsetsControllerCompat
+import com.xenonware.mindcontrol.ui.AnalogAodStyle
 import com.xenonware.mindcontrol.ui.ConcentricAodStyle
 import com.xenonware.mindcontrol.ui.InlineAodStyle
+import com.xenonware.mindcontrol.ui.InlineDigitalAodStyle
+import com.xenonware.mindcontrol.ui.InlineDotAodStyle
 import com.xenonware.mindcontrol.ui.StackedAodStyle
+import com.xenonware.mindcontrol.ui.StackedDigitalAodStyle
+import com.xenonware.mindcontrol.ui.StackedDotAodStyle
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
@@ -420,6 +425,66 @@ class WatchActivity : ComponentActivity() {
                                     isMediaEnabled = isMediaEnabled
                                 )
                             }
+                            SettingsManager.AodStyle.ANALOG -> {
+                                AnalogAodStyle(
+                                    isActive = isActive,
+                                    notifications = notifications,
+                                    mediaInfo = mediaInfo,
+                                    isCharging = isCharging,
+                                    batteryLevel = batteryLevel,
+                                    animatedTextAlpha = animatedTextAlpha,
+                                    offsetY = 0f,
+                                    isMediaEnabled = isMediaEnabled
+                                )
+                            }
+                            SettingsManager.AodStyle.STACKED_DOT -> {
+                                StackedDotAodStyle(
+                                    isActive = isActive,
+                                    notifications = notifications,
+                                    mediaInfo = mediaInfo,
+                                    isCharging = isCharging,
+                                    batteryLevel = batteryLevel,
+                                    animatedTextAlpha = animatedTextAlpha,
+                                    offsetY = 0f,
+                                    isMediaEnabled = isMediaEnabled
+                                )
+                            }
+                            SettingsManager.AodStyle.STACKED_DIGITAL -> {
+                                StackedDigitalAodStyle(
+                                    isActive = isActive,
+                                    notifications = notifications,
+                                    mediaInfo = mediaInfo,
+                                    isCharging = isCharging,
+                                    batteryLevel = batteryLevel,
+                                    animatedTextAlpha = animatedTextAlpha,
+                                    offsetY = 0f,
+                                    isMediaEnabled = isMediaEnabled
+                                )
+                            }
+                            SettingsManager.AodStyle.INLINE_DOT -> {
+                                InlineDotAodStyle(
+                                    isActive = isActive,
+                                    notifications = notifications,
+                                    mediaInfo = mediaInfo,
+                                    isCharging = isCharging,
+                                    batteryLevel = batteryLevel,
+                                    animatedTextAlpha = animatedTextAlpha,
+                                    offsetY = 0f,
+                                    isMediaEnabled = isMediaEnabled
+                                )
+                            }
+                            SettingsManager.AodStyle.INLINE_DIGITAL -> {
+                                InlineDigitalAodStyle(
+                                    isActive = isActive,
+                                    notifications = notifications,
+                                    mediaInfo = mediaInfo,
+                                    isCharging = isCharging,
+                                    batteryLevel = batteryLevel,
+                                    animatedTextAlpha = animatedTextAlpha,
+                                    offsetY = 0f,
+                                    isMediaEnabled = isMediaEnabled
+                                )
+                            }
                         }
                     }
                     
@@ -433,18 +498,13 @@ class WatchActivity : ComponentActivity() {
                             else -> Alignment.Center
                         }
 
-                        val circleAlpha by animateFloatAsState(
-                            targetValue = if (animDragRadius.value > 10 * densityVal) 0.6f else 0f,
-                            label = "circleAlpha",
-                            animationSpec = tween(150)
-                        )
 
                         Box(
                             modifier = Modifier
                                 .align(indicatorAlignment)
                                 .size(with(LocalDensity.current) { (animDragRadius.value * 2).toDp() })
                                 .clip(CircleShape)
-                                .background(Color.Black.copy(alpha = circleAlpha)),
+                                .background(Color.Black.copy(alpha = 0f)),
                             contentAlignment = Alignment.Center
                         ) {
                             val iconAlpha by animateFloatAsState(
@@ -460,7 +520,7 @@ class WatchActivity : ComponentActivity() {
                                 "H" if totalDragX > 0 -> Icons.Rounded.SkipPrevious
                                 else -> null
                             }
-                            
+
                             icon?.let {
                                 Icon(
                                     imageVector = it,

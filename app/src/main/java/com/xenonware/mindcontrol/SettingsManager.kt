@@ -90,7 +90,7 @@ object SettingsManager {
     private const val KEY_SHOW_LIFT_TO_WAKE_WARNING = "show_lift_to_wake_warning"
 
     enum class AodStyle {
-        CONCENTRIC, STACKED, INLINE
+        CONCENTRIC, ANALOG, STACKED, INLINE, STACKED_DOT, INLINE_DOT, STACKED_DIGITAL, INLINE_DIGITAL
     }
 
     private fun prefs(context: Context): SharedPreferences {

@@ -42,6 +42,7 @@ import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
@@ -120,6 +121,126 @@ fun InlineAodStyle(
         offsetY = offsetY,
         isMediaEnabled = isMediaEnabled,
         watchFace = { InlineWatchFace(isActive = isActive) }
+    )
+}
+
+@Composable
+fun AnalogAodStyle(
+    isActive: Boolean,
+    notifications: List<StatusBarNotification>,
+    mediaInfo: MediaInfo?,
+    isCharging: Boolean,
+    batteryLevel: Int,
+    animatedTextAlpha: Float,
+    offsetY: Float,
+    isMediaEnabled: Boolean = true
+) {
+    UnifiedAodStyle(
+        isActive = isActive,
+        notifications = notifications,
+        mediaInfo = mediaInfo,
+        isCharging = isCharging,
+        batteryLevel = batteryLevel,
+        animatedTextAlpha = animatedTextAlpha,
+        offsetY = offsetY,
+        isMediaEnabled = isMediaEnabled,
+        watchFace = { AnalogWatchFace(isActive = isActive) }
+    )
+}
+
+@Composable
+fun StackedDotAodStyle(
+    isActive: Boolean,
+    notifications: List<StatusBarNotification>,
+    mediaInfo: MediaInfo?,
+    isCharging: Boolean,
+    batteryLevel: Int,
+    animatedTextAlpha: Float,
+    offsetY: Float,
+    isMediaEnabled: Boolean = true
+) {
+    UnifiedAodStyle(
+        isActive = isActive,
+        notifications = notifications,
+        mediaInfo = mediaInfo,
+        isCharging = isCharging,
+        batteryLevel = batteryLevel,
+        animatedTextAlpha = animatedTextAlpha,
+        offsetY = offsetY,
+        isMediaEnabled = isMediaEnabled,
+        watchFace = { StackedDotWatchFace(isActive = isActive) }
+    )
+}
+
+@Composable
+fun StackedDigitalAodStyle(
+    isActive: Boolean,
+    notifications: List<StatusBarNotification>,
+    mediaInfo: MediaInfo?,
+    isCharging: Boolean,
+    batteryLevel: Int,
+    animatedTextAlpha: Float,
+    offsetY: Float,
+    isMediaEnabled: Boolean = true
+) {
+    UnifiedAodStyle(
+        isActive = isActive,
+        notifications = notifications,
+        mediaInfo = mediaInfo,
+        isCharging = isCharging,
+        batteryLevel = batteryLevel,
+        animatedTextAlpha = animatedTextAlpha,
+        offsetY = offsetY,
+        isMediaEnabled = isMediaEnabled,
+        watchFace = { StackedDigitalWatchFace(isActive = isActive) }
+    )
+}
+
+@Composable
+fun InlineDotAodStyle(
+    isActive: Boolean,
+    notifications: List<StatusBarNotification>,
+    mediaInfo: MediaInfo?,
+    isCharging: Boolean,
+    batteryLevel: Int,
+    animatedTextAlpha: Float,
+    offsetY: Float,
+    isMediaEnabled: Boolean = true
+) {
+    UnifiedAodStyle(
+        isActive = isActive,
+        notifications = notifications,
+        mediaInfo = mediaInfo,
+        isCharging = isCharging,
+        batteryLevel = batteryLevel,
+        animatedTextAlpha = animatedTextAlpha,
+        offsetY = offsetY,
+        isMediaEnabled = isMediaEnabled,
+        watchFace = { InlineDotWatchFace(isActive = isActive) }
+    )
+}
+
+@Composable
+fun InlineDigitalAodStyle(
+    isActive: Boolean,
+    notifications: List<StatusBarNotification>,
+    mediaInfo: MediaInfo?,
+    isCharging: Boolean,
+    batteryLevel: Int,
+    animatedTextAlpha: Float,
+    offsetY: Float,
+    isMediaEnabled: Boolean = true
+) {
+    UnifiedAodStyle(
+        isActive = isActive,
+        notifications = notifications,
+        mediaInfo = mediaInfo,
+        isCharging = isCharging,
+        batteryLevel = batteryLevel,
+        animatedTextAlpha = animatedTextAlpha,
+        offsetY = offsetY,
+        isMediaEnabled = isMediaEnabled,
+        watchFace = { InlineDigitalWatchFace(isActive = isActive) }
     )
 }
 

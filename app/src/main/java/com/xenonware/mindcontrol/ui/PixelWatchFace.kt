@@ -18,10 +18,12 @@ import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.geometry.RoundRect
+import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.ClipOp
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.drawscope.clipPath
 import androidx.compose.ui.graphics.graphicsLayer
@@ -30,6 +32,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.drawText
+import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.rememberTextMeasurer
 import androidx.compose.ui.unit.sp
@@ -80,7 +83,7 @@ fun PixelWatchFace(isActive: Boolean) {
     }
 
     val minutesAlpha by animateFloatAsState(
-        targetValue = if (isLongInactive) 0f else 1f,
+        targetValue = 1f,
         animationSpec = tween(1000),
         label = "minutesAlpha"
     )
@@ -316,38 +319,6 @@ fun StackedWatchFace(isActive: Boolean) {
         label = "alpha"
     )
 
-    var isLongInactive by remember { mutableStateOf(false) }
-    var isShortInactive by remember { mutableStateOf(false) }
-    var isReappearing by remember { mutableStateOf(false) }
-
-    LaunchedEffect(isActive) {
-        if (isActive) {
-            val wereMinutesHidden = isLongInactive
-            isLongInactive = false
-            if (wereMinutesHidden) {
-                isReappearing = true
-                delay(250L) // Delay seconds/pill expansion if minutes were hidden
-                isReappearing = false
-            }
-            isShortInactive = false
-        } else {
-            isShortInactive = false
-            isLongInactive = false
-            isReappearing = false
-
-            isShortInactive = true
-
-            delay(300_000L)
-            isLongInactive = true
-        }
-    }
-
-    val minutesAlpha by animateFloatAsState(
-        targetValue = if (isLongInactive) 0f else 1f,
-        animationSpec = tween(1000),
-        label = "minutesAlpha"
-    )
-
     var time by remember { mutableLongStateOf(System.currentTimeMillis()) }
     val isFullyInactive = !isActive
 
@@ -416,7 +387,7 @@ fun StackedWatchFace(isActive: Boolean) {
         drawText(
             textLayoutResult = minuteLayout,
             topLeft = Offset(cx - minuteLayout.size.width / 2f, minuteY),
-            alpha = minutesAlpha
+            alpha = 1f
         )
     }
 }
@@ -430,41 +401,9 @@ fun InlineWatchFace(isActive: Boolean) {
     val localDensity = LocalDensity.current
 
     val animatedAlpha by animateFloatAsState(
-        targetValue = if (isActive) 0.9f else 0.7f,
+        targetValue = if (isActive) 1f else 0.7f,
         animationSpec = tween(500),
         label = "alpha"
-    )
-
-    var isLongInactive by remember { mutableStateOf(false) }
-    var isShortInactive by remember { mutableStateOf(false) }
-    var isReappearing by remember { mutableStateOf(false) }
-
-    LaunchedEffect(isActive) {
-        if (isActive) {
-            val wereMinutesHidden = isLongInactive
-            isLongInactive = false
-            if (wereMinutesHidden) {
-                isReappearing = true
-                delay(250L) // Delay seconds/pill expansion if minutes were hidden
-                isReappearing = false
-            }
-            isShortInactive = false
-        } else {
-            isShortInactive = false
-            isLongInactive = false
-            isReappearing = false
-
-            isShortInactive = true
-
-            delay(300_000L)
-            isLongInactive = true
-        }
-    }
-
-    val minutesAlpha by animateFloatAsState(
-        targetValue = if (isLongInactive) 0f else 1f,
-        animationSpec = tween(1000),
-        label = "minutesAlpha"
     )
 
     var time by remember { mutableLongStateOf(System.currentTimeMillis()) }
@@ -539,12 +478,434 @@ fun InlineWatchFace(isActive: Boolean) {
         drawText(
             textLayoutResult = colonLayout,
             topLeft = Offset(colonLeft, cy - colonLayout.size.height / 2f),
-            alpha = minutesAlpha
+            alpha = 1f
         )
         drawText(
             textLayoutResult = minuteLayout,
             topLeft = Offset(minuteLeft, cy - minuteLayout.size.height / 2f),
-            alpha = minutesAlpha
+            alpha = 1f
         )
+    }
+}
+
+@Composable
+fun AnalogWatchFace(isActive: Boolean) {
+    val animatedAlpha by animateFloatAsState(
+        targetValue = if (isActive) 1f else 0.7f,
+        animationSpec = tween(500),
+        label = "alpha"
+    )
+
+    var time by remember { mutableLongStateOf(System.currentTimeMillis()) }
+    LaunchedEffect(isActive) {
+        while (true) {
+            time = System.currentTimeMillis()
+            if (isActive) delay(16) else delay(1000)
+        }
+    }
+
+    val calendar = Calendar.getInstance().apply { timeInMillis = time }
+    val hour = calendar.get(Calendar.HOUR)
+    val minute = calendar.get(Calendar.MINUTE)
+    val second = calendar.get(Calendar.SECOND)
+    val millis = calendar.get(Calendar.MILLISECOND)
+
+    Canvas(
+        modifier = Modifier
+            .fillMaxWidth(0.7f)
+            .aspectRatio(1f)
+            .graphicsLayer(alpha = animatedAlpha)
+    ) {
+        val w = size.width
+        val h = size.height
+        val cx = w / 2f
+        val cy = h / 2f
+        val r = w / 2f
+
+        // Draw Ticks
+        for (i in 0 until 60) {
+            val angleDeg = i * 6f - 90f
+            val rad = Math.toRadians(angleDeg.toDouble())
+            val isMain = i % 5 == 0
+            val tickLen = if (isMain) r * 0.15f else r * 0.05f
+            val strokeWidth = if (isMain) r * 0.02f else r * 0.01f
+            val alpha = if (isMain) 0.8f else 0.4f
+            
+            drawLine(
+                color = Color.White.copy(alpha = alpha),
+                start = Offset(cx + (r - tickLen) * cos(rad).toFloat(), cy + (r - tickLen) * sin(rad).toFloat()),
+                end = Offset(cx + r * cos(rad).toFloat(), cy + r * sin(rad).toFloat()),
+                strokeWidth = strokeWidth,
+                cap = StrokeCap.Round
+            )
+        }
+
+        // Hour Hand (ticks every minute)
+        val hourAngle = (hour + minute / 60f) * 30f - 90f
+        val hourRad = Math.toRadians(hourAngle.toDouble())
+        drawLine(
+            color = Color.White,
+            start = Offset(cx, cy),
+            end = Offset(cx + r * 0.5f * cos(hourRad).toFloat(), cy + r * 0.5f * sin(hourRad).toFloat()),
+            strokeWidth = r * 0.04f,
+            cap = StrokeCap.Round
+        )
+
+        // Minute Hand (ticks every minute)
+        val minuteAngle = minute * 6f - 90f
+        val minuteRad = Math.toRadians(minuteAngle.toDouble())
+        drawLine(
+            color = Color.White,
+            start = Offset(cx, cy),
+            end = Offset(cx + r * 0.75f * cos(minuteRad).toFloat(), cy + r * 0.75f * sin(minuteRad).toFloat()),
+            strokeWidth = r * 0.025f,
+            cap = StrokeCap.Round
+        )
+
+        // Second Hand (only if active)
+        if (isActive) {
+            val secondAngle = (second + millis / 1000f) * 6f - 90f
+            val secondRad = Math.toRadians(secondAngle.toDouble())
+            drawLine(
+                color = Color.Red,
+                start = Offset(cx, cy),
+                end = Offset(cx + r * 0.85f * cos(secondRad).toFloat(), cy + r * 0.85f * sin(secondRad).toFloat()),
+                strokeWidth = r * 0.01f,
+                cap = StrokeCap.Round
+            )
+        }
+
+        // Center dot
+        drawCircle(color = Color.White, radius = r * 0.03f, center = Offset(cx, cy))
+    }
+}
+
+@Composable
+fun StackedDotWatchFace(isActive: Boolean) {
+    GenericStackedGridWatchFace(isActive = isActive, isNothingStyle = true)
+}
+
+@Composable
+fun StackedDigitalWatchFace(isActive: Boolean) {
+    GenericStackedGridWatchFace(isActive = isActive, isNothingStyle = false)
+}
+
+@Composable
+fun InlineDotWatchFace(isActive: Boolean) {
+    GenericInlineGridWatchFace(isActive = isActive, isNothingStyle = true)
+}
+
+@Composable
+fun InlineDigitalWatchFace(isActive: Boolean) {
+    GenericInlineGridWatchFace(isActive = isActive, isNothingStyle = false)
+}
+
+private val NOTHING_DOT_PATTERNS = arrayOf(
+    intArrayOf(0x6, 0x9, 0x9, 0x9, 0x9, 0x9, 0x6), // 0
+    intArrayOf(0x4, 0x4, 0x4, 0x4, 0x4, 0x4, 0x4), // 1
+    intArrayOf(0xE, 0x1, 0x1, 0x6, 0x8, 0x8, 0xF), // 2
+    intArrayOf(0xE, 0x1, 0x1, 0x6, 0x1, 0x1, 0xE), // 3
+    intArrayOf(0x9, 0x9, 0x9, 0xF, 0x1, 0x1, 0x1), // 4
+    intArrayOf(0xF, 0x8, 0x8, 0xE, 0x1, 0x1, 0xE), // 5
+    intArrayOf(0x6, 0x8, 0x8, 0xE, 0x9, 0x9, 0x6), // 6
+    intArrayOf(0xF, 0x1, 0x1, 0x1, 0x1, 0x1, 0x1), // 7
+    intArrayOf(0x6, 0x9, 0x9, 0x6, 0x9, 0x9, 0x6), // 8
+    intArrayOf(0x6, 0x9, 0x9, 0x7, 0x1, 0x1, 0x6)  // 9
+)
+
+private val DIGITAL_SEGMENTS = intArrayOf(
+    0x3F, 0x06, 0x5B, 0x4F, 0x66, 0x6D, 0x7D, 0x07, 0x7F, 0x6F
+)
+
+private fun DrawScope.drawNothingDigit(digit: Int, offset: Offset, width: Float, height: Float, color: Color, alpha: Float) {
+    val pattern = NOTHING_DOT_PATTERNS[digit.coerceIn(0, 9)]
+    
+    // Use a uniform cell size to ensure horizontal and vertical spacing are identical.
+    val cellSize = kotlin.math.min(width / 4f, height / 7f)
+    
+    // Center the 4x7 grid within the allocated width/height.
+    val startX = offset.x + (width - cellSize * 4f) / 2f
+    val startY = offset.y + (height - cellSize * 7f) / 2f
+    
+    // Dot radius relative to the cell size.
+    val dotRadius = cellSize * 0.38f
+    
+    for (row in 0 until 7) {
+        val rowBits = pattern[row]
+        for (col in 0 until 4) {
+            val bit = (rowBits shr (3 - col)) and 1
+            if (bit == 1) {
+                val cx = startX + col * cellSize + cellSize / 2f
+                val cy = startY + row * cellSize + cellSize / 2f
+                drawCircle(color, dotRadius, Offset(cx, cy), alpha)
+            }
+        }
+    }
+}
+
+private fun DrawScope.drawDigitalDigit(digit: Int, offset: Offset, width: Float, height: Float, color: Color, alpha: Float) {
+    val segments = DIGITAL_SEGMENTS[digit.coerceIn(0, 9)]
+    val t = width * 0.18f // thickness
+    val r = t / 2f       // point depth
+    val g = t / 4f       // Gap that ensures 45-degree alignment (r = 2g is the meeting distance)
+    
+    fun drawSeg(pts: List<Offset>) {
+        val p = Path().apply {
+            moveTo(pts[0].x, pts[0].y)
+            for (i in 1 until pts.size) lineTo(pts[i].x, pts[i].y)
+            close()
+        }
+        drawPath(p, color, alpha)
+    }
+
+    val x = offset.x
+    val y = offset.y
+    val w = width
+    val h = height
+    val mh = y + h / 2f
+
+    // Standard meeting points for a 7-segment display
+    val p1 = Offset(x + r, y + r)      // Top-Left
+    val p2 = Offset(x + w - r, y + r)  // Top-Right
+    val p3 = Offset(x + r, mh)         // Mid-Left
+    val p4 = Offset(x + w - r, mh)     // Mid-Right
+    val p5 = Offset(x + r, y + h - r)  // Bottom-Left
+    val p6 = Offset(x + w - r, y + h - r) // Bottom-Right
+
+    // Offset based on gap to make horizontal segments shorter for alignment
+    val hg = g * 1.5f 
+
+    // --- Horizontal Segments (A, G, D) ---
+
+    // Segment A (Top)
+    if ((segments and 0x01) != 0) {
+        val ly = y + r
+        drawSeg(listOf(
+            Offset(p1.x + hg, ly),     // Left Point
+            Offset(p1.x + hg + r, y),  // Top-Left
+            Offset(p2.x - hg - r, y),  // Top-Right
+            Offset(p2.x - hg, ly),     // Right Point
+            Offset(p2.x - hg - r, y + t), // Bottom-Right
+            Offset(p1.x + hg + r, y + t)  // Bottom-Left
+        ))
+    }
+
+    // Segment G (Middle)
+    if ((segments and 0x40) != 0) {
+        drawSeg(listOf(
+            Offset(p3.x + hg, mh),     // Left Point
+            Offset(p3.x + hg + r, mh - r), // Top-Left
+            Offset(p4.x - hg - r, mh - r), // Top-Right
+            Offset(p4.x - hg, mh),     // Right Point
+            Offset(p4.x - hg - r, mh + r), // Bottom-Right
+            Offset(p3.x + hg + r, mh + r)  // Bottom-Left
+        ))
+    }
+
+    // Segment D (Bottom)
+    if ((segments and 0x08) != 0) {
+        val ly = y + h - r
+        drawSeg(listOf(
+            Offset(p5.x + hg, ly),     // Left Point
+            Offset(p5.x + hg + r, y + h - t), // Top-Left
+            Offset(p6.x - hg - r, y + h - t), // Top-Right
+            Offset(p6.x - hg, ly),     // Right Point
+            Offset(p6.x - hg - r, y + h), // Bottom-Right
+            Offset(p5.x + hg + r, y + h)  // Bottom-Left
+        ))
+    }
+
+    // --- Vertical Segments (F, B, E, C) ---
+
+    // Segment F (Top Left)
+    if ((segments and 0x20) != 0) {
+        val lx = x + r
+        drawSeg(listOf(
+            Offset(lx, p1.y + g),           // Top Point
+            Offset(x + t, p1.y + g + r),    // Top-Right
+            Offset(x + t, p3.y - g - r),    // Bottom-Right
+            Offset(lx, p3.y - g),           // Bottom Point
+            Offset(x, p3.y - g - r),        // Bottom-Left
+            Offset(x, p1.y + g + r)         // Top-Left
+        ))
+    }
+
+    // Segment B (Top Right)
+    if ((segments and 0x02) != 0) {
+        val lx = x + w - r
+        drawSeg(listOf(
+            Offset(lx, p2.y + g),           // Top Point
+            Offset(x + w, p2.y + g + r),    // Top-Right
+            Offset(x + w, p4.y - g - r),    // Bottom-Right
+            Offset(lx, p4.y - g),           // Bottom Point
+            Offset(x + w - t, p4.y - g - r), // Bottom-Left
+            Offset(x + w - t, p2.y + g + r)  // Top-Left
+        ))
+    }
+
+    // Segment E (Bottom Left)
+    if ((segments and 0x10) != 0) {
+        val lx = x + r
+        drawSeg(listOf(
+            Offset(lx, p3.y + g),           // Top Point
+            Offset(x + t, p3.y + g + r),    // Top-Right
+            Offset(x + t, p5.y - g - r),    // Bottom-Right
+            Offset(lx, p5.y - g),           // Bottom Point
+            Offset(x, p5.y - g - r),        // Bottom-Left
+            Offset(x, p3.y + g + r)         // Top-Left
+        ))
+    }
+
+    // Segment C (Bottom Right)
+    if ((segments and 0x04) != 0) {
+        val lx = x + w - r
+        drawSeg(listOf(
+            Offset(lx, p4.y + g),           // Top Point
+            Offset(x + w, p4.y + g + r),    // Top-Right
+            Offset(x + w, p6.y - g - r),    // Bottom-Right
+            Offset(lx, p6.y - g),           // Bottom Point
+            Offset(x + w - t, p6.y - g - r), // Bottom-Left
+            Offset(x + w - t, p4.y + g + r)  // Top-Left
+        ))
+    }
+}
+
+@Composable
+private fun GenericStackedGridWatchFace(isActive: Boolean, isNothingStyle: Boolean) {
+    val context = LocalContext.current
+    val is24Hour = DateFormat.is24HourFormat(context)
+
+    val animatedAlpha by animateFloatAsState(
+        targetValue = if (isActive) 1f else 0.7f,
+        animationSpec = tween(500),
+        label = "alpha"
+    )
+
+    var time by remember { mutableLongStateOf(System.currentTimeMillis()) }
+    LaunchedEffect(isActive) {
+        while (true) {
+            time = System.currentTimeMillis()
+            if (isActive) delay(16) else delay(1000)
+        }
+    }
+
+    val calendar = Calendar.getInstance().apply { timeInMillis = time }
+    val hour = calendar.get(Calendar.HOUR_OF_DAY)
+    val displayHour = if (is24Hour) hour else (hour % 12).let { if (it == 0) 12 else it }
+    val minute = calendar.get(Calendar.MINUTE)
+
+    Canvas(
+        modifier = Modifier.fillMaxWidth(0.4f).aspectRatio(1f).graphicsLayer(alpha = animatedAlpha)
+    ) {
+        val w = size.width
+        val h = size.height
+        val cx = w / 2f
+        val cy = h / 2f
+        val digitWidth = w * 0.32f
+        val digitHeight = h * 0.42f
+        val spacing = w * 0.05f
+
+        val h1 = displayHour / 10
+        val h2 = displayHour % 10
+        val m1 = minute / 10
+        val m2 = minute % 10
+
+        val topY = cy - digitHeight - spacing / 2f
+        val bottomY = cy + spacing / 2f
+        val leftX = cx - digitWidth - spacing / 2f
+        val rightX = cx + spacing / 2f
+
+        if (isNothingStyle) {
+            drawNothingDigit(h1, Offset(leftX, topY), digitWidth, digitHeight, Color.White, 1f)
+            drawNothingDigit(h2, Offset(rightX, topY), digitWidth, digitHeight, Color.White, 1f)
+            drawNothingDigit(m1, Offset(leftX, bottomY), digitWidth, digitHeight, Color.White, 1f)
+            drawNothingDigit(m2, Offset(rightX, bottomY), digitWidth, digitHeight, Color.White, 1f)
+        } else {
+            drawDigitalDigit(h1, Offset(leftX, topY), digitWidth, digitHeight, Color.White, 1f)
+            drawDigitalDigit(h2, Offset(rightX, topY), digitWidth, digitHeight, Color.White, 1f)
+            drawDigitalDigit(m1, Offset(leftX, bottomY), digitWidth, digitHeight, Color.White, 1f)
+            drawDigitalDigit(m2, Offset(rightX, bottomY), digitWidth, digitHeight, Color.White, 1f)
+        }
+    }
+}
+
+@Composable
+private fun GenericInlineGridWatchFace(isActive: Boolean, isNothingStyle: Boolean) {
+    val context = LocalContext.current
+    val is24Hour = DateFormat.is24HourFormat(context)
+
+    val animatedAlpha by animateFloatAsState(
+        targetValue = if (isActive) 1f else 0.7f,
+        animationSpec = tween(500),
+        label = "alpha"
+    )
+
+    var time by remember { mutableLongStateOf(System.currentTimeMillis()) }
+    LaunchedEffect(isActive) {
+        while (true) {
+            time = System.currentTimeMillis()
+            if (isActive) delay(16) else delay(1000)
+        }
+    }
+
+    val calendar = Calendar.getInstance().apply { timeInMillis = time }
+    val hour = calendar.get(Calendar.HOUR_OF_DAY)
+    val displayHour = if (is24Hour) hour else (hour % 12).let { if (it == 0) 12 else it }
+    val minute = calendar.get(Calendar.MINUTE)
+
+    Canvas(
+        modifier = Modifier.fillMaxWidth(0.5f).aspectRatio(2.5f).graphicsLayer(alpha = animatedAlpha)
+    ) {
+        val w = size.width
+        val h = size.height
+        val cx = w / 2f
+        val cy = h / 2f
+        val digitWidth = w * 0.17f
+        val digitHeight = h * 0.85f
+        val spacing = w * 0.02f
+        val colonWidth = w * 0.05f
+
+        val h1 = displayHour / 10
+        val h2 = displayHour % 10
+        val m1 = minute / 10
+        val m2 = minute % 10
+
+        val startX = cx - (digitWidth * 2 + colonWidth + digitWidth * 2 + spacing * 4) / 2f
+        val y = cy - digitHeight / 2f
+
+        var currentX = startX
+        if (isNothingStyle) {
+            drawNothingDigit(h1, Offset(currentX, y), digitWidth, digitHeight, Color.White, 1f)
+            currentX += digitWidth + spacing
+            drawNothingDigit(h2, Offset(currentX, y), digitWidth, digitHeight, Color.White, 1f)
+            currentX += digitWidth + spacing
+            
+            // Colon
+            val cellSize = digitWidth / 4f
+            val dotRadius = cellSize * 0.38f
+            drawCircle(Color.White, dotRadius, Offset(currentX + colonWidth / 2f, cy - digitHeight * 0.2f), 1f)
+            drawCircle(Color.White, dotRadius, Offset(currentX + colonWidth / 2f, cy + digitHeight * 0.2f), 1f)
+            
+            currentX += colonWidth + spacing
+            drawNothingDigit(m1, Offset(currentX, y), digitWidth, digitHeight, Color.White, 1f)
+            currentX += digitWidth + spacing
+            drawNothingDigit(m2, Offset(currentX, y), digitWidth, digitHeight, Color.White, 1f)
+        } else {
+            drawDigitalDigit(h1, Offset(currentX, y), digitWidth, digitHeight, Color.White, 1f)
+            currentX += digitWidth + spacing
+            drawDigitalDigit(h2, Offset(currentX, y), digitWidth, digitHeight, Color.White, 1f)
+            currentX += digitWidth + spacing
+            
+            // Colon
+            val t = digitWidth * 0.16f
+            val sy = digitHeight * 0.2f
+            drawRect(Color.White, Offset(currentX + colonWidth / 2f - t / 2f, cy - sy - t / 2f), Size(t, t), alpha = 1f)
+            drawRect(Color.White, Offset(currentX + colonWidth / 2f - t / 2f, cy + sy - t / 2f), Size(t, t), alpha = 1f)
+
+            currentX += colonWidth + spacing
+            drawDigitalDigit(m1, Offset(currentX, y), digitWidth, digitHeight, Color.White, 1f)
+            currentX += digitWidth + spacing
+            drawDigitalDigit(m2, Offset(currentX, y), digitWidth, digitHeight, Color.White, 1f)
+        }
     }
 }
