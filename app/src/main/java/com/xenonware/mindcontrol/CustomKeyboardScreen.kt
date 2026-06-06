@@ -45,7 +45,7 @@ private val letterKeyCodes: Map<Char, Int> = mapOf(
     'g' to 35, 'h' to 36, 'i' to 37, 'j' to 38, 'k' to 39, 'l' to 40,
     'm' to 41, 'n' to 42, 'o' to 43, 'p' to 44, 'q' to 45, 'r' to 46,
     's' to 47, 't' to 48, 'u' to 49, 'v' to 50, 'w' to 51, 'x' to 52,
-    'y' to 53, 'z' to 54,
+    'y' to 53, 'z' to 54, '\'' to 75, 'ñ' to 120
 )
 
 private fun letter(c: Char) = KeyInfo(c.toString(), keyCode = letterKeyCodes[c])
@@ -55,6 +55,7 @@ private fun KeyInfo.configName(): String = when {
     label == "," -> "Comma"
     label == "." -> "Period"
     label == "[" -> "Left_Bracket"
+    label == "'" -> "Apostrophe"
     label.length == 1 -> label.uppercase()
     else -> label
 }
@@ -189,7 +190,7 @@ fun KeyButton(
 }
 
 enum class KeyboardLayout(val displayName: String) {
-    QWERTY("QWERTY"), QWERTZ("QWERTZ"), AZERTY("AZERTY");
+    QWERTY("QWERTY"), QWERTY_ES("QWERTY 2"), QWERTZ("QWERTZ"), AZERTY("AZERTY");
     fun next(): KeyboardLayout = entries[(ordinal + 1) % entries.size]
 }
 
@@ -215,9 +216,17 @@ fun getRowsForLayout(layout: KeyboardLayout): List<List<KeyInfo>> {
                 disabledKey("Lan", icon = Icons.Rounded.Language),
                 space, disabledKey("Fn"), period, enter)
         )
+        KeyboardLayout.QWERTY_ES -> listOf(
+            "qwertyuiop".map { letter(it) },
+            "asdfghjkl".map { letter(it) } + letter('ñ'),
+            listOf(shift) + "zxcvbnm".map { letter(it) } + listOf(backspace),
+            listOf(disabledKey("123", 1.5f, isPill = true), comma,
+                disabledKey("Lan", icon = Icons.Rounded.Language),
+                space, disabledKey("Fn"), period, enter)
+        )
         KeyboardLayout.QWERTZ -> listOf(
             "qwertzuiop".map { letter(it) },
-            "asdfghjkl".map { letter(it) } + disabledKey("["),
+            "asdfghjklö".map { letter(it) },
             listOf(shift) + "yxcvbnm".map { letter(it) } + listOf(backspace),
             listOf(disabledKey("123", 1.5f, isPill = true), comma,
                 disabledKey("Lan", icon = Icons.Rounded.Language),
@@ -225,8 +234,8 @@ fun getRowsForLayout(layout: KeyboardLayout): List<List<KeyInfo>> {
         )
         KeyboardLayout.AZERTY -> listOf(
             "azertyuiop".map { letter(it) },
-            "qsdfghjkl".map { letter(it) } + disabledKey("["),
-            listOf(shift) + "wxcvbnm".map { letter(it) } + listOf(backspace),
+            "qsdfghjklm".map { letter(it) } + disabledKey("["),
+            listOf(shift) + "wxcvbn'".map { letter(it) } + listOf(backspace),
             listOf(disabledKey("123", 1.5f, isPill = true), comma,
                 disabledKey("Lan", icon = Icons.Rounded.Language),
                 space, disabledKey("Fn"), period, enter)
