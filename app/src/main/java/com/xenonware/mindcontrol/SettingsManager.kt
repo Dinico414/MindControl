@@ -84,6 +84,7 @@ object SettingsManager {
     private const val KEY_DEVICE_PALETTE = "device_palette"
     private const val KEY_KEYBOARD_PALETTE = "keyboard_palette"
     private const val KEY_AOD_STYLE = "aod_style"
+    private const val KEY_AOD_MEDIA_ENABLED = "aod_media_enabled"
     private const val KEY_SHOW_LIFT_TO_WAKE_WARNING = "show_lift_to_wake_warning"
 
     enum class AodStyle {
@@ -170,6 +171,13 @@ object SettingsManager {
 
     fun setAodStyle(context: Context, style: AodStyle) {
         prefs(context).edit { putString(KEY_AOD_STYLE, style.name) }
+    }
+
+    fun isAodMediaEnabled(context: Context): Boolean =
+        prefs(context).getBoolean(KEY_AOD_MEDIA_ENABLED, true)
+
+    fun setAodMediaEnabled(context: Context, enabled: Boolean) {
+        prefs(context).edit { putBoolean(KEY_AOD_MEDIA_ENABLED, enabled) }
     }
 
     fun shouldShowLiftToWakeWarning(context: Context): Boolean =

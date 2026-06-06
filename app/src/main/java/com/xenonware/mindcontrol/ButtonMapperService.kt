@@ -31,6 +31,7 @@ import androidx.core.net.toUri
 import rikka.shizuku.Shizuku
 import kotlin.math.max
 
+@Suppress("DEPRECATION")
 @SuppressLint("AccessibilityPolicy")
 class ButtonMapperService : AccessibilityService() {
 
@@ -101,6 +102,7 @@ class ButtonMapperService : AccessibilityService() {
         override fun onCameraUnavailable(cameraId: String) { isCameraInUse = true }
     }
 
+    @SuppressLint("WakelockTimeout")
     override fun onServiceConnected() {
         Log.d(tag, "Service Connected")
 
@@ -110,8 +112,8 @@ class ButtonMapperService : AccessibilityService() {
 
         createNotificationChannel()
         val notification = Notification.Builder(this, "service_channel")
-            .setContentTitle("MindControl Active")
-            .setContentText("Monitoring hardware buttons...")
+            .setContentTitle(getString(R.string.notification_title))
+            .setContentText(getString(R.string.notification_text))
             .setSmallIcon(android.R.drawable.ic_menu_preferences)
             .build()
         startForeground(1, notification, ServiceInfo.FOREGROUND_SERVICE_TYPE_SPECIAL_USE)
@@ -130,7 +132,7 @@ class ButtonMapperService : AccessibilityService() {
     }
 
     private fun createNotificationChannel() {
-        val channel = NotificationChannel("service_channel", "MindControl Service", NotificationManager.IMPORTANCE_LOW)
+        val channel = NotificationChannel("service_channel", getString(R.string.channel_name), NotificationManager.IMPORTANCE_LOW)
         val manager = getSystemService(NOTIFICATION_SERVICE) as NotificationManager
         manager.createNotificationChannel(channel)
     }
@@ -160,6 +162,7 @@ class ButtonMapperService : AccessibilityService() {
         }
     }
 
+    @SuppressLint("SwitchIntDef")
     override fun onAccessibilityEvent(event: AccessibilityEvent?) {
         if (event == null) return
         

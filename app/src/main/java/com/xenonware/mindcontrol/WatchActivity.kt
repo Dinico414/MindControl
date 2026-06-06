@@ -55,18 +55,18 @@ import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.IntOffset
-import androidx.compose.ui.unit.dp
 import androidx.core.view.WindowCompat
 import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.WindowInsetsControllerCompat
 import com.xenonware.mindcontrol.ui.ConcentricAodStyle
-import com.xenonware.mindcontrol.ui.StackedAodStyle
 import com.xenonware.mindcontrol.ui.InlineAodStyle
+import com.xenonware.mindcontrol.ui.StackedAodStyle
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlin.math.roundToInt
 
+@Suppress("DEPRECATION")
 class WatchActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -84,8 +84,7 @@ class WatchActivity : ComponentActivity() {
         
         setContent {
             val context = LocalContext.current
-            val density = LocalDensity.current.density
-            
+
             // Check if service is enabled and monitor connection
             LaunchedEffect(Unit) {
                 val componentName = ComponentName(context, NotificationListener::class.java)
@@ -172,9 +171,11 @@ class WatchActivity : ComponentActivity() {
             val scope = rememberCoroutineScope()
             
             val notifications by NotificationListener.activeNotificationsFlow.collectAsState()
-            val mediaInfo by NotificationListener.activeMediaInfoFlow.collectAsState()
+            val rawMediaInfo by NotificationListener.activeMediaInfoFlow.collectAsState()
+            val isMediaEnabled = remember { SettingsManager.isAodMediaEnabled(context) }
+            val mediaInfo = if (isMediaEnabled) rawMediaInfo else null
             
-            val aodStyle = remember<SettingsManager.AodStyle> { SettingsManager.getAodStyle(context) }
+            val aodStyle = remember { SettingsManager.getAodStyle(context) }
 
             val textAlphaTarget = if (isCharging) (if (isActive) 0.8f else 0.4f) else (if (isActive) 0.5f else 0f)
 
@@ -230,7 +231,6 @@ class WatchActivity : ComponentActivity() {
                                         },
                                         onDragEnd = {
                                             Log.d("WatchActivity", "Drag ended: dir=$lockedDirection, dx=$totalDragX, dy=$totalDragY")
-                                            val currentMedia = mediaInfo
                                             val bounceSpec = spring<Float>(
                                                 dampingRatio = Spring.DampingRatioMediumBouncy,
                                                 stiffness = Spring.StiffnessLow
@@ -254,20 +254,20 @@ class WatchActivity : ComponentActivity() {
                                             } else {
                                                 // Media control or canceled unlock - Bounce back to center
                                                 try {
-                                                    if (lockedDirection == "V" && totalDragY > mediaThreshold && currentMedia != null) {
+                                                    if (lockedDirection == "V" && totalDragY > mediaThreshold && mediaInfo != null) {
                                                         Log.d("WatchActivity", "Triggering Play/Pause")
-                                                        if (currentMedia.isPlaying == true) {
-                                                            currentMedia.controller?.transportControls?.pause()
+                                                        if (mediaInfo.isPlaying) {
+                                                            mediaInfo.controller?.transportControls?.pause()
                                                         } else {
-                                                            currentMedia.controller?.transportControls?.play()
+                                                            mediaInfo.controller?.transportControls?.play()
                                                         }
-                                                    } else if (lockedDirection == "H" && currentMedia != null) {
+                                                    } else if (lockedDirection == "H" && mediaInfo != null) {
                                                         if (totalDragX < -mediaThreshold) {
                                                             Log.d("WatchActivity", "Triggering Skip Next")
-                                                            currentMedia.controller?.transportControls?.skipToNext()
+                                                            mediaInfo.controller?.transportControls?.skipToNext()
                                                         } else if (totalDragX > mediaThreshold) {
                                                             Log.d("WatchActivity", "Triggering Skip Previous")
-                                                            currentMedia.controller?.transportControls?.skipToPrevious()
+                                                            mediaInfo.controller?.transportControls?.skipToPrevious()
                                                         }
                                                     } else {
                                                         Log.d("WatchActivity", "No action triggered, bouncing back")
@@ -300,8 +300,7 @@ class WatchActivity : ComponentActivity() {
                                         }
                                     ) { change, dragAmount ->
                                         change.consume()
-                                        
-                                        val currentMedia = mediaInfo
+
                                         val screenMin = kotlin.math.min(screenWidth, screenHeight)
                                         val maxVisualX = screenWidth * 0.2f
                                         val maxVisualY = screenHeight * 0.2f
@@ -317,7 +316,7 @@ class WatchActivity : ComponentActivity() {
                                             val maxDrag = kotlin.math.max(absX, absY)
 
                                             if (maxDrag > 15 * densityVal) {
-                                                lockedDirection = if (absY > absX || currentMedia == null) "V" else "H"
+                                                lockedDirection = if (absY > absX || mediaInfo == null) "V" else "H"
                                                 Log.d("WatchActivity", "Locking direction to: $lockedDirection")
                                             }
                                         } else {
@@ -333,7 +332,7 @@ class WatchActivity : ComponentActivity() {
                                         var targetY = 0f
                                         var targetRadius = 0f
 
-                                        if (currentMedia == null) {
+                                        if (mediaInfo == null) {
                                             // STRICT MODE: No media player active
                                             targetX = 0f
                                             targetY = totalDragY.coerceIn(-maxVisualY, 0f)
@@ -346,15 +345,19 @@ class WatchActivity : ComponentActivity() {
                                             val progress = (maxDrag / activeThreshold).coerceIn(0f, 1f)
                                             val snap = (progress / 0.1f).coerceIn(0f, 1f)
 
-                                            if (lockedDirection == "V") {
-                                                targetY = totalDragY.coerceIn(-maxVisualY, maxVisualY)
-                                                targetX = (totalDragX * (1f - snap)).coerceIn(-maxVisualX, maxVisualX)
-                                            } else if (lockedDirection == "H") {
-                                                targetX = totalDragX.coerceIn(-maxVisualX, maxVisualX)
-                                                targetY = (totalDragY * (1f - snap)).coerceIn(-maxVisualY, maxVisualY)
-                                            } else {
-                                                targetX = (totalDragX * (1f - snap)).coerceIn(-maxVisualX, maxVisualX)
-                                                targetY = (totalDragY * (1f - snap)).coerceIn(-maxVisualY, maxVisualY)
+                                            when (lockedDirection) {
+                                                "V" -> {
+                                                    targetY = totalDragY.coerceIn(-maxVisualY, maxVisualY)
+                                                    targetX = (totalDragX * (1f - snap)).coerceIn(-maxVisualX, maxVisualX)
+                                                }
+                                                "H" -> {
+                                                    targetX = totalDragX.coerceIn(-maxVisualX, maxVisualX)
+                                                    targetY = (totalDragY * (1f - snap)).coerceIn(-maxVisualY, maxVisualY)
+                                                }
+                                                else -> {
+                                                    targetX = (totalDragX * (1f - snap)).coerceIn(-maxVisualX, maxVisualX)
+                                                    targetY = (totalDragY * (1f - snap)).coerceIn(-maxVisualY, maxVisualY)
+                                                }
                                             }
                                             
                                             targetRadius = ((maxDrag - deadzone) / (activeThreshold - deadzone)).coerceIn(0f, 1f) * maxRadius
@@ -389,7 +392,8 @@ class WatchActivity : ComponentActivity() {
                                     isCharging = isCharging,
                                     batteryLevel = batteryLevel,
                                     animatedTextAlpha = animatedTextAlpha,
-                                    offsetY = 0f // We use the parent Box offset now
+                                    offsetY = 0f, // We use the parent Box offset now
+                                    isMediaEnabled = isMediaEnabled
                                 )
                             }
                             SettingsManager.AodStyle.STACKED -> {
@@ -400,7 +404,8 @@ class WatchActivity : ComponentActivity() {
                                     isCharging = isCharging,
                                     batteryLevel = batteryLevel,
                                     animatedTextAlpha = animatedTextAlpha,
-                                    offsetY = 0f
+                                    offsetY = 0f,
+                                    isMediaEnabled = isMediaEnabled
                                 )
                             }
                             SettingsManager.AodStyle.INLINE -> {
@@ -411,7 +416,8 @@ class WatchActivity : ComponentActivity() {
                                     isCharging = isCharging,
                                     batteryLevel = batteryLevel,
                                     animatedTextAlpha = animatedTextAlpha,
-                                    offsetY = 0f
+                                    offsetY = 0f,
+                                    isMediaEnabled = isMediaEnabled
                                 )
                             }
                         }
@@ -419,11 +425,11 @@ class WatchActivity : ComponentActivity() {
                     
                     // Swipe Visual Indicator
                     if (animDragRadius.value > 0) {
-                        val indicatorAlignment = when {
-                            lockedDirection == "V" && totalDragY < 0 -> Alignment.BottomCenter
-                            lockedDirection == "V" && totalDragY > 0 -> Alignment.TopCenter
-                            lockedDirection == "H" && totalDragX < 0 -> Alignment.CenterEnd
-                            lockedDirection == "H" && totalDragX > 0 -> Alignment.CenterStart
+                        val indicatorAlignment = when (lockedDirection) {
+                            "V" if totalDragY < 0 -> Alignment.BottomCenter
+                            "V" if totalDragY > 0 -> Alignment.TopCenter
+                            "H" if totalDragX < 0 -> Alignment.CenterEnd
+                            "H" if totalDragX > 0 -> Alignment.CenterStart
                             else -> Alignment.Center
                         }
 
@@ -447,11 +453,11 @@ class WatchActivity : ComponentActivity() {
                                 animationSpec = tween(300)
                             )
 
-                            val icon = when {
-                                lockedDirection == "V" && totalDragY < 0 -> Icons.Rounded.LockOpen
-                                lockedDirection == "V" && totalDragY > 0 -> if (mediaInfo?.isPlaying == true) Icons.Rounded.Pause else Icons.Rounded.PlayArrow
-                                lockedDirection == "H" && totalDragX < 0 -> Icons.Rounded.SkipNext
-                                lockedDirection == "H" && totalDragX > 0 -> Icons.Rounded.SkipPrevious
+                            val icon = when (lockedDirection) {
+                                "V" if totalDragY < 0 -> Icons.Rounded.LockOpen
+                                "V" if totalDragY > 0 -> if (mediaInfo?.isPlaying == true) Icons.Rounded.Pause else Icons.Rounded.PlayArrow
+                                "H" if totalDragX < 0 -> Icons.Rounded.SkipNext
+                                "H" if totalDragX > 0 -> Icons.Rounded.SkipPrevious
                                 else -> null
                             }
                             

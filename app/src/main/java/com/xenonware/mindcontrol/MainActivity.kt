@@ -3,6 +3,7 @@
 package com.xenonware.mindcontrol
 
 import android.accessibilityservice.AccessibilityServiceInfo
+import android.annotation.SuppressLint
 import android.app.Activity
 import android.content.ComponentName
 import android.content.Context
@@ -53,12 +54,10 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeDrawing
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
@@ -123,7 +122,7 @@ import androidx.compose.material.icons.rounded.SkipPrevious
 import androidx.compose.material.icons.rounded.Stop
 import androidx.compose.material.icons.rounded.Tune
 import androidx.compose.material.icons.rounded.Vibration
-import androidx.compose.material.icons.rounded.Watch
+import androidx.compose.material.icons.rounded.WatchLater
 import androidx.compose.material.icons.rounded.Wifi
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
@@ -169,6 +168,7 @@ import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
@@ -267,9 +267,87 @@ private fun isActionDisabled(action: String, shizukuReady: Boolean): Boolean {
     return !shizukuReady && action in SHIZUKU_REQUIRED_ACTIONS
 }
 
-private fun disabledReasonFor(action: String, shizukuReady: Boolean): String? = when {
-    !shizukuReady && action in SHIZUKU_REQUIRED_ACTIONS -> "Requires Shizuku"
+private fun disabledReasonFor(action: String, shizukuReady: Boolean): Int? = when {
+    !shizukuReady && action in SHIZUKU_REQUIRED_ACTIONS -> R.string.requires_shizuku
     else -> null
+}
+
+@Composable
+fun getActionDisplayName(action: String): String {
+    val resId = when (action) {
+        SettingsManager.ACTION_NONE -> R.string.action_none
+        SettingsManager.ACTION_DEFAULT -> R.string.action_default
+        SettingsManager.ACTION_PLAY_PAUSE -> R.string.action_play_pause
+        SettingsManager.ACTION_NEXT -> R.string.action_next
+        SettingsManager.ACTION_PREVIOUS -> R.string.action_previous
+        SettingsManager.ACTION_VOLUME_UP -> R.string.action_volume_up
+        SettingsManager.ACTION_VOLUME_DOWN -> R.string.action_volume_down
+        SettingsManager.ACTION_FLASHLIGHT -> R.string.action_flashlight
+        SettingsManager.ACTION_SCREENSHOT -> R.string.action_screenshot
+        SettingsManager.ACTION_LOCK -> R.string.action_lock
+        SettingsManager.ACTION_AOD -> R.string.action_aod
+        SettingsManager.ACTION_BRIGHTNESS_UP -> R.string.action_brightness_up
+        SettingsManager.ACTION_BRIGHTNESS_DOWN -> R.string.action_brightness_down
+        SettingsManager.ACTION_HOME -> R.string.action_home
+        SettingsManager.ACTION_BACK -> R.string.action_back
+        SettingsManager.ACTION_RECENTS -> R.string.action_recents
+        SettingsManager.ACTION_NOTIFICATIONS -> R.string.action_notifications
+        SettingsManager.ACTION_QUICK_SETTINGS -> R.string.action_quick_settings
+        SettingsManager.ACTION_ASSISTANT -> R.string.action_assistant
+        SettingsManager.ACTION_ROTATE_TOGGLE -> R.string.action_rotate_toggle
+        SettingsManager.ACTION_SCROLL_UP -> R.string.action_scroll_up
+        SettingsManager.ACTION_SCROLL_DOWN -> R.string.action_scroll_down
+        SettingsManager.ACTION_SCROLL_UP_SMOOTH -> R.string.action_scroll_up_smooth
+        SettingsManager.ACTION_SCROLL_DOWN_SMOOTH -> R.string.action_scroll_down_smooth
+        SettingsManager.ACTION_SCROLL_UP_SMOOTH_FAST -> R.string.action_scroll_up_smooth_fast
+        SettingsManager.ACTION_SCROLL_DOWN_SMOOTH_FAST -> R.string.action_scroll_down_smooth_fast
+        SettingsManager.ACTION_SHOW_MENU -> R.string.action_show_menu
+        SettingsManager.ACTION_LAST_APP -> R.string.action_last_app
+        SettingsManager.ACTION_APP_INFO -> R.string.action_app_info
+        SettingsManager.ACTION_POWER_DIALOG -> R.string.action_power_dialog
+        SettingsManager.ACTION_GOOGLE_SEARCH -> R.string.action_google_search
+        SettingsManager.ACTION_COPY -> R.string.action_copy
+        SettingsManager.ACTION_CUT -> R.string.action_cut
+        SettingsManager.ACTION_PASTE -> R.string.action_paste
+        SettingsManager.ACTION_FAST_FORWARD -> R.string.action_fast_forward
+        SettingsManager.ACTION_REWIND -> R.string.action_rewind
+        SettingsManager.ACTION_STOP -> R.string.action_stop
+        SettingsManager.ACTION_STEP_FORWARD -> R.string.action_step_forward
+        SettingsManager.ACTION_STEP_BACKWARD -> R.string.action_step_backward
+        SettingsManager.ACTION_VIBRATE_RINGER -> R.string.action_vibrate_ringer
+        SettingsManager.ACTION_CYCLE_SOUND_MODE -> R.string.action_cycle_sound_mode
+        SettingsManager.ACTION_DND -> R.string.action_dnd
+        SettingsManager.ACTION_AUTO_BRIGHTNESS_TOGGLE -> R.string.action_auto_brightness_toggle
+        SettingsManager.ACTION_WIFI_TOGGLE -> R.string.action_wifi_toggle
+        SettingsManager.ACTION_BLUETOOTH_TOGGLE -> R.string.action_bluetooth_toggle
+        SettingsManager.ACTION_DATA_TOGGLE -> R.string.action_data_toggle
+        SettingsManager.ACTION_NFC_TOGGLE -> R.string.action_nfc_toggle
+        SettingsManager.ACTION_LOCATION_TOGGLE -> R.string.action_location_toggle
+        SettingsManager.ACTION_AUTOROTATE_TOGGLE -> R.string.action_autorotate_toggle
+        SettingsManager.ACTION_ROTATE_360 -> R.string.action_rotate_360
+        SettingsManager.ACTION_MUTE_VOL -> R.string.action_mute_vol
+        SettingsManager.ACTION_MUTE_MIC_TOGGLE -> R.string.action_mute_mic_toggle
+        SettingsManager.ACTION_VOLUME_DIALOG -> R.string.action_volume_dialog
+        else -> null
+    }
+    return if (resId != null) stringResource(resId) else action.split("_").joinToString(" ") { word ->
+        word.lowercase().replaceFirstChar { if (it.isLowerCase()) it.titlecase() else it.toString() }
+    }
+}
+
+@Composable
+fun getTypeDisplayName(type: String): String {
+    val resId = when (type) {
+        "SINGLE_PRESS" -> R.string.press_single
+        "DOUBLE_PRESS" -> R.string.press_double
+        "TRIPLE_PRESS" -> R.string.press_triple
+        "HOLD" -> R.string.press_hold
+        "PRESS_AND_HOLD" -> R.string.press_and_hold
+        else -> null
+    }
+    return if (resId != null) stringResource(resId) else type.split("_").joinToString(" ") { word ->
+        word.lowercase().replaceFirstChar { if (it.isLowerCase()) it.titlecase() else it.toString() }
+    }
 }
 
 // -------------------------------------------------------------------------------------------------
@@ -506,7 +584,7 @@ fun GridScreen(
                             modifier = Modifier.weight(0.667f), contentAlignment = Alignment.Center
                         ) {
                             Text(
-                                text = "AI Button",
+                                text = stringResource(R.string.ai_button),
                                 style = MaterialTheme.typography.titleMedium,
                                 textAlign = TextAlign.Center,
                                 fontFamily = QuicksandTitleVariable,
@@ -560,7 +638,7 @@ fun GridScreen(
                                 contentAlignment = Alignment.Center
                             ) {
                                 Text(
-                                    text = "Camera Up",
+                                    text = stringResource(R.string.camera_up),
                                     style = MaterialTheme.typography.titleMedium,
                                     textAlign = TextAlign.Center,
                                     color = if (pressedKeys.contains(133)) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onPrimaryContainer,
@@ -605,7 +683,7 @@ fun GridScreen(
                                 contentAlignment = Alignment.Center
                             ) {
                                 Text(
-                                    text = "Camera Down",
+                                    text = stringResource(R.string.camera_down),
                                     style = MaterialTheme.typography.titleMedium,
                                     textAlign = TextAlign.Center,
                                     color = if (pressedKeys.contains(132)) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onPrimaryContainer,
@@ -676,7 +754,7 @@ fun GridScreen(
                                     contentAlignment = Alignment.Center
                                 ) {
                                     Text(
-                                        text = "Keyboard",
+                                        text = stringResource(R.string.keyboard),
                                         style = MaterialTheme.typography.titleMedium,
                                         textAlign = TextAlign.Center,
                                         color = if (pressedKeys.contains(111)) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onPrimaryContainer,
@@ -732,7 +810,7 @@ fun GridScreen(
                                 contentAlignment = Alignment.Center
                             ) {
                                 Text(
-                                    text = "Volume Up",
+                                    text = stringResource(R.string.volume_up),
                                     style = MaterialTheme.typography.titleMedium,
                                     textAlign = TextAlign.Center,
                                     color = if (pressedKeys.contains(24)) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onPrimaryContainer,
@@ -777,7 +855,7 @@ fun GridScreen(
                                 contentAlignment = Alignment.Center
                             ) {
                                 Text(
-                                    text = "Volume Down",
+                                    text = stringResource(R.string.volume_down),
                                     style = MaterialTheme.typography.titleMedium,
                                     textAlign = TextAlign.Center,
                                     color = if (pressedKeys.contains(25)) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onPrimaryContainer,
@@ -821,7 +899,7 @@ fun GridScreen(
                                 )
                                 Spacer(modifier = Modifier.height(4.dp))
                                 Text(
-                                    text = "Camera\nButton",
+                                    text = stringResource(R.string.camera_button),
                                     style = MaterialTheme.typography.titleMedium,
                                     textAlign = TextAlign.Center,
                                     color = if (pressedKeys.contains(27)) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onPrimaryContainer,
@@ -856,7 +934,7 @@ fun GridScreen(
                                 )
                                 Spacer(modifier = Modifier.height(4.dp))
                                 Text(
-                                    text = "Focus\nButton",
+                                    text = stringResource(R.string.focus_button),
                                     style = MaterialTheme.typography.titleMedium,
                                     textAlign = TextAlign.Center,
                                     color = if (pressedKeys.contains(134)) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onPrimaryContainer,
@@ -871,6 +949,7 @@ fun GridScreen(
     }
 }
 
+@SuppressLint("BatteryLife")
 @Composable
 fun TogglesContainer(
     modifier: Modifier = Modifier,
@@ -990,14 +1069,14 @@ fun TogglesContainer(
             ) {
                 Spacer(modifier = Modifier.weight(0.25f))
                 Text(
-                    text = "Settings",
+                    text = stringResource(R.string.settings),
                     textAlign = TextAlign.Center,
                     modifier = Modifier.weight(0.5f),
                     style = MaterialTheme.typography.titleLarge,
                     fontFamily = QuicksandTitleVariable
                 )
                 Text(
-                    text = "v$versionName",
+                    text = stringResource(R.string.version_prefix) + versionName,
                     textAlign = TextAlign.Center,
                     modifier = Modifier.weight(0.25f),
                     style = MaterialTheme.typography.labelSmall,
@@ -1026,7 +1105,7 @@ fun TogglesContainer(
             ) {
                 Column(modifier = Modifier.padding(12.dp)) {
                     Text(
-                        text = if (isServiceEnabled) "Accessibility: ACTIVE" else "Accessibility: INACTIVE\n(Tap to Enable)",
+                        text = if (isServiceEnabled) stringResource(R.string.accessibility_active) else stringResource(R.string.accessibility_inactive),
                         color = if (isServiceEnabled) Color(0xFF2E7D32) else Color(0xFFC62828),
                         style = MaterialTheme.typography.bodyMedium
                     )
@@ -1066,10 +1145,10 @@ fun TogglesContainer(
             ) {
                 Column(modifier = Modifier.padding(12.dp)) {
                     val shizukuText = when {
-                        shizukuAvailable && shizukuPermission -> "Shizuku: AUTHORIZED"
-                        shizukuAvailable && !shizukuPermission -> "Shizuku: UNAUTHORIZED\n(Tap to Authorize)"
-                        shizukuInstalled -> "Shizuku: NOT RUNNING\n(Tap to Open)"
-                        else -> "Shizuku: NOT INSTALLED\n(Tap to Install)"
+                        shizukuAvailable && shizukuPermission -> stringResource(R.string.shizuku_authorized)
+                        shizukuAvailable && !shizukuPermission -> stringResource(R.string.shizuku_unauthorized)
+                        shizukuInstalled -> stringResource(R.string.shizuku_not_running)
+                        else -> stringResource(R.string.shizuku_not_installed)
                     }
                     Text(
                         text = shizukuText,
@@ -1085,7 +1164,7 @@ fun TogglesContainer(
                     onClick = {
                         try {
                             val intent = Intent(Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS).apply {
-                                data = android.net.Uri.parse("package:${context.packageName}")
+                                data = "package:${context.packageName}".toUri()
                             }
                             context.startActivity(intent)
                         } catch (e: Exception) {
@@ -1103,12 +1182,12 @@ fun TogglesContainer(
                 ) {
                     Column(modifier = Modifier.padding(12.dp)) {
                         Text(
-                            text = "Battery Optimization: ON\n(Tap to Disable)",
+                            text = stringResource(R.string.battery_opt_on),
                             color = Color(0xFFC62828),
                             style = MaterialTheme.typography.bodyMedium
                         )
                         Text(
-                            text = "System may kill MindControl to save battery. Disable this for better stability.",
+                            text = stringResource(R.string.battery_opt_desc),
                             color = Color(0xFFC62828).copy(alpha = 0.7f),
                             style = MaterialTheme.typography.labelSmall
                         )
@@ -1131,7 +1210,7 @@ fun TogglesContainer(
                 ) {
                     Column(modifier = Modifier.padding(12.dp)) {
                         Text(
-                            text = "Media Control: INACTIVE\n(Tap to Enable)",
+                            text = stringResource(R.string.media_control_inactive),
                             color = Color(0xFFC62828),
                             style = MaterialTheme.typography.bodyMedium
                         )
@@ -1144,7 +1223,7 @@ fun TogglesContainer(
                 Card(
                     onClick = {
                         val intent = Intent(Settings.ACTION_MANAGE_WRITE_SETTINGS)
-                        intent.data = android.net.Uri.parse("package:${context.packageName}")
+                        intent.data = "package:${context.packageName}".toUri()
                         context.startActivity(intent)
                     },
                     modifier = Modifier
@@ -1155,7 +1234,7 @@ fun TogglesContainer(
                 ) {
                     Column(modifier = Modifier.padding(12.dp)) {
                         Text(
-                            text = "Modify System Settings: DENIED\n(Tap to Allow)",
+                            text = stringResource(R.string.system_settings_denied),
                             color = Color(0xFFC62828),
                             style = MaterialTheme.typography.bodyMedium
                         )
@@ -1179,7 +1258,7 @@ fun TogglesContainer(
                 ) {
                     Column(modifier = Modifier.padding(12.dp)) {
                         Text(
-                            text = "DND Access: DENIED\n(Tap to Allow)",
+                            text = stringResource(R.string.dnd_access_denied),
                             color = Color(0xFFC62828),
                             style = MaterialTheme.typography.bodyMedium
                         )
@@ -1203,7 +1282,7 @@ fun TogglesContainer(
                 ) {
                     Column(modifier = Modifier.padding(12.dp)) {
                         Text(
-                            text = "Notifications: DENIED\n(Tap to Allow)",
+                            text = stringResource(R.string.notifications_denied),
                             color = Color(0xFFC62828),
                             style = MaterialTheme.typography.bodyMedium
                         )
@@ -1215,8 +1294,8 @@ fun TogglesContainer(
                 XenonDialog(
                     properties = DialogProperties(usePlatformDefaultWidth = true),
                     onDismissRequest = { showAccessibilityDisclosure = false },
-                    title = "Accessibility Disclosure",
-                    confirmButtonText = "Grant Permission",
+                    title = stringResource(R.string.accessibility_disclosure_title),
+                    confirmButtonText = stringResource(R.string.grant_permission),
                     onConfirmButtonClick = {
                         showAccessibilityDisclosure = false
                         val intent = Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS)
@@ -1224,10 +1303,7 @@ fun TogglesContainer(
                     },
                     content = {
                         Text(
-                            "MindControl uses Accessibility Services to detect hardware button presses (such as volume and camera buttons) and map them to custom actions.\n\n" +
-                                    "• This service is required for the app's core functionality.\n" +
-                                    "• No personal data is collected or shared.\n" +
-                                    "• Key presses are processed locally on your device.",
+                            stringResource(R.string.accessibility_disclosure_content),
                             style = MaterialTheme.typography.bodyMedium
                         )
                     }
@@ -1241,7 +1317,7 @@ fun TogglesContainer(
                     .padding(horizontal = 4.dp)
             ) {
                 Text(
-                    "Disable in camera",
+                    stringResource(R.string.disable_in_camera),
                     style = MaterialTheme.typography.bodySmall,
                     modifier = Modifier.weight(1f)
                 )
@@ -1258,7 +1334,7 @@ fun TogglesContainer(
                     .padding(horizontal = 4.dp)
             ) {
                 Text(
-                    "Default volume if slider visible",
+                    stringResource(R.string.default_volume_slider),
                     style = MaterialTheme.typography.bodySmall,
                     modifier = Modifier.weight(1f)
                 )
@@ -1275,7 +1351,7 @@ fun TogglesContainer(
                     .padding(horizontal = 4.dp)
             ) {
                 Text(
-                    "Override Screen Off",
+                    stringResource(R.string.override_screen_off),
                     style = MaterialTheme.typography.bodySmall,
                     modifier = Modifier.weight(1f)
                 )
@@ -1293,7 +1369,7 @@ fun TogglesContainer(
                         .padding(horizontal = 4.dp)
                 ) {
                     Text(
-                        "Volume Skip (Screen Off)",
+                        stringResource(R.string.volume_skip_screen_off),
                         style = MaterialTheme.typography.bodySmall,
                         modifier = Modifier.weight(1f)
                     )
@@ -1309,7 +1385,7 @@ fun TogglesContainer(
             Spacer(modifier = Modifier.height(8.dp))
 
             PaletteRow(
-                label = "Device color",
+                label = stringResource(R.string.device_color),
                 selected = devicePalette,
                 onSelect = onDevicePaletteChange,
                 options = listOf(Palette.Black, Palette.White, Palette.Pink, Palette.Blue),
@@ -1318,7 +1394,7 @@ fun TogglesContainer(
             Spacer(modifier = Modifier.height(8.dp))
 
             PaletteRow(
-                label = "Keyboard color",
+                label = stringResource(R.string.keyboard_color),
                 selected = keyboardPalette,
                 onSelect = onKeyboardPaletteChange,
                 options = Palette.entries.toList(),
@@ -1363,16 +1439,16 @@ fun ButtonConfigScreen(
             XenonDialog(
                 properties = DialogProperties(usePlatformDefaultWidth = true),
                 onDismissRequest = { showDisabledDialog = false },
-                title = "Notice",
-                confirmButtonText = "OK",
+                title = stringResource(R.string.notice),
+                confirmButtonText = stringResource(R.string.ok),
                 onConfirmButtonClick = { showDisabledDialog = false },
                 content = {
                     val message = when {
-                        !overrideScreenOff -> "Override Screen Off is currently disabled in Settings."
-                        keyCode == 27 -> "The Camera button turns the screen on automatically, so it cannot be used for Screen Off actions."
-                        isVolumeButton && !shizukuPermission -> "To customize Volume buttons for Screen Off, please authorize Shizuku or use the 'Volume Skip' toggle in Settings."
-                        !shizukuPermission -> "Configuring non-volume buttons for Screen Off requires Shizuku permission."
-                        else -> "This configuration is currently unavailable."
+                        !overrideScreenOff -> stringResource(R.string.override_disabled_msg)
+                        keyCode == 27 -> stringResource(R.string.camera_limit_msg)
+                        isVolumeButton && !shizukuPermission -> stringResource(R.string.volume_shizuku_msg)
+                        !shizukuPermission -> stringResource(R.string.non_volume_shizuku_msg)
+                        else -> stringResource(R.string.config_unavailable_msg)
                     }
                     Text(message)
                 }
@@ -1382,14 +1458,14 @@ fun ButtonConfigScreen(
             XenonDialog(
                 properties = DialogProperties(usePlatformDefaultWidth = true),
                 onDismissRequest = { showFocusWarningDialog = false },
-                title = "Warning",
-                confirmButtonText = "I Understand",
+                title = stringResource(R.string.warning),
+                confirmButtonText = stringResource(R.string.i_understand),
                 onConfirmButtonClick = {
                     showFocusWarningDialog = false
                     onScreenOffChange(true)
                 },
                 content = {
-                    Text("Using the Focus button while the screen is off may lead to accidental actions while the device is in your pocket.")
+                    Text(stringResource(R.string.focus_warning_msg))
                 }
             )
         }
@@ -1399,14 +1475,17 @@ fun ButtonConfigScreen(
                     IconButton(onClick = onBack) {
                         Icon(
                             Icons.AutoMirrored.Filled.ArrowBack,
-                            contentDescription = "Back",
+                            contentDescription = stringResource(R.string.back),
                             tint = MaterialTheme.colorScheme.onSurface
                         )
                     }
                     Text(
-                        text = "$name Configuration",
+                        text = stringResource(R.string.button_config_title, name),
                         style = MaterialTheme.typography.titleLarge,
-                        color = MaterialTheme.colorScheme.onSurface
+                        color = MaterialTheme.colorScheme.onSurface,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                        modifier = Modifier.weight(1f)
                     )
                 }
 
@@ -1427,7 +1506,7 @@ fun ButtonConfigScreen(
                             containerColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.1f),
                             contentColor = MaterialTheme.colorScheme.primary
                         )
-                    ) { Text("Screen On") }
+                    ) { Text(stringResource(R.string.screen_on)) }
 
                     Button(
                         onClick = {
@@ -1460,7 +1539,7 @@ fun ButtonConfigScreen(
                                 contentColor = MaterialTheme.colorScheme.primary
                             )
                         }
-                    ) { Text("Screen Off") }
+                    ) { Text(stringResource(R.string.screen_off)) }
                 }
 
                 val stateStr = if (isScreenOff) "OFF" else "ON"
@@ -1552,32 +1631,36 @@ fun MindControlActionSelector(
         SettingsManager.getAction(context, keyCode, state, type)
     }
 
-    val displayAction = if (action.startsWith(SettingsManager.PREFIX_APP)) {
-        val pkg = action.removePrefix(SettingsManager.PREFIX_APP)
-        try {
-            val pm = context.packageManager
-            pm.getApplicationLabel(pm.getApplicationInfo(pkg, 0)).toString()
-        } catch (_: Exception) {
-            pkg
-        }
-    } else if (action.startsWith(SettingsManager.PREFIX_SHORTCUT)) {
-        val parts = action.removePrefix(SettingsManager.PREFIX_SHORTCUT).split("||")
-        parts.getOrNull(1) ?: "Shortcut"
-    } else if (action.startsWith(SettingsManager.PREFIX_SPEED_DIAL)) {
-        "Speed Dial: " + action.removePrefix(SettingsManager.PREFIX_SPEED_DIAL)
-    } else if (action.startsWith(SettingsManager.PREFIX_URL)) {
-        "URL: " + action.removePrefix(SettingsManager.PREFIX_URL)
-    } else if (action.startsWith(SettingsManager.PREFIX_QR_CODE)) {
-        "QR Code: " + action.removePrefix(SettingsManager.PREFIX_QR_CODE)
-    } else {
-        action.split("_").joinToString(" ") { word ->
-            word.lowercase().replaceFirstChar { if (it.isLowerCase()) it.titlecase() else it.toString() }
+    val shortcutLabel = stringResource(R.string.tab_shortcuts)
+    val speedDialLabel = stringResource(R.string.speed_dial)
+    val urlLabel = stringResource(R.string.url)
+    val qrCodeLabel = stringResource(R.string.qr_code)
+    val actionDisplayName = getActionDisplayName(action)
+
+    val displayAction = remember(action, actionDisplayName, shortcutLabel, speedDialLabel, urlLabel, qrCodeLabel) {
+        if (action.startsWith(SettingsManager.PREFIX_APP)) {
+            val pkg = action.removePrefix(SettingsManager.PREFIX_APP)
+            try {
+                val pm = context.packageManager
+                pm.getApplicationLabel(pm.getApplicationInfo(pkg, 0)).toString()
+            } catch (_: Exception) {
+                pkg
+            }
+        } else if (action.startsWith(SettingsManager.PREFIX_SHORTCUT)) {
+            val parts = action.removePrefix(SettingsManager.PREFIX_SHORTCUT).split("||")
+            parts.getOrNull(1) ?: shortcutLabel
+        } else if (action.startsWith(SettingsManager.PREFIX_SPEED_DIAL)) {
+            "$speedDialLabel: " + action.removePrefix(SettingsManager.PREFIX_SPEED_DIAL)
+        } else if (action.startsWith(SettingsManager.PREFIX_URL)) {
+            "$urlLabel: " + action.removePrefix(SettingsManager.PREFIX_URL)
+        } else if (action.startsWith(SettingsManager.PREFIX_QR_CODE)) {
+            "$qrCodeLabel: " + action.removePrefix(SettingsManager.PREFIX_QR_CODE)
+        } else {
+            actionDisplayName
         }
     }
 
-    val displayType = type.split("_").joinToString(" ") { word ->
-        word.lowercase().replaceFirstChar { if (it.isLowerCase()) it.titlecase() else it.toString() }
-    }
+    val displayType = getTypeDisplayName(type)
 
     Row(
         verticalAlignment = Alignment.CenterVertically,
@@ -1588,15 +1671,17 @@ fun MindControlActionSelector(
     ) {
         Text(
             text = "$displayType: ",
-            modifier = Modifier.width(130.dp),
+            modifier = Modifier.width(165.dp),
             color = MaterialTheme.colorScheme.onSurface,
             style = MaterialTheme.typography.bodyLarge,
             maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
             textAlign = TextAlign.Start
         )
         Spacer(modifier = Modifier.width(8.dp))
         OutlinedButton(
             onClick = { onSelectAction(keyCode, state, type) },
+            modifier = Modifier.weight(1f),
             border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline),
             colors = ButtonDefaults.outlinedButtonColors(
                 containerColor = MaterialTheme.colorScheme.surface,
@@ -1655,9 +1740,9 @@ fun ActionIcon(action: String, modifier: Modifier = Modifier, tint: Color = Loca
         action == SettingsManager.ACTION_RECENTS -> Icons.Rounded.History
         action == SettingsManager.ACTION_SHOW_MENU -> Icons.Rounded.Menu
         action == SettingsManager.ACTION_LOCK -> Icons.Rounded.Lock
-        action == SettingsManager.ACTION_AOD -> Icons.Rounded.Watch
+        action == SettingsManager.ACTION_AOD -> Icons.Rounded.WatchLater
         action == SettingsManager.ACTION_LOCK_AOD -> Icons.Rounded.Lock
-        action == SettingsManager.ACTION_LOCK_MEDIA_AOD -> Icons.Rounded.Watch
+        action == SettingsManager.ACTION_LOCK_MEDIA_AOD -> Icons.Rounded.WatchLater
         action == SettingsManager.ACTION_FLASHLIGHT -> Icons.Rounded.FlashlightOn
         action == SettingsManager.ACTION_SCREENSHOT -> Icons.Rounded.Screenshot
         action == SettingsManager.ACTION_QUICK_SETTINGS -> Icons.Rounded.Settings
@@ -1722,7 +1807,13 @@ fun ActionSelectionScreen(
     onActionSelected: (String) -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    val tabs = listOf("Actions", "Apps", "Shortcuts", "System", "Media")
+    val tabs = listOf(
+        stringResource(R.string.tab_actions),
+        stringResource(R.string.tab_apps),
+        stringResource(R.string.tab_shortcuts),
+        stringResource(R.string.tab_system),
+        stringResource(R.string.tab_media)
+    )
     val pagerState = rememberPagerState(pageCount = { tabs.size })
     val scope = rememberCoroutineScope()
     val backgroundColor = MaterialTheme.colorScheme.background
@@ -1741,9 +1832,7 @@ fun ActionSelectionScreen(
         }
     }
 
-    val displayType = config.type.split("_").joinToString(" ") { word ->
-        word.lowercase().replaceFirstChar { if (it.isLowerCase()) it.titlecase() else it.toString() }
-    }
+    val displayType = getTypeDisplayName(config.type)
 
     Surface(color = backgroundColor, modifier = Modifier.fillMaxSize()) {
         Column(modifier = modifier.fillMaxSize()) {
@@ -1751,14 +1840,17 @@ fun ActionSelectionScreen(
                 IconButton(onClick = onBack) {
                     Icon(
                         Icons.AutoMirrored.Filled.ArrowBack,
-                        contentDescription = "Back",
+                        contentDescription = stringResource(R.string.back),
                         tint = MaterialTheme.colorScheme.onBackground
                     )
                 }
                 Text(
-                    "Select Action for $displayType",
+                    stringResource(R.string.select_action_title, displayType),
                     style = MaterialTheme.typography.titleLarge,
-                    color = MaterialTheme.colorScheme.onBackground
+                    color = MaterialTheme.colorScheme.onBackground,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.weight(1f)
                 )
             }
 
@@ -1897,7 +1989,7 @@ fun AppsTab(
         if (isScreenOff) {
             item {
                 Text(
-                    "Launching apps requires waking the screen, which is disabled in Screen Off mode.",
+                    stringResource(R.string.wake_screen_apps_msg),
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     style = MaterialTheme.typography.bodySmall,
                     modifier = Modifier.padding(bottom = 8.dp)
@@ -2034,7 +2126,7 @@ fun ShortcutsTab(
 
     if (shortcutItems.isEmpty()) {
         Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-            Text("No shortcut-capable apps found", color = MaterialTheme.colorScheme.onSurfaceVariant)
+            Text(stringResource(R.string.no_shortcuts_found), color = MaterialTheme.colorScheme.onSurfaceVariant)
         }
     } else {
         LazyColumn(
@@ -2045,7 +2137,7 @@ fun ShortcutsTab(
             if (isScreenOff) {
                 item {
                     Text(
-                        "Shortcuts launch activities that wake the screen and are disabled in Screen Off mode.",
+                        stringResource(R.string.wake_screen_shortcuts_msg),
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                         style = MaterialTheme.typography.bodySmall,
                         modifier = Modifier.padding(bottom = 8.dp)
@@ -2149,7 +2241,6 @@ fun MediaTab(
     shizukuReady: Boolean,
 ) {
     val actions = listOf(
-        SettingsManager.ACTION_AOD,
         SettingsManager.ACTION_VOLUME_UP,
         SettingsManager.ACTION_VOLUME_DOWN,
         SettingsManager.ACTION_MUTE_VOL,
@@ -2179,8 +2270,8 @@ fun LiftToWakeWarningDialog(
     XenonDialog(
         properties = DialogProperties(usePlatformDefaultWidth = true),
         onDismissRequest = onDismissRequest,
-        title = "Disable \"Lift to Wake\"",
-        confirmButtonText = "Disable",
+        title = stringResource(R.string.disable_lift_to_wake_title),
+        confirmButtonText = stringResource(R.string.disable),
         onConfirmButtonClick = {
             onDisable(dontShowAgain)
             try {
@@ -2205,15 +2296,15 @@ fun LiftToWakeWarningDialog(
                         ShizukuManager.runShellCommand(scrollCommand)
                     }, 1500L)
                 }
-            } catch (e: Exception) {
+            } catch (_: Exception) {
                 try {
                     context.startActivity(Intent(Settings.ACTION_SETTINGS))
-                } catch (e2: Exception) {
+                } catch (_: Exception) {
                     // Fallback failed
                 }
             }
         },
-        actionButton1Text = "Ignore",
+        actionButton1Text = stringResource(R.string.ignore),
         onActionButton1Click = {
             onIgnore(dontShowAgain)
         }
@@ -2225,7 +2316,7 @@ fun LiftToWakeWarningDialog(
             verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
             Text(
-                text = "To prevent accidental touches and unnecessary high battery usage, it is recommended to disable 'Lift to wake' in your system settings.",
+                text = stringResource(R.string.lift_to_wake_msg),
                 style = MaterialTheme.typography.bodyMedium
             )
 
@@ -2240,7 +2331,7 @@ fun LiftToWakeWarningDialog(
                     onCheckedChange = { dontShowAgain = it }
                 )
                 Text(
-                    text = "Don't show anymore",
+                    text = stringResource(R.string.dont_show_again),
                     style = MaterialTheme.typography.bodyMedium
                 )
             }
@@ -2248,12 +2339,14 @@ fun LiftToWakeWarningDialog(
     }
 }
 
+@SuppressLint("ConfigurationScreenWidthHeight")
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun AodStylePickerDialog(
     onDismissRequest: () -> Unit,
-    onStyleSelected: (SettingsManager.AodStyle) -> Unit
+    onStyleSelected: (SettingsManager.AodStyle, Boolean) -> Unit
 ) {
+    val context = LocalContext.current
     val styles = SettingsManager.AodStyle.entries
     val carouselState = rememberCarouselState(itemCount = { styles.size })
     val selectedIndex = carouselState.currentItem
@@ -2264,13 +2357,15 @@ fun AodStylePickerDialog(
     val estimatedItemHeight = estimatedCenterItemWidth * 1.15f
     val carouselHeight = estimatedItemHeight + 16.dp
 
+    var mediaControlsEnabled by remember { mutableStateOf(SettingsManager.isAodMediaEnabled(context)) }
+
     XenonDialog(
         onDismissRequest = onDismissRequest,
         properties = DialogProperties(usePlatformDefaultWidth = true),
-        title = "Select AOD Style",
-        confirmButtonText = "Select",
+        title = stringResource(R.string.select_aod_style_title),
+        confirmButtonText = stringResource(R.string.select),
         onConfirmButtonClick = {
-            onStyleSelected(styles[selectedIndex])
+            onStyleSelected(styles[selectedIndex], mediaControlsEnabled)
         },
         contentManagesScrolling = true,
         content = {
@@ -2298,16 +2393,15 @@ fun AodStylePickerDialog(
                     val itemShape = MaterialTheme.shapes.extraLarge
 
                     val styleName = when (style) {
-                        SettingsManager.AodStyle.CONCENTRIC -> "Concentric"
-                        SettingsManager.AodStyle.STACKED -> "Stacked"
-                        SettingsManager.AodStyle.INLINE -> "Inline"
+                        SettingsManager.AodStyle.CONCENTRIC -> stringResource(R.string.style_concentric)
+                        SettingsManager.AodStyle.STACKED -> stringResource(R.string.style_stacked)
+                        SettingsManager.AodStyle.INLINE -> stringResource(R.string.style_inline)
                     }
 
                     AodStyleOption(
                         name = styleName,
                         style = style,
-                        isSelected = isSelected,
-                        onClick = { 
+                        onClick = {
                             scope.launch {
                                 carouselState.animateScrollToItem(index)
                             }
@@ -2319,6 +2413,28 @@ fun AodStylePickerDialog(
                             .maskBorder(borderStroke, itemShape)
                     )
                 }
+
+                Spacer(modifier = Modifier.height(16.dp))
+
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 24.dp, vertical = 8.dp)
+                        .clip(RoundedCornerShape(16.dp))
+                        .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f))
+                        .padding(horizontal = 16.dp, vertical = 8.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        text = stringResource(R.string.aod_media_controls),
+                        style = MaterialTheme.typography.bodyMedium,
+                        modifier = Modifier.weight(1f)
+                    )
+                    Switch(
+                        checked = mediaControlsEnabled,
+                        onCheckedChange = { mediaControlsEnabled = it }
+                    )
+                }
             }
         }
     )
@@ -2328,7 +2444,6 @@ fun AodStylePickerDialog(
 fun AodStyleOption(
     name: String,
     style: SettingsManager.AodStyle,
-    isSelected: Boolean,
     onClick: () -> Unit,
     modifier: Modifier = Modifier
 ) {
@@ -2408,6 +2523,14 @@ fun ActionList(
     var showLiftToWakeWarning by rememberSaveable { mutableStateOf(false) }
     var inputValue by rememberSaveable { mutableStateOf("") }
 
+    val aodActionName = stringResource(R.string.action_aod)
+    val styleConcentric = stringResource(R.string.style_concentric)
+    val styleStacked = stringResource(R.string.style_stacked)
+    val styleInline = stringResource(R.string.style_inline)
+    val speedDialName = stringResource(R.string.speed_dial)
+    val urlName = stringResource(R.string.url)
+    val qrCodeName = stringResource(R.string.qr_code)
+
     if (showLiftToWakeWarning) {
         LiftToWakeWarningDialog(
             onDismissRequest = { showLiftToWakeWarning = false },
@@ -2427,10 +2550,16 @@ fun ActionList(
     if (showAodStyleDialog) {
         AodStylePickerDialog(
             onDismissRequest = { showAodStyleDialog = false },
-            onStyleSelected = { style ->
+            onStyleSelected = { style, mediaEnabled ->
                 SettingsManager.setAodStyle(context, style)
+                SettingsManager.setAodMediaEnabled(context, mediaEnabled)
                 SettingsManager.setAction(context, config.keyCode, config.state, config.type, SettingsManager.ACTION_AOD)
-                onActionSelected("AOD: ${style.name}")
+                val styleName = when (style) {
+                    SettingsManager.AodStyle.CONCENTRIC -> styleConcentric
+                    SettingsManager.AodStyle.STACKED -> styleStacked
+                    SettingsManager.AodStyle.INLINE -> styleInline
+                }
+                onActionSelected("$aodActionName: $styleName")
                 showAodStyleDialog = false
             }
         )
@@ -2438,22 +2567,22 @@ fun ActionList(
 
     if (showInputDialog != null) {
         val title = when (showInputDialog) {
-            SettingsManager.ACTION_SPEED_DIAL -> "Enter Number"
-            SettingsManager.ACTION_URL -> "Enter URL"
-            SettingsManager.ACTION_QR_CODE -> "Enter QR Code Content"
+            SettingsManager.ACTION_SPEED_DIAL -> stringResource(R.string.enter_number)
+            SettingsManager.ACTION_URL -> stringResource(R.string.enter_url)
+            SettingsManager.ACTION_QR_CODE -> stringResource(R.string.enter_qr_content)
             else -> ""
         }
         val label = when (showInputDialog) {
-            SettingsManager.ACTION_SPEED_DIAL -> "Phone Number ..."
-            SettingsManager.ACTION_URL -> "Link ..."
-            SettingsManager.ACTION_QR_CODE -> "Text ..."
+            SettingsManager.ACTION_SPEED_DIAL -> stringResource(R.string.phone_number_hint)
+            SettingsManager.ACTION_URL -> stringResource(R.string.link_hint)
+            SettingsManager.ACTION_QR_CODE -> stringResource(R.string.text_hint)
             else -> ""
         }
         XenonDialog(
             onDismissRequest = { showInputDialog = null },
             properties = DialogProperties(usePlatformDefaultWidth = true),
             title = title,
-            confirmButtonText = "OK",
+            confirmButtonText = stringResource(R.string.ok),
             onConfirmButtonClick = {
                 val prefix = when (showInputDialog) {
                     SettingsManager.ACTION_SPEED_DIAL -> SettingsManager.PREFIX_SPEED_DIAL
@@ -2464,9 +2593,9 @@ fun ActionList(
                 SettingsManager.setAction(context, config.keyCode, config.state, config.type, prefix + inputValue)
                 onActionSelected(
                     when (showInputDialog) {
-                        SettingsManager.ACTION_SPEED_DIAL -> "Speed Dial"
-                        SettingsManager.ACTION_URL -> "URL"
-                        SettingsManager.ACTION_QR_CODE -> "QR Code"
+                        SettingsManager.ACTION_SPEED_DIAL -> speedDialName
+                        SettingsManager.ACTION_URL -> urlName
+                        SettingsManager.ACTION_QR_CODE -> qrCodeName
                         else -> ""
                     }
                 )
@@ -2492,11 +2621,9 @@ fun ActionList(
         items(actions.size) { index ->
             val action = actions[index]
             val disabled = isActionDisabled(action, shizukuReady)
-            val disabledReason = disabledReasonFor(action, shizukuReady)
+            val disabledReasonRes = disabledReasonFor(action, shizukuReady)
 
-            val displayName = action.split("_").joinToString(" ") { word ->
-                word.lowercase().replaceFirstChar { if (it.isLowerCase()) it.titlecase() else it.toString() }
-            }
+            val displayName = getActionDisplayName(action)
 
             val shape = when {
                 actions.size == 1 -> RoundedCornerShape(30.dp)
@@ -2521,10 +2648,10 @@ fun ActionList(
                             else MaterialTheme.colorScheme.onSurface
                         )
                     },
-                    supportingContent = disabledReason?.let {
+                    supportingContent = disabledReasonRes?.let { resId ->
                         {
                             Text(
-                                it,
+                                stringResource(resId),
                                 color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f),
                                 style = MaterialTheme.typography.bodySmall
                             )

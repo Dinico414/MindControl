@@ -1,0 +1,174 @@
+<resources>
+    <string name="app_name">MindControl</string>
+    <string name="accessibility_service_description">Dieser Dienst überwacht physische Tastendrücke (wie Lautstärke- und Kameratasten), um eine benutzerdefinierte Neubelegung zu ermöglichen. Er sammelt oder teilt keine persönlichen Daten und ist für die Kernfunktion der App erforderlich.</string>
+
+    <!-- UI Labels -->
+    <string name="ai_button">KI-Taste</string>
+    <string name="camera_up">Kamera Hoch</string>
+    <string name="camera_down">Kamera Runter</string>
+    <string name="keyboard">Tastatur</string>
+    <string name="volume_up">Lautstärke Hoch</string>
+    <string name="volume_down">Lautstärke Runter</string>
+    <string name="camera_button">Kamerataste</string>
+    <string name="focus_button">Fokustaste</string>
+    <string name="settings">Einstellungen</string>
+    <string name="version_prefix">v</string>
+
+    <!-- Accessibility Status -->
+    <string name="accessibility_active">Bedienungshilfen: AKTIV</string>
+    <string name="accessibility_inactive">Bedienungshilfen: INAKTIV\n(Tippen zum Aktivieren)</string>
+
+    <!-- Shizuku Status -->
+    <string name="shizuku_authorized">Shizuku: AUTORISIERT</string>
+    <string name="shizuku_unauthorized">Shizuku: NICHT AUTORISIERT\n(Tippen zum Autorisieren)</string>
+    <string name="shizuku_not_running">Shizuku: LÄUFT NICHT\n(Tippen zum Öffnen)</string>
+    <string name="shizuku_not_installed">Shizuku: NICHT INSTALLIERT\n(Tippen zum Installieren)</string>
+
+    <!-- Battery Optimization -->
+    <string name="battery_opt_on">Akku-Optimierung: AN\n(Tippen zum Deaktivieren)</string>
+    <string name="battery_opt_desc">Das System kann MindControl beenden, um Akku zu sparen. Deaktiviere dies für bessere Stabilität.</string>
+
+    <!-- Other Permissions/Status -->
+    <string name="media_control_inactive">Mediensteuerung: INAKTIV\n(Tippen zum Aktivieren)</string>
+    <string name="system_settings_denied">System-Einstellungen ändern: VERWEIGERT\n(Tippen zum Erlauben)</string>
+    <string name="dnd_access_denied">„Nicht stören“ Zugriff: VERWEIGERT\n(Tippen zum Erlauben)</string>
+    <string name="notifications_denied">Benachrichtigungen: VERWEIGERT\n(Tippen zum Erlauben)</string>
+
+    <!-- Accessibility Disclosure -->
+    <string name="accessibility_disclosure_title">Bedienungshilfen Erklärung</string>
+    <string name="grant_permission">Berechtigung erteilen</string>
+    <string name="accessibility_disclosure_content">MindControl verwendet Bedienungshilfen, um Hardware-Tastendrücke (wie Lautstärke- und Kameratasten) zu erkennen und benutzerdefinierten Aktionen zuzuordnen.\n\n• Dieser Dienst ist für die Kernfunktionalität der App erforderlich.\n• Es werden keine personenbezogenen Daten gesammelt oder geteilt.\n• Tastendrücke werden lokal auf Ihrem Gerät verarbeitet.</string>
+
+    <!-- Settings Toggles -->
+    <string name="disable_in_camera">In Kamera deaktivieren</string>
+    <string name="default_volume_slider">Standard-Lautstärke wenn Schieberegler sichtbar</string>
+    <string name="override_screen_off">Überschreiben Bildschirm aus</string>
+    <string name="volume_skip_screen_off">Lautstärke-Sprung (Bildschirm aus)</string>
+    <string name="device_color">Gerätefarbe</string>
+    <string name="keyboard_color">Tastaturfarbe</string>
+
+    <!-- Dialogs -->
+    <string name="notice">Hinweis</string>
+    <string name="ok">OK</string>
+    <string name="override_disabled_msg">„Überschreiben Bildschirm aus“ ist momentan in den Einstellungen deaktiviert.</string>
+    <string name="camera_limit_msg">Die Kamerataste schaltet den Bildschirm automatisch ein und kann daher nicht für „Bildschirm aus“-Aktionen verwendet werden.</string>
+    <string name="volume_shizuku_msg">Um die Lautstärketasten für „Bildschirm aus“ anzupassen, autorisieren Sie bitte Shizuku oder nutzen Sie den Schalter „Lautstärke-Sprung“ in den Einstellungen.</string>
+    <string name="non_volume_shizuku_msg">Das Konfigurieren von Nicht-Lautstärketasten für „Bildschirm aus“ erfordert die Shizuku-Berechtigung.</string>
+    <string name="config_unavailable_msg">Diese Konfiguration ist derzeit nicht verfügbar.</string>
+    <string name="warning">Warnung</string>
+    <string name="i_understand">Ich verstehe</string>
+    <string name="focus_warning_msg">Die Verwendung der Fokustaste bei ausgeschaltetem Bildschirm kann zu versehentlichen Aktionen führen, während sich das Gerät in Ihrer Tasche befindet.</string>
+    <string name="back">Zurück</string>
+
+    <!-- Button Config -->
+    <string name="button_config_title">%1$s Konfiguration</string>
+    <string name="screen_on">Bildschirm an</string>
+    <string name="screen_off">Bildschirm aus</string>
+    <string name="press_single">Einmal drücken</string>
+    <string name="press_double">Zweimal drücken</string>
+    <string name="press_triple">Dreimal drücken</string>
+    <string name="press_hold">Gedrückt halten</string>
+    <string name="press_and_hold">Drücken und Halten</string>
+
+    <!-- Action Selection -->
+    <string name="select_action_title">Aktion für %1$s auswählen</string>
+    <string name="tab_actions">Aktionen</string>
+    <string name="tab_apps">Apps</string>
+    <string name="tab_shortcuts">Verknüpfungen</string>
+    <string name="tab_system">System</string>
+    <string name="tab_media">Medien</string>
+    <string name="no_shortcuts_found">Keine Apps mit Verknüpfungsunterstützung gefunden</string>
+    <string name="wake_screen_apps_msg">Das Starten von Apps erfordert das Aufwecken des Bildschirms, was im „Bildschirm aus“-Modus deaktiviert ist.</string>
+    <string name="wake_screen_shortcuts_msg">Verknüpfungen starten Aktivitäten, die den Bildschirm aufwecken und im „Bildschirm aus“-Modus deaktiviert sind.</string>
+
+    <!-- AOD & Lift to Wake -->
+    <string name="disable_lift_to_wake_title">„Zum Aktivieren anheben“ deaktivieren</string>
+    <string name="disable">Deaktivieren</string>
+    <string name="ignore">Ignorieren</string>
+    <string name="lift_to_wake_msg">Um versehentliche Berührungen und unnötig hohen Akkuverbrauch zu vermeiden, wird empfohlen, „Zum Aktivieren anheben“ in Ihren Systemeinstellungen zu deaktivieren.</string>
+    <string name="dont_show_again">Nicht mehr anzeigen</string>
+    <string name="select_aod_style_title">AOD-Stil auswählen</string>
+    <string name="select">Auswählen</string>
+    <string name="style_concentric">Konzentrisch</string>
+    <string name="style_stacked">Gestapelt</string>
+    <string name="style_inline">Inline</string>
+
+    <!-- Input Dialogs -->
+    <string name="enter_number">Nummer eingeben</string>
+    <string name="enter_url">URL eingeben</string>
+    <string name="enter_qr_content">QR-Code-Inhalt eingeben</string>
+    <string name="phone_number_hint">Telefonnummer …</string>
+    <string name="link_hint">Link …</string>
+    <string name="text_hint">Text …</string>
+
+    <!-- Display Names -->
+    <string name="speed_dial">Kurzwahl</string>
+    <string name="url">URL</string>
+    <string name="qr_code">QR-Code</string>
+    <string name="requires_shizuku">Erfordert Shizuku</string>
+
+    <!-- Actions -->
+    <string name="action_none">Keine</string>
+    <string name="action_default">Standard</string>
+    <string name="action_play_pause">Wiedergabe / Pause</string>
+    <string name="action_next">Weiter</string>
+    <string name="action_previous">Zurück</string>
+    <string name="action_volume_up">Lautstärke Hoch</string>
+    <string name="action_volume_down">Lautstärke Runter</string>
+    <string name="action_flashlight">Taschenlampe</string>
+    <string name="action_screenshot">Screenshot</string>
+    <string name="action_lock">Bildschirm sperren</string>
+    <string name="action_aod">Always-On-Display</string>
+    <string name="action_brightness_up">Helligkeit Hoch</string>
+    <string name="action_brightness_down">Helligkeit Runter</string>
+    <string name="action_home">Home</string>
+    <string name="action_back">Zurück</string>
+    <string name="action_recents">Letzte Apps</string>
+    <string name="action_notifications">Benachrichtigungen</string>
+    <string name="action_quick_settings">Schnelleinstellungen</string>
+    <string name="action_assistant">Assistent</string>
+    <string name="action_rotate_toggle">Ausrichtung umschalten</string>
+    <string name="action_scroll_up">Hochscrollen</string>
+    <string name="action_scroll_down">Runterscrollen</string>
+    <string name="action_scroll_up_smooth">Hochscrollen (Stufenlos)</string>
+    <string name="action_scroll_down_smooth">Runterscrollen (Stufenlos)</string>
+    <string name="action_scroll_up_smooth_fast">Hochscrollen (Stufenlos, Schnell)</string>
+    <string name="action_scroll_down_smooth_fast">Runterscrollen (Stufenlos, Schnell)</string>
+    <string name="action_show_menu">Menü anzeigen</string>
+    <string name="action_last_app">Letzte App</string>
+    <string name="action_app_info">App-Info</string>
+    <string name="action_power_dialog">Power-Menü</string>
+    <string name="action_google_search">Google Suche</string>
+    <string name="action_copy">Kopieren</string>
+    <string name="action_cut">Ausschneiden</string>
+    <string name="action_paste">Einfügen</string>
+    <string name="action_fast_forward">Schneller Vorlauf</string>
+    <string name="action_rewind">Rücklauf</string>
+    <string name="action_stop">Stopp</string>
+    <string name="action_step_forward">Schritt Vorwärts</string>
+    <string name="action_step_backward">Schritt Rückwärts</string>
+    <string name="action_vibrate_ringer">Vibrieren (Klingelton)</string>
+    <string name="action_cycle_sound_mode">Tonmodus durchwechseln</string>
+    <string name="action_dnd">Nicht stören</string>
+    <string name="action_auto_brightness_toggle">Auto-Helligkeit umschalten</string>
+    <string name="action_wifi_toggle">WLAN umschalten</string>
+    <string name="action_bluetooth_toggle">Bluetooth umschalten</string>
+    <string name="action_data_toggle">Mobile Daten umschalten</string>
+    <string name="action_nfc_toggle">NFC umschalten</string>
+    <string name="action_location_toggle">Standort umschalten</string>
+    <string name="action_autorotate_toggle">Auto-Drehen umschalten</string>
+    <string name="action_rotate_360">360° drehen</string>
+    <string name="action_mute_vol">Stummschalten</string>
+    <string name="action_mute_mic_toggle">Mikrofon stummschalten</string>
+    <string name="action_volume_dialog">Lautstärkedialog</string>
+
+    <string name="qr_code_share">QR-Code teilen</string>
+    <string name="notification_title">MindControl Aktiv</string>
+    <string name="notification_text">Überwache Hardware-Tasten…</string>
+    <string name="channel_name">MindControl Dienst</string>
+    <string name="swipe_up_to_unlock">Zum Entsperren nach oben wischen</string>
+    <string name="aod_unknown">Unbekannt</string>
+    <string name="aod_unknown_artist">Unbekannter Künstler</string>
+    <string name="aod_charging">Lädt</string>
+    <string name="aod_media_controls">Mediensteuerung anzeigen</string>
+</resources>

@@ -1,4 +1,174 @@
 <resources>
     <string name="app_name">MindControl</string>
     <string name="accessibility_service_description">This service monitors physical button presses (such as volume and camera buttons) to provide custom remapping. It does not collect or share any personal data and is required for the app\'s core button-mapping functionality.</string>
+
+    <!-- UI Labels -->
+    <string name="ai_button">AI Button</string>
+    <string name="camera_up">Camera Up</string>
+    <string name="camera_down">Camera Down</string>
+    <string name="keyboard">Keyboard</string>
+    <string name="volume_up">Volume Up</string>
+    <string name="volume_down">Volume Down</string>
+    <string name="camera_button">Camera Button</string>
+    <string name="focus_button">Focus Button</string>
+    <string name="settings">Settings</string>
+    <string name="version_prefix">v</string>
+
+    <!-- Accessibility Status -->
+    <string name="accessibility_active">Accessibility: ACTIVE</string>
+    <string name="accessibility_inactive">Accessibility: INACTIVE\n(Tap to Enable)</string>
+
+    <!-- Shizuku Status -->
+    <string name="shizuku_authorized">Shizuku: AUTHORIZED</string>
+    <string name="shizuku_unauthorized">Shizuku: UNAUTHORIZED\n(Tap to Authorize)</string>
+    <string name="shizuku_not_running">Shizuku: NOT RUNNING\n(Tap to Open)</string>
+    <string name="shizuku_not_installed">Shizuku: NOT INSTALLED\n(Tap to Install)</string>
+
+    <!-- Battery Optimization -->
+    <string name="battery_opt_on">Battery Optimization: ON\n(Tap to Disable)</string>
+    <string name="battery_opt_desc">System may kill MindControl to save battery. Disable this for better stability.</string>
+
+    <!-- Other Permissions/Status -->
+    <string name="media_control_inactive">Media Control: INACTIVE\n(Tap to Enable)</string>
+    <string name="system_settings_denied">Modify System Settings: DENIED\n(Tap to Allow)</string>
+    <string name="dnd_access_denied">DND Access: DENIED\n(Tap to Allow)</string>
+    <string name="notifications_denied">Notifications: DENIED\n(Tap to Allow)</string>
+
+    <!-- Accessibility Disclosure -->
+    <string name="accessibility_disclosure_title">Accessibility Disclosure</string>
+    <string name="grant_permission">Grant Permission</string>
+    <string name="accessibility_disclosure_content">MindControl uses Accessibility Services to detect hardware button presses (such as volume and camera buttons) and map them to custom actions.\n\n• This service is required for the app\'s core functionality.\n• No personal data is collected or shared.\n• Key presses are processed locally on your device.</string>
+
+    <!-- Settings Toggles -->
+    <string name="disable_in_camera">Disable in camera</string>
+    <string name="default_volume_slider">Default volume if slider visible</string>
+    <string name="override_screen_off">Override Screen off</string>
+    <string name="volume_skip_screen_off">Volume Skip (Screen Off)</string>
+    <string name="device_color">Device color</string>
+    <string name="keyboard_color">Keyboard color</string>
+
+    <!-- Dialogs -->
+    <string name="notice">Notice</string>
+    <string name="ok">OK</string>
+    <string name="override_disabled_msg">Override Screen Off is currently disabled in Settings.</string>
+    <string name="camera_limit_msg">The Camera button turns the screen on automatically, so it cannot be used for Screen Off actions.</string>
+    <string name="volume_shizuku_msg">To customize Volume buttons for Screen Off, please authorize Shizuku or use the \'Volume Skip\' toggle in Settings.</string>
+    <string name="non_volume_shizuku_msg">Configuring non-volume buttons for Screen Off requires Shizuku permission.</string>
+    <string name="config_unavailable_msg">This configuration is currently unavailable.</string>
+    <string name="warning">Warning</string>
+    <string name="i_understand">I Understand</string>
+    <string name="focus_warning_msg">Using the Focus button while the screen is off may lead to accidental actions while the device is in your pocket.</string>
+    <string name="back">Back</string>
+
+    <!-- Button Config -->
+    <string name="button_config_title">%1$s Configuration</string>
+    <string name="screen_on">Screen On</string>
+    <string name="screen_off">Screen Off</string>
+    <string name="press_single">Single Press</string>
+    <string name="press_double">Double Press</string>
+    <string name="press_triple">Triple Press</string>
+    <string name="press_hold">Hold</string>
+    <string name="press_and_hold">Press and Hold</string>
+
+    <!-- Action Selection -->
+    <string name="select_action_title">Select Action for %1$s</string>
+    <string name="tab_actions">Actions</string>
+    <string name="tab_apps">Apps</string>
+    <string name="tab_shortcuts">Shortcuts</string>
+    <string name="tab_system">System</string>
+    <string name="tab_media">Media</string>
+    <string name="no_shortcuts_found">No shortcut-capable apps found</string>
+    <string name="wake_screen_apps_msg">Launching apps requires waking the screen, which is disabled in Screen Off mode.</string>
+    <string name="wake_screen_shortcuts_msg">Shortcuts launch activities that wake the screen and are disabled in Screen Off mode.</string>
+
+    <!-- AOD & Lift to Wake -->
+    <string name="disable_lift_to_wake_title">Disable \"Lift to Wake\"</string>
+    <string name="disable">Disable</string>
+    <string name="ignore">Ignore</string>
+    <string name="lift_to_wake_msg">To prevent accidental touches and unnecessary high battery usage, it is recommended to disable \'Lift to wake\' in your system settings.</string>
+    <string name="dont_show_again">Don\'t show anymore</string>
+    <string name="select_aod_style_title">Select AOD Style</string>
+    <string name="select">Select</string>
+    <string name="style_concentric">Concentric</string>
+    <string name="style_stacked">Stacked</string>
+    <string name="style_inline">Inline</string>
+
+    <!-- Input Dialogs -->
+    <string name="enter_number">Enter Number</string>
+    <string name="enter_url">Enter URL</string>
+    <string name="enter_qr_content">Enter QR Code Content</string>
+    <string name="phone_number_hint">Phone Number …</string>
+    <string name="link_hint">Link …</string>
+    <string name="text_hint">Text …</string>
+
+    <!-- Display Names -->
+    <string name="speed_dial">Speed Dial</string>
+    <string name="url">URL</string>
+    <string name="qr_code">QR Code</string>
+    <string name="requires_shizuku">Requires Shizuku</string>
+
+    <!-- Actions -->
+    <string name="action_none">None</string>
+    <string name="action_default">Default</string>
+    <string name="action_play_pause">Play / Pause</string>
+    <string name="action_next">Next</string>
+    <string name="action_previous">Previous</string>
+    <string name="action_volume_up">Volume Up</string>
+    <string name="action_volume_down">Volume Down</string>
+    <string name="action_flashlight">Flashlight</string>
+    <string name="action_screenshot">Screenshot</string>
+    <string name="action_lock">Lock Screen</string>
+    <string name="action_aod">Always On Display</string>
+    <string name="action_brightness_up">Brightness Up</string>
+    <string name="action_brightness_down">Brightness Down</string>
+    <string name="action_home">Home</string>
+    <string name="action_back">Back</string>
+    <string name="action_recents">Recents</string>
+    <string name="action_notifications">Notifications</string>
+    <string name="action_quick_settings">Quick Settings</string>
+    <string name="action_assistant">Assistant</string>
+    <string name="action_rotate_toggle">Rotate Toggle</string>
+    <string name="action_scroll_up">Scroll Up</string>
+    <string name="action_scroll_down">Scroll Down</string>
+    <string name="action_scroll_up_smooth">Scroll Up (Smooth)</string>
+    <string name="action_scroll_down_smooth">Scroll Down (Smooth)</string>
+    <string name="action_scroll_up_smooth_fast">Scroll Up (Smooth, Fast)</string>
+    <string name="action_scroll_down_smooth_fast">Scroll Down (Smooth, Fast)</string>
+    <string name="action_show_menu">Show Menu</string>
+    <string name="action_last_app">Last App</string>
+    <string name="action_app_info">App Info</string>
+    <string name="action_power_dialog">Power Dialog</string>
+    <string name="action_google_search">Google Search</string>
+    <string name="action_copy">Copy</string>
+    <string name="action_cut">Cut</string>
+    <string name="action_paste">Paste</string>
+    <string name="action_fast_forward">Fast Forward</string>
+    <string name="action_rewind">Rewind</string>
+    <string name="action_stop">Stop</string>
+    <string name="action_step_forward">Step Forward</string>
+    <string name="action_step_backward">Step Backward</string>
+    <string name="action_vibrate_ringer">Vibrate Ringer</string>
+    <string name="action_cycle_sound_mode">Cycle Sound Mode</string>
+    <string name="action_dnd">Do Not Disturb</string>
+    <string name="action_auto_brightness_toggle">Auto Brightness Toggle</string>
+    <string name="action_wifi_toggle">WiFi Toggle</string>
+    <string name="action_bluetooth_toggle">Bluetooth Toggle</string>
+    <string name="action_data_toggle">Data Toggle</string>
+    <string name="action_nfc_toggle">NFC Toggle</string>
+    <string name="action_location_toggle">Location Toggle</string>
+    <string name="action_autorotate_toggle">Auto-Rotate Toggle</string>
+    <string name="action_rotate_360">Rotate 360°</string>
+    <string name="action_mute_vol">Mute Volume</string>
+    <string name="action_mute_mic_toggle">Mute Mic Toggle</string>
+    <string name="action_volume_dialog">Volume Dialog</string>
+
+    <string name="qr_code_share">QR-Code Share</string>
+    <string name="notification_title">MindControl Active</string>
+    <string name="notification_text">Monitoring hardware buttons…</string>
+    <string name="channel_name">MindControl Service</string>
+    <string name="swipe_up_to_unlock">Swipe up to unlock</string>
+    <string name="aod_unknown">Unknown</string>
+    <string name="aod_unknown_artist">Unknown Artist</string>
+    <string name="aod_charging">Charging</string>
+    <string name="aod_media_controls">Show Media Controls</string>
 </resources>

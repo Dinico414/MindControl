@@ -41,12 +41,14 @@ import androidx.compose.ui.graphics.ColorFilter.Companion.tint
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.core.graphics.drawable.toBitmap
 import com.xenonware.mindcontrol.MediaInfo
+import com.xenonware.mindcontrol.R
 import kotlin.math.roundToInt
 
 @Composable
@@ -57,7 +59,8 @@ fun ConcentricAodStyle(
     isCharging: Boolean,
     batteryLevel: Int,
     animatedTextAlpha: Float,
-    offsetY: Float
+    offsetY: Float,
+    isMediaEnabled: Boolean = true
 ) {
     UnifiedAodStyle(
         isActive = isActive,
@@ -67,6 +70,7 @@ fun ConcentricAodStyle(
         batteryLevel = batteryLevel,
         animatedTextAlpha = animatedTextAlpha,
         offsetY = offsetY,
+        isMediaEnabled = isMediaEnabled,
         watchFace = { PixelWatchFace(isActive = isActive) }
     )
 }
@@ -79,7 +83,8 @@ fun StackedAodStyle(
     isCharging: Boolean,
     batteryLevel: Int,
     animatedTextAlpha: Float,
-    offsetY: Float
+    offsetY: Float,
+    isMediaEnabled: Boolean = true
 ) {
     UnifiedAodStyle(
         isActive = isActive,
@@ -89,6 +94,7 @@ fun StackedAodStyle(
         batteryLevel = batteryLevel,
         animatedTextAlpha = animatedTextAlpha,
         offsetY = offsetY,
+        isMediaEnabled = isMediaEnabled,
         watchFace = { StackedWatchFace(isActive = isActive) }
     )
 }
@@ -101,7 +107,8 @@ fun InlineAodStyle(
     isCharging: Boolean,
     batteryLevel: Int,
     animatedTextAlpha: Float,
-    offsetY: Float
+    offsetY: Float,
+    isMediaEnabled: Boolean = true
 ) {
     UnifiedAodStyle(
         isActive = isActive,
@@ -111,6 +118,7 @@ fun InlineAodStyle(
         batteryLevel = batteryLevel,
         animatedTextAlpha = animatedTextAlpha,
         offsetY = offsetY,
+        isMediaEnabled = isMediaEnabled,
         watchFace = { InlineWatchFace(isActive = isActive) }
     )
 }
@@ -124,6 +132,7 @@ fun UnifiedAodStyle(
     batteryLevel: Int,
     animatedTextAlpha: Float,
     offsetY: Float,
+    isMediaEnabled: Boolean = true,
     watchFace: @Composable () -> Unit
 ) {
     Box(
@@ -132,7 +141,9 @@ fun UnifiedAodStyle(
             .offset { IntOffset(0, offsetY.roundToInt()) }
     ) {
         // Background: Album Art
-        AodAlbumArtBackground(mediaInfo = mediaInfo, isActive = isActive)
+        if (isMediaEnabled) {
+            AodAlbumArtBackground(mediaInfo = mediaInfo, isActive = isActive)
+        }
 
         Column(
             modifier = Modifier.fillMaxSize(),
@@ -146,17 +157,17 @@ fun UnifiedAodStyle(
             
             NotificationIconsRow(notifications = notifications, isActive = isActive)
 
-            if (mediaInfo != null) {
+            if (isMediaEnabled && mediaInfo != null) {
                 Spacer(modifier = Modifier.height(16.dp))
                 Text(
-                    text = mediaInfo.title ?: "Unknown",
+                    text = mediaInfo.title ?: stringResource(R.string.aod_unknown),
                     color = Color.White,
                     fontSize = 18.sp,
                     fontWeight = FontWeight.Medium,
                     modifier = Modifier.alpha(if (isActive) 0.8f else 0.5f)
                 )
                 Text(
-                    text = mediaInfo.artist ?: "Unknown Artist",
+                    text = mediaInfo.artist ?: stringResource(R.string.aod_unknown_artist),
                     color = Color.White,
                     fontSize = 14.sp,
                     modifier = Modifier.alpha(if (isActive) 0.6f else 0.4f)
@@ -238,7 +249,7 @@ fun AodBottomInfo(
                     )
                     Spacer(modifier = Modifier.width(4.dp))
                     Text(
-                        text = if (batteryLevel >= 0) "$batteryLevel%" else "Charging",
+                        text = if (batteryLevel >= 0) "$batteryLevel%" else stringResource(R.string.aod_charging),
                         color = Color.White,
                         fontSize = 14.sp
                     )
@@ -246,14 +257,14 @@ fun AodBottomInfo(
             } else if (mediaInfo != null) {
                 Column(horizontalAlignment = Alignment.CenterHorizontally) {
                     Text(
-                        text = mediaInfo.title ?: "Unknown",
+                        text = mediaInfo.title ?: stringResource(R.string.aod_unknown),
                         color = Color.White,
                         fontSize = 18.sp,
                         fontWeight = FontWeight.Medium,
                         modifier = Modifier.alpha(if (isActive) 0.8f else 0.5f)
                     )
                     Text(
-                        text = mediaInfo.artist ?: "Unknown Artist",
+                        text = mediaInfo.artist ?: stringResource(R.string.aod_unknown_artist),
                         color = Color.White,
                         fontSize = 14.sp,
                         modifier = Modifier.alpha(if (isActive) 0.6f else 0.4f)
@@ -261,7 +272,7 @@ fun AodBottomInfo(
                 }
             } else {
                 Text(
-                    text = "Swipe up to unlock",
+                    text = stringResource(R.string.swipe_up_to_unlock),
                     color = Color.White,
                     fontSize = 14.sp
                 )

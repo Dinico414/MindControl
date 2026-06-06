@@ -44,6 +44,7 @@ import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.drawscope.clipPath
 import androidx.compose.ui.graphics.drawscope.withTransform
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.DialogProperties
@@ -86,7 +87,7 @@ fun QrCodeContent(text: String, onDismiss: () -> Unit) {
     XenonDialog(
         onDismissRequest = onDismiss,
         properties = DialogProperties(decorFitsSystemWindows = true),
-        title = "QR-Code Share",
+        title = stringResource(R.string.qr_code_share),
         containerColor = MaterialTheme.colorScheme.surface,
         confirmContainerColor = MaterialTheme.colorScheme.primary,
         confirmContentColor = MaterialTheme.colorScheme.onPrimary,
