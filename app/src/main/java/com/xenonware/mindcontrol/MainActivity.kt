@@ -1072,10 +1072,9 @@ fun TogglesContainer(
                     .padding(bottom = 8.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Spacer(modifier = Modifier.weight(0.25f))
                 Text(
                     text = stringResource(R.string.settings),
-                    textAlign = TextAlign.Center,
+                    textAlign = TextAlign.Start,
                     modifier = Modifier.weight(0.5f),
                     style = MaterialTheme.typography.titleLarge,
                     fontFamily = QuicksandTitleVariable
