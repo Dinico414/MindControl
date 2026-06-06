@@ -1,7 +1,9 @@
 package com.xenonware.mindcontrol
 
+import android.content.ComponentName
 import android.content.Context
 import android.content.SharedPreferences
+import android.content.pm.PackageManager
 import androidx.core.content.edit
 import com.xenonware.mindcontrol.ui.theme.Palette
 
@@ -157,6 +159,40 @@ object SettingsManager {
 
     fun setDevicePalette(context: Context, palette: Palette) {
         prefs(context).edit { putString(KEY_DEVICE_PALETTE, palette.name) }
+        updateAppIcon(context, palette)
+    }
+
+    private fun updateAppIcon(context: Context, palette: Palette) {
+        val packageManager = context.packageManager
+        val packageName = context.packageName
+        
+        val palettes = listOf(
+            Palette.Black to "MainActivityAliasBlack",
+            Palette.White to "MainActivityAliasWhite",
+            Palette.Pink to "MainActivityAliasPink",
+            Palette.Blue to "MainActivityAliasBlue",
+        )
+
+        palettes.forEach { (p, aliasSuffix) ->
+            val state = if (p == palette) {
+                PackageManager.COMPONENT_ENABLED_STATE_ENABLED
+            } else {
+                PackageManager.COMPONENT_ENABLED_STATE_DISABLED
+            }
+            
+            try {
+                // Da wir im Manifest ${applicationId}.Alias nutzen, 
+                // bauen wir den Namen hier exakt so zusammen.
+                val aliasClass = "$packageName.$aliasSuffix"
+                packageManager.setComponentEnabledSetting(
+                    ComponentName(packageName, aliasClass),
+                    state,
+                    PackageManager.DONT_KILL_APP
+                )
+            } catch (e: Exception) {
+                android.util.Log.e("SettingsManager", "Failed to update icon for $p", e)
+            }
+        }
     }
 
     fun getKeyboardPalette(context: Context): Palette =

@@ -1681,7 +1681,6 @@ fun MindControlActionSelector(
         Spacer(modifier = Modifier.width(8.dp))
         OutlinedButton(
             onClick = { onSelectAction(keyCode, state, type) },
-            modifier = Modifier.weight(1f),
             border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline),
             colors = ButtonDefaults.outlinedButtonColors(
                 containerColor = MaterialTheme.colorScheme.surface,
