@@ -1,5 +1,7 @@
 # MindControl 🧠📱
 
+[![Latest Release](https://img.shields.io/github/v/release/Dinico414/MindControll?label=Latest%20Release&style=for-the-badge)](https://github.com/Dinico414/MindControll/releases/latest)
+[![Total Downloads](https://img.shields.io/github/downloads/Dinico414/MindControll/total?label=Total%20Downloads&style=for-the-badge&color=blue)](https://github.com/Dinico414/MindControll/releases)
 [![Android](https://img.shields.io/badge/Platform-Android%2012%2B-green.svg)](https://developer.android.com)
 [![Kotlin](https://img.shields.io/badge/Language-Kotlin-purple.svg)](https://kotlinlang.org)
 [![Shizuku](https://img.shields.io/badge/Power-Shizuku%20Compatible-informational)](https://shizuku.rikka.app/)
@@ -36,7 +38,12 @@ A beautiful replacement for the stock AOD, built entirely in Jetpack Compose.
     *   **Notification Tray:** Real-time mirroring of active app icons.
     *   **Battery Analytics:** Integrated charging animations and level tracking.
 
-### 3. Personalization & Theming
+### 3. Universal Keyboard Support
+MindControl provides deep integration for the physical keyboard, ensuring compatibility across different regions.
+*   **Supported Layouts:** Includes `QWERTY`, `QWERTY (Spanish)`, `QWERTZ` (German/Central European), and `AZERTY` (French).
+*   **Visual Mapper:** A dedicated keyboard UI allows you to visually identify and map every key on your device.
+
+### 4. Personalization & Theming
 *   **Adaptive Icons:** The launcher icon physically changes color based on your chosen theme Black/White/Pink/Blue for Icon and Device as well as Black/White/Pink/Blue/Yellow for the Keyboard.
 *   **Dynamic UI:** The app interface adapts to your device's configuration, keyboard connected or disconnected.
 
@@ -71,7 +78,7 @@ A beautiful replacement for the stock AOD, built entirely in Jetpack Compose.
 
 ## 📥 Installation
 
-1.  **Sideload the APK** from the [Releases](https://github.com/yourlink/releases) page.
+1.  **Sideload the APK** from the [Downloads](#-downloads) section.
 2.  **Enable Accessibility:** Navigate to `Settings > Accessibility > MindControl` and toggle it ON.
 3.  **Grant Shizuku Access (Recommended):** For "Screen Off" actions to work reliably, ensure [Shizuku](https://shizuku.rikka.app/) is running and authorized.
 4.  **Battery Optimization:** Exclude MindControl from battery optimization to prevent the system from killing the background service.
