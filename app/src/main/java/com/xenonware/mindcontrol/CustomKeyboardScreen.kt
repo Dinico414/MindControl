@@ -45,7 +45,7 @@ private val letterKeyCodes: Map<Char, Int> = mapOf(
     'g' to 35, 'h' to 36, 'i' to 37, 'j' to 38, 'k' to 39, 'l' to 40,
     'm' to 41, 'n' to 42, 'o' to 43, 'p' to 44, 'q' to 45, 'r' to 46,
     's' to 47, 't' to 48, 'u' to 49, 'v' to 50, 'w' to 51, 'x' to 52,
-    'y' to 53, 'z' to 54, '\'' to 75, 'ñ' to 120
+    'y' to 53, 'z' to 54, 'ö' to 74, '\'' to 75, 'ñ' to 120
 )
 
 private fun letter(c: Char) = KeyInfo(c.toString(), keyCode = letterKeyCodes[c])
