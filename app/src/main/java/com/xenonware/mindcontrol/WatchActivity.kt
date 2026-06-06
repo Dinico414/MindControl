@@ -20,7 +20,19 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.offset
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.rounded.LockOpen
+import androidx.compose.material.icons.rounded.Pause
+import androidx.compose.material.icons.rounded.PlayArrow
+import androidx.compose.material.icons.rounded.SkipNext
+import androidx.compose.material.icons.rounded.SkipPrevious
+import androidx.compose.material3.Icon
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
@@ -32,10 +44,14 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.unit.IntOffset
+import androidx.compose.ui.unit.dp
 import androidx.core.view.WindowCompat
 import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.WindowInsetsControllerCompat
@@ -143,7 +159,10 @@ class WatchActivity : ComponentActivity() {
             var isActive by remember { mutableStateOf(true) }
             var totalDragX by remember { mutableFloatStateOf(0f) }
             var totalDragY by remember { mutableFloatStateOf(0f) }
+            var offsetX by remember { mutableFloatStateOf(0f) }
             var offsetY by remember { mutableFloatStateOf(0f) }
+            var dragRadius by remember { mutableFloatStateOf(0f) }
+            var lockedDirection by remember { mutableStateOf<String?>(null) }
             
             val notifications by NotificationListener.activeNotificationsFlow.collectAsState()
             val mediaInfo by NotificationListener.activeMediaInfoFlow.collectAsState()
@@ -165,102 +184,231 @@ class WatchActivity : ComponentActivity() {
                 }
             }
 
-            Box(
+            BoxWithConstraints(
                 modifier = Modifier
                     .fillMaxSize()
-                    .background(Color.Black)
-                    .pointerInput(mediaInfo) {
-                        coroutineScope {
-                            launch {
-                                detectTapGestures(onPress = {
-                                    isActive = true
-                                    tryAwaitRelease()
-                                })
-                            }
-                            launch {
-                                detectDragGestures(
-                                    onDragStart = { 
+                    .background(Color.Black),
+                contentAlignment = Alignment.Center
+            ) {
+                val screenWidth = constraints.maxWidth.toFloat()
+                val screenHeight = constraints.maxHeight.toFloat()
+                val densityVal = LocalDensity.current.density
+
+                Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .pointerInput(Unit) {
+                            coroutineScope {
+                                launch {
+                                    detectTapGestures(onPress = {
                                         isActive = true
-                                        totalDragX = 0f
-                                        totalDragY = 0f
-                                    },
-                                    onDragEnd = {
-                                        val threshold = 50 * density
-                                        when {
-                                            totalDragY < -150 * density -> { // Swipe UP to unlock
-                                                finish()
-                                                overridePendingTransition(0, android.R.anim.fade_out)
-                                            }
-                                            totalDragY > threshold -> { // Swipe DOWN for pause/play
-                                                if (mediaInfo?.isPlaying == true) {
-                                                    mediaInfo?.controller?.transportControls?.pause()
-                                                } else {
-                                                    mediaInfo?.controller?.transportControls?.play()
+                                        tryAwaitRelease()
+                                    })
+                                }
+                                launch {
+                                    val actionThreshold = 160 * densityVal
+                                    val deadzone = 25 * densityVal
+
+                                    detectDragGestures(
+                                        onDragStart = { 
+                                            isActive = true
+                                            totalDragX = 0f
+                                            totalDragY = 0f
+                                            offsetX = 0f
+                                            offsetY = 0f
+                                            dragRadius = 0f
+                                            lockedDirection = null
+                                        },
+                                        onDragEnd = {
+                                            val currentMedia = mediaInfo
+                                            
+                                            when (lockedDirection) {
+                                                "V" -> {
+                                                    if (totalDragY < -actionThreshold) {
+                                                        // Swipe UP to unlock
+                                                        finish()
+                                                        overridePendingTransition(0, android.R.anim.fade_out)
+                                                    } else if (totalDragY > actionThreshold && currentMedia != null) {
+                                                        // Swipe DOWN for pause/play
+                                                        if (currentMedia.isPlaying == true) {
+                                                            currentMedia.controller?.transportControls?.pause()
+                                                        } else {
+                                                            currentMedia.controller?.transportControls?.play()
+                                                        }
+                                                    }
+                                                }
+                                                "H" -> {
+                                                    if (currentMedia != null) {
+                                                        if (totalDragX < -actionThreshold) {
+                                                            // Swipe LEFT for next
+                                                            currentMedia.controller?.transportControls?.skipToNext()
+                                                        } else if (totalDragX > actionThreshold) {
+                                                            // Swipe RIGHT for previous
+                                                            currentMedia.controller?.transportControls?.skipToPrevious()
+                                                        }
+                                                    }
                                                 }
                                             }
-                                            totalDragX < -threshold -> { // Swipe LEFT for next
-                                                mediaInfo?.controller?.transportControls?.skipToNext()
+                                            
+                                            offsetX = 0f
+                                            offsetY = 0f
+                                            totalDragX = 0f
+                                            totalDragY = 0f
+                                            dragRadius = 0f
+                                            lockedDirection = null
+                                        },
+                                    ) { change, dragAmount ->
+                                        change.consume()
+                                        
+                                        val currentMedia = mediaInfo
+                                        val screenMin = kotlin.math.min(screenWidth, screenHeight)
+                                        val maxVisualX = screenWidth * 0.2f
+                                        val maxVisualY = screenHeight * 0.2f
+                                        val maxRadius = screenMin * 0.08f
+
+                                        // Only update drag amounts if not locked or if movement aligns with lock
+                                        if (lockedDirection == null) {
+                                            totalDragX += dragAmount.x
+                                            totalDragY += dragAmount.y
+                                            
+                                            val absX = kotlin.math.abs(totalDragX)
+                                            val absY = kotlin.math.abs(totalDragY)
+                                            val maxDrag = kotlin.math.max(absX, absY)
+
+                                            if (maxDrag > 15 * densityVal) {
+                                                lockedDirection = if (currentMedia == null) "V" else (if (absY > absX) "V" else "H")
                                             }
-                                            totalDragX > threshold -> { // Swipe RIGHT for previous
-                                                mediaInfo?.controller?.transportControls?.skipToPrevious()
-                                            }
+                                        } else {
+                                            if (lockedDirection == "V") totalDragY += dragAmount.y
+                                            else totalDragX += dragAmount.x
                                         }
-                                        offsetY = 0f
-                                        totalDragX = 0f
-                                        totalDragY = 0f
-                                    },
-                                    onDragCancel = {
-                                        offsetY = 0f
-                                        totalDragX = 0f
-                                        totalDragY = 0f
-                                    }
-                                ) { change, dragAmount ->
-                                    change.consume()
-                                    totalDragX += dragAmount.x
-                                    totalDragY += dragAmount.y
-                                    
-                                    if (offsetY + dragAmount.y <= 0) {
-                                        offsetY += dragAmount.y
+
+                                        val absX = kotlin.math.abs(totalDragX)
+                                        val absY = kotlin.math.abs(totalDragY)
+                                        val maxDrag = kotlin.math.max(absX, absY)
+
+                                        if (currentMedia == null) {
+                                            // STRICT MODE: No media player active
+                                            offsetX = 0f
+                                            offsetY = totalDragY.coerceIn(-maxVisualY, 0f)
+                                            dragRadius = if (totalDragY < 0) {
+                                                ((kotlin.math.abs(totalDragY) - deadzone) / (actionThreshold - deadzone)).coerceIn(0f, 1f) * maxRadius
+                                            } else 0f
+                                        } else {
+                                            // NORMAL MODE: Media player active
+                                            val progress = (maxDrag / actionThreshold).coerceIn(0f, 1f)
+                                            val snap = (progress / 0.1f).coerceIn(0f, 1f)
+
+                                            if (lockedDirection == "V") {
+                                                offsetY = totalDragY.coerceIn(-maxVisualY, maxVisualY)
+                                                offsetX = (totalDragX * (1f - snap)).coerceIn(-maxVisualX, maxVisualX)
+                                            } else if (lockedDirection == "H") {
+                                                offsetX = totalDragX.coerceIn(-maxVisualX, maxVisualX)
+                                                offsetY = (totalDragY * (1f - snap)).coerceIn(-maxVisualY, maxVisualY)
+                                            } else {
+                                                offsetX = (totalDragX * (1f - snap)).coerceIn(-maxVisualX, maxVisualX)
+                                                offsetY = (totalDragY * (1f - snap)).coerceIn(-maxVisualY, maxVisualY)
+                                            }
+                                            
+                                            dragRadius = ((maxDrag - deadzone) / (actionThreshold - deadzone)).coerceIn(0f, 1f) * maxRadius
+                                        }
                                     }
                                 }
                             }
                         }
-                    },
-                contentAlignment = Alignment.Center
-            ) {
-                when (aodStyle) {
-                    SettingsManager.AodStyle.CONCENTRIC -> {
-                        ConcentricAodStyle(
-                            isActive = isActive,
-                            notifications = notifications,
-                            mediaInfo = mediaInfo,
-                            isCharging = isCharging,
-                            batteryLevel = batteryLevel,
-                            animatedTextAlpha = animatedTextAlpha,
-                            offsetY = offsetY
-                        )
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .offset { IntOffset(offsetX.roundToInt(), offsetY.roundToInt()) }
+                            .clip(RoundedCornerShape(with(LocalDensity.current) { dragRadius.toDp() }))
+                    ) {
+                        when (aodStyle) {
+                            SettingsManager.AodStyle.CONCENTRIC -> {
+                                ConcentricAodStyle(
+                                    isActive = isActive,
+                                    notifications = notifications,
+                                    mediaInfo = mediaInfo,
+                                    isCharging = isCharging,
+                                    batteryLevel = batteryLevel,
+                                    animatedTextAlpha = animatedTextAlpha,
+                                    offsetY = 0f // We use the parent Box offset now
+                                )
+                            }
+                            SettingsManager.AodStyle.STACKED -> {
+                                StackedAodStyle(
+                                    isActive = isActive,
+                                    notifications = notifications,
+                                    mediaInfo = mediaInfo,
+                                    isCharging = isCharging,
+                                    batteryLevel = batteryLevel,
+                                    animatedTextAlpha = animatedTextAlpha,
+                                    offsetY = 0f
+                                )
+                            }
+                            SettingsManager.AodStyle.INLINE -> {
+                                InlineAodStyle(
+                                    isActive = isActive,
+                                    notifications = notifications,
+                                    mediaInfo = mediaInfo,
+                                    isCharging = isCharging,
+                                    batteryLevel = batteryLevel,
+                                    animatedTextAlpha = animatedTextAlpha,
+                                    offsetY = 0f
+                                )
+                            }
+                        }
                     }
-                    SettingsManager.AodStyle.STACKED -> {
-                        StackedAodStyle(
-                            isActive = isActive,
-                            notifications = notifications,
-                            mediaInfo = mediaInfo,
-                            isCharging = isCharging,
-                            batteryLevel = batteryLevel,
-                            animatedTextAlpha = animatedTextAlpha,
-                            offsetY = offsetY
+                    
+                    // Swipe Visual Indicator
+                    if (dragRadius > 0) {
+                        val indicatorAlignment = when {
+                            lockedDirection == "V" && totalDragY < 0 -> Alignment.BottomCenter
+                            lockedDirection == "V" && totalDragY > 0 -> Alignment.TopCenter
+                            lockedDirection == "H" && totalDragX < 0 -> Alignment.CenterEnd
+                            lockedDirection == "H" && totalDragX > 0 -> Alignment.CenterStart
+                            else -> Alignment.Center
+                        }
+
+                        val circleAlpha by animateFloatAsState(
+                            targetValue = if (dragRadius > 10 * densityVal) 0.6f else 0f,
+                            label = "circleAlpha",
+                            animationSpec = tween(150)
                         )
-                    }
-                    SettingsManager.AodStyle.INLINE -> {
-                        InlineAodStyle(
-                            isActive = isActive,
-                            notifications = notifications,
-                            mediaInfo = mediaInfo,
-                            isCharging = isCharging,
-                            batteryLevel = batteryLevel,
-                            animatedTextAlpha = animatedTextAlpha,
-                            offsetY = offsetY
-                        )
+
+                        Box(
+                            modifier = Modifier
+                                .align(indicatorAlignment)
+                                .size(with(LocalDensity.current) { (dragRadius * 2).toDp() })
+                                .clip(CircleShape)
+                                .background(Color.Black.copy(alpha = circleAlpha)),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            val iconAlpha by animateFloatAsState(
+                                targetValue = if (dragRadius > 30 * densityVal) 0.7f else 0f,
+                                label = "iconAlpha",
+                                animationSpec = tween(300)
+                            )
+
+                            val icon = when {
+                                lockedDirection == "V" && totalDragY < 0 -> Icons.Rounded.LockOpen
+                                lockedDirection == "V" && totalDragY > 0 -> if (mediaInfo?.isPlaying == true) Icons.Rounded.Pause else Icons.Rounded.PlayArrow
+                                lockedDirection == "H" && totalDragX < 0 -> Icons.Rounded.SkipNext
+                                lockedDirection == "H" && totalDragX > 0 -> Icons.Rounded.SkipPrevious
+                                else -> null
+                            }
+                            
+                            icon?.let {
+                                Icon(
+                                    imageVector = it,
+                                    contentDescription = null,
+                                    tint = Color.White,
+                                    modifier = Modifier
+                                        .size(with(LocalDensity.current) { dragRadius.toDp() })
+                                        .alpha(iconAlpha)
+                                )
+                            }
+                        }
                     }
                 }
             }
