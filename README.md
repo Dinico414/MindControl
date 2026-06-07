@@ -11,7 +11,7 @@
 ---
 
 ## 📸 Screenshots
-| Main Dashboard | Button Config | AOD (Nothing Style) |
+| Main Dashboard | Button Config | AOD |
 | :---: | :---: | :---: |
 | <img src="Screenshots/Screenshot_20260607-172011.png" width="200"><br><sub>Main Dashboard</sub> | <img src="Screenshots/Screenshot_20260607-172111.png" width="200"><br><sub>Buttonconfig Screen</sub> | <img src="Screenshots/Screenshot_20260607-172754.png" width="200"><br><sub>Concentric screen with Mediaplayer</sub> |
 | <img src="Screenshots/Screenshot_20260607-172036.png" width="200"><br><sub>Theme selector and Keyboard button</sub> | <img src="Screenshots/Screenshot_20260607-172122.png" width="200"><br><sub>Action selector</sub> | <img src="Screenshots/Screenshot_20260607-172941.png" width="200"><br><sub>Nothing Dot Stacked</sub> |
