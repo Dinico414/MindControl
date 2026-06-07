@@ -1,3 +1,7 @@
+<p align="center">
+  <img src="banner.png" width="1000" alt="Project Logo">
+</p>
+
 # MindControl 🧠📱
 
 [![Latest Release](https://img.shields.io/github/v/release/Dinico414/MindControll?label=Latest%20Release)](https://github.com/Dinico414/MindControll/releases/latest)
