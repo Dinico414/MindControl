@@ -245,6 +245,31 @@ fun InlineDigitalAodStyle(
 }
 
 @Composable
+fun PlanetsAodStyle(
+    isActive: Boolean,
+    notifications: List<StatusBarNotification>,
+    mediaInfo: MediaInfo?,
+    isCharging: Boolean,
+    batteryLevel: Int,
+    animatedTextAlpha: Float,
+    offsetY: Float,
+    isMediaEnabled: Boolean = true
+) {
+    UnifiedAodStyle(
+        isActive = isActive,
+        notifications = notifications,
+        mediaInfo = mediaInfo,
+        isCharging = isCharging,
+        batteryLevel = batteryLevel,
+        animatedTextAlpha = animatedTextAlpha,
+        offsetY = offsetY,
+        isMediaEnabled = isMediaEnabled,
+        watchFace = { PlanetsWatchFace(isActive = isActive) }
+    )
+}
+
+
+@Composable
 fun UnifiedAodStyle(
     isActive: Boolean,
     notifications: List<StatusBarNotification>,

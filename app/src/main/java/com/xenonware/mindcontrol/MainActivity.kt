@@ -189,6 +189,7 @@ import com.xenonware.mindcontrol.ui.InlineDotAodStyle
 import com.xenonware.mindcontrol.ui.StackedAodStyle
 import com.xenonware.mindcontrol.ui.StackedDigitalAodStyle
 import com.xenonware.mindcontrol.ui.StackedDotAodStyle
+import com.xenonware.mindcontrol.ui.PlanetsAodStyle
 import com.xenonware.mindcontrol.ui.theme.BlueTheme
 import com.xenonware.mindcontrol.ui.theme.GreenTheme
 import com.xenonware.mindcontrol.ui.theme.Palette
@@ -2404,6 +2405,7 @@ fun AodStylePickerDialog(
                         SettingsManager.AodStyle.STACKED_DIGITAL -> stringResource(R.string.style_stacked_digital)
                         SettingsManager.AodStyle.INLINE_DOT -> stringResource(R.string.style_inline_dot)
                         SettingsManager.AodStyle.INLINE_DIGITAL -> stringResource(R.string.style_inline_digital)
+                        SettingsManager.AodStyle.PLANETS -> stringResource(R.string.style_planets)
                     }
 
                     AodStyleOption(
@@ -2554,6 +2556,17 @@ fun AodStyleOption(
                             offsetY = 0f
                         )
                     }
+                    SettingsManager.AodStyle.PLANETS -> {
+                        PlanetsAodStyle(
+                            isActive = true,
+                            notifications = emptyList(),
+                            mediaInfo = null,
+                            isCharging = false,
+                            batteryLevel = 80,
+                            animatedTextAlpha = 0f,
+                            offsetY = 0f
+                        )
+                    }
                 }
             }
             
@@ -2595,6 +2608,7 @@ fun ActionList(
     val styleStackedDigital = stringResource(R.string.style_stacked_digital)
     val styleInlineDot = stringResource(R.string.style_inline_dot)
     val styleInlineDigital = stringResource(R.string.style_inline_digital)
+    val stylePlanets = stringResource(R.string.style_planets)
     val speedDialName = stringResource(R.string.speed_dial)
     val urlName = stringResource(R.string.url)
     val qrCodeName = stringResource(R.string.qr_code)
@@ -2631,6 +2645,7 @@ fun ActionList(
                     SettingsManager.AodStyle.STACKED_DIGITAL -> styleStackedDigital
                     SettingsManager.AodStyle.INLINE_DOT -> styleInlineDot
                     SettingsManager.AodStyle.INLINE_DIGITAL -> styleInlineDigital
+                    SettingsManager.AodStyle.PLANETS -> stylePlanets
                 }
                 onActionSelected("$aodActionName: $styleName")
                 showAodStyleDialog = false

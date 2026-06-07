@@ -63,6 +63,7 @@ import com.xenonware.mindcontrol.ui.ConcentricAodStyle
 import com.xenonware.mindcontrol.ui.InlineAodStyle
 import com.xenonware.mindcontrol.ui.InlineDigitalAodStyle
 import com.xenonware.mindcontrol.ui.InlineDotAodStyle
+import com.xenonware.mindcontrol.ui.PlanetsAodStyle
 import com.xenonware.mindcontrol.ui.StackedAodStyle
 import com.xenonware.mindcontrol.ui.StackedDigitalAodStyle
 import com.xenonware.mindcontrol.ui.StackedDotAodStyle
@@ -475,6 +476,18 @@ class WatchActivity : ComponentActivity() {
                             }
                             SettingsManager.AodStyle.INLINE_DIGITAL -> {
                                 InlineDigitalAodStyle(
+                                    isActive = isActive,
+                                    notifications = notifications,
+                                    mediaInfo = mediaInfo,
+                                    isCharging = isCharging,
+                                    batteryLevel = batteryLevel,
+                                    animatedTextAlpha = animatedTextAlpha,
+                                    offsetY = 0f,
+                                    isMediaEnabled = isMediaEnabled
+                                )
+                            }
+                            SettingsManager.AodStyle.PLANETS -> {
+                                PlanetsAodStyle(
                                     isActive = isActive,
                                     notifications = notifications,
                                     mediaInfo = mediaInfo,

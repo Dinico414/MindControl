@@ -97,6 +97,7 @@
     <string name="style_stacked_digital">Digital (Gestapelt)</string>
     <string name="style_inline_dot">Nothing Dot (Inline)</string>
     <string name="style_inline_digital">Digital (Inline)</string>
+    <string name="style_planets">Planeten</string>
 
     <!-- Input Dialogs -->
     <string name="enter_number">Nummer eingeben</string>
