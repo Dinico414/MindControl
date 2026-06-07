@@ -16,7 +16,7 @@
 | <img src="Screenshots/Screenshot_20260607-172011.png" width="200"><br><sub>Main Dashboard</sub> | <img src="Screenshots/Screenshot_20260607-172111.png" width="200"><br><sub>Buttonconfig Screen</sub> | <img src="Screenshots/Screenshot_20260607-172754.png" width="200"><br><sub>Concentric screen with Mediaplayer</sub> |
 | <img src="Screenshots/Screenshot_20260607-172036.png" width="200"><br><sub>Theme selector and Keyboard button</sub> | <img src="Screenshots/Screenshot_20260607-172122.png" width="200"><br><sub>Action selector</sub> | <img src="Screenshots/Screenshot_20260607-172941.png" width="200"><br><sub>Nothing Dot Stacked</sub> |
 | <img src="Screenshots/Screenshot_20260607-172054.png" width="200"><br><sub>Keyboard Dashboard</sub> | <img src="Screenshots/Screenshot_20260607-172145.png" width="200"><br><sub>AOD Select Action</sub> | <img src="Screenshots/Screenshot_20260607-173104.png" width="200"><br><sub>Digital AOD With Media action triggerd and charning state</sub> |
-| | <img src="Screenshots/Screenshot_20260607-172331.png" width="200"><br><sub>qr code dialog</sub> | |
+| | <img src="Screenshots/Screenshot_20260607-172331.png" width="200"><br><sub>QR-Code dialog</sub> | |
 
 ---
 
