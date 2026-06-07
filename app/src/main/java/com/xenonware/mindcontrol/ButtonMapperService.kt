@@ -349,8 +349,9 @@ class ButtonMapperService : AccessibilityService() {
                 return false
             }
 
-            if (!shizukuAvailable) {
-                Log.d(tag, "Blocking non-volume key $keyCode in Screen Off because Shizuku is missing")
+            if (!shizukuAvailable && !isInteractive) {
+                // If the screen is truly black and Shizuku is missing, we usually shouldn't
+                // reach this via Accessibility, but if we do, we block non-volume keys.
                 return false
             }
         }
@@ -564,7 +565,7 @@ class ButtonMapperService : AccessibilityService() {
         // --- Forced Screen Off Volume behavior ---
         if (state == "OFF" && (keyCode == 24 || keyCode == 25)) {
             if (SettingsManager.isVolumeLongPressSkipEnabled(this)) {
-                if (type == "LONG") {
+                if (type == "HOLD" || type == "LONG") {
                     skipMedia(keyCode == 24)
                     return
                 } else {
