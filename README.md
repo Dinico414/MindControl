@@ -13,7 +13,10 @@
 ## 📸 Screenshots
 | Main Dashboard | Button Config | AOD (Nothing Style) |
 | :---: | :---: | :---: |
-| _[Add Image Path]_ | _[Add Image Path]_ | _[Add Image Path]_ |
+| <img src="Screenshots/Screenshot_20260607-172011.png" width="200"> | <img src="Screenshots/Screenshot_20260607-172111.png" width="200"> | <img src="Screenshots/Screenshot_20260607-172754.png" width="200"> |
+| <img src="Screenshots/Screenshot_20260607-172036.png" width="200"> | <img src="Screenshots/Screenshot_20260607-172122.png" width="200"> | <img src="Screenshots/Screenshot_20260607-172941.png" width="200"> |
+| <img src="Screenshots/Screenshot_20260607-172054.png" width="200"> | <img src="Screenshots/Screenshot_20260607-172145.png" width="200"> | <img src="Screenshots/Screenshot_20260607-173104.png" width="200"> |
+| | <img src="Screenshots/Screenshot_20260607-172331.png" width="200"> | |
 
 ---
 
