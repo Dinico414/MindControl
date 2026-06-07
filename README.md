@@ -10,7 +10,7 @@
 [![Kotlin](https://img.shields.io/badge/Language-Kotlin-purple.svg)](https://kotlinlang.org)
 [![Shizuku](https://img.shields.io/badge/Power-Shizuku%20Compatible-informational)](https://shizuku.rikka.app/)
 
-**MindControl** is a deep-integration customization tool for the iKKO MindOne. It allows you to hijack physical hardware buttons with a highly customizable, media-rich alternative and adds an Always-On Display (AOD). 
+**MindControl** is a deep-integration customization tool for the iKKO MindOne. It allows you to hijack physical hardware buttons with a highly customizable, media-rich alternative and also adds an Always-On Display (AOD). 
 
 ---
 
