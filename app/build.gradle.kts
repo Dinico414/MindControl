@@ -11,10 +11,11 @@ android {
         applicationId = "com.xenonware.mindcontrol"
         minSdk = 35
         targetSdk = 37
-        versionCode = 1
-        versionName = "1.0"
+        versionCode = 2
+        versionName = "1.1"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
+        buildConfigField("String", "FEATURE_DROP", "\"${libs.versions.featureDrop.get()}\"")
     }
 
     buildTypes {
@@ -25,6 +26,7 @@ android {
                 getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro"
             )
             signingConfig = signingConfigs.getByName("debug")
+            buildConfigField("String", "FEATURE_DROP", "\"${libs.versions.featureDrop.get()}\"")
         }
         getByName("release") {
             isMinifyEnabled = true
@@ -33,6 +35,7 @@ android {
                 getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro"
             )
             signingConfig = signingConfigs.getByName("debug")
+            buildConfigField("String", "FEATURE_DROP", "\"${libs.versions.featureDrop.get()}\"")
         }
     }
     compileOptions {
@@ -41,6 +44,7 @@ android {
     }
     buildFeatures {
         compose = true
+        buildConfig = true
     }
 
 }

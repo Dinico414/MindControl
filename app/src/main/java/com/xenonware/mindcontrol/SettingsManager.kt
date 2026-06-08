@@ -89,6 +89,7 @@ object SettingsManager {
     private const val KEY_AOD_MEDIA_ENABLED = "aod_media_enabled"
     private const val KEY_SHOW_LIFT_TO_WAKE_WARNING = "show_lift_to_wake_warning"
 
+    private const val fd = BuildConfig.FEATURE_DROP
     enum class AodStyle {
         CONCENTRIC, ANALOG, PLANETS, STACKED, INLINE, STACKED_DOT, INLINE_DOT, STACKED_DIGITAL, INLINE_DIGITAL
     }
