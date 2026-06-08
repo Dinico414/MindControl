@@ -44,6 +44,7 @@ A beautiful AOD built entirely in Jetpack Compose.
     *   **Dynamic Album Art:** Renders the current track's artwork as a blurred, vignetted background.
     *   **Notification Tray:** Real-time mirroring of active app icons.
     *   **Battery Analytics:** Integrated charging animations and level tracking.
+    *   **Disengageable:** Press power button or swipe it away.
 
 ### 3. Universal Keyboard Support
 MindControl provides deep integration for the physical keyboard, ensuring compatibility across different regions.
