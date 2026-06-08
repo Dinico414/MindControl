@@ -55,21 +55,29 @@ MindControl provides deep integration for the physical keyboard, ensuring compat
 *   **Adaptive Icons:** The launcher icon physically changes color based on your chosen theme Black/White/Pink/Blue for Icon and Device as well as Black/White/Pink/Blue/Yellow for the Keyboard.
 *   **Dynamic UI:** The app interface adapts to your device's configuration, keyboard connected or disconnected.
 
+### 5. Continuum: Continuous Execution
+MindControl features a **Continuum Engine** for fluid system interaction.
+*   **Requirement:** The action **must** be assigned to the **Hold** or **Press and Hold** trigger in settings.
+*   **Continuous Execution:** Once the hold is triggered, the action will repeat automatically for as long as you keep the physical button pressed down.
+*   **Fluid Control:** Perfect for finding the exact volume level or gliding through long documents without repetitive clicking.
+
 ---
 
 ## 🛠 Action Library
 <details>
 <summary><b>Click to expand the 50+ available actions</b></summary>
 
+> **Note:** Actions in **Bold** support the **Continuum Feature** (Hold the button for continuous execution).
+
 | Category | Actions                                                                                     |
 | :--- |:--------------------------------------------------------------------------------------------|
-| **Navigation** | Home, Back, Recents, Last App, Show Menu                                                    |
-| **Media** | Play/Pause, Next, Previous, Stop, Fast Forward, Rewind, Step Forward/Back, Volume[Hold to continue Action]                 |
-| **Connectivity** | WiFi Toggle, Bluetooth Toggle, Mobile Data, NFC, Location, Do Not Disturb                   |
-| **System** | Flashlight, Screenshot, Lock Screen, Assistant, Power Dialog, Notifications, Quick Settings |
-| **Audio/Display** | Volume Dialog, Mute Volume, Mute Mic, Brightness Up/Down[Hold to continue Action], Auto-Brightness, Auto-Rotate, Rotate 360°, Cycle Sound Mode, Vibrate Ringer, Toggle AOD |
-| **Advanced** | Scroll, Smooth Scroll (Fast/Normal)[Hold to continue Action], Copy/Cut/Paste, App Info, Google Search                |
-| **Custom** | Launch App, Launch Shortcut, Speed Dial, URL Opener, QR Code Generator                      |
+| **Navigation** | Home , Back , Recents , Last App , Show Menu                                                     |
+| **Media** | Play/Pause , Next , Previous , Stop , Fast Forward , Rewind , Step Forward/Back , **Volume**                  |
+| **Connectivity** | WiFi Toggle , Bluetooth Toggle , Mobile Data , NFC , Location , Do Not Disturb                    |
+| **System** | Flashlight , Screenshot , Lock Screen , Assistant , Power Dialog , Notifications , Quick Settings  |
+| **Audio/Display** | Volume Dialog , Mute Volume , Mute Mic , **Brightness Up/Down** , Auto-Brightness , Auto-Rotate , Rotate 360° , Cycle Sound Mode , Vibrate Ringer , Toggle AOD  |
+| **Advanced** | **Scroll** , **Smooth Scroll (Fast/Normal)** , Copy/Cut/Paste , App Info , Google Search                 |
+| **Custom** | Launch App , Launch Shortcut , Speed Dial , URL Opener , QR Code Generator                       |
 
 </details>
 
