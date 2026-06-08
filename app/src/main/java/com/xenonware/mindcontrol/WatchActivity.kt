@@ -1,5 +1,6 @@
 package com.xenonware.mindcontrol
 
+import android.app.KeyguardManager
 import android.content.BroadcastReceiver
 import android.content.ComponentName
 import android.content.Context
@@ -76,6 +77,13 @@ import kotlin.math.roundToInt
 class WatchActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+
+        val km = getSystemService(KEYGUARD_SERVICE) as KeyguardManager
+        if (!km.isKeyguardLocked) {
+            finish()
+            overridePendingTransition(0, 0)
+            return
+        }
         
         setShowWhenLocked(true)
         setTurnScreenOn(true)
@@ -162,6 +170,23 @@ class WatchActivity : ComponentActivity() {
                 updateBattery(intent)
                 onDispose {
                     context.unregisterReceiver(receiver)
+                }
+            }
+
+            DisposableEffect(context) {
+                val receiver = object : BroadcastReceiver() {
+                    override fun onReceive(context: Context?, intent: Intent?) {
+                        if (intent?.action == Intent.ACTION_USER_PRESENT) {
+                            Log.d("WatchActivity", "Device unlocked, finishing AOD")
+                            finish()
+                        }
+                    }
+                }
+                context.registerReceiver(receiver, IntentFilter(Intent.ACTION_USER_PRESENT))
+                onDispose {
+                    try {
+                        context.unregisterReceiver(receiver)
+                    } catch (_: Exception) {}
                 }
             }
 
