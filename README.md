@@ -35,7 +35,7 @@ Unlike standard apps, MindControl uses a low-level key filter to intercept hardw
 *   **Contextual States:** Map different actions for when the screen is **On** vs. **Off**.
 
 ### 2. Custom Always-On Display (AOD)
-A beautiful AOD built entirely in Jetpack Compose.
+A beautiful AOD built entirely in Jetpack Compose. The AOD needs to be set as an Action for a button of user choice.
 *   **Visual Styles:** 
     *   `Concentric` (Pixel Watch style)
     *   `Analog` 
