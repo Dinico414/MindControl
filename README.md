@@ -35,7 +35,7 @@ Unlike standard apps, MindControl uses a low-level key filter to intercept hardw
 *   **Contextual States:** Map different actions for when the screen is **On** vs. **Off**.
 
 ### 2. Custom Always-On Display (AOD)
-A beautiful replacement for the stock AOD, built entirely in Jetpack Compose.
+A beautiful AOD built entirely in Jetpack Compose.
 *   **Visual Styles:** 
     *   `Concentric` (Pixel Watch style)
     *   `Analog` 
@@ -63,11 +63,11 @@ MindControl provides deep integration for the physical keyboard, ensuring compat
 | Category | Actions                                                                                     |
 | :--- |:--------------------------------------------------------------------------------------------|
 | **Navigation** | Home, Back, Recents, Last App, Show Menu                                                    |
-| **Media** | Play/Pause, Next, Previous, Stop, Fast Forward, Rewind, Step Forward/Back                   |
+| **Media** | Play/Pause, Next, Previous, Stop, Fast Forward, Rewind, Step Forward/Back, Volume[Hold to continue Action]                 |
 | **Connectivity** | WiFi Toggle, Bluetooth Toggle, Mobile Data, NFC, Location, Do Not Disturb                   |
 | **System** | Flashlight, Screenshot, Lock Screen, Assistant, Power Dialog, Notifications, Quick Settings |
-| **Audio/Display** | Volume Dialog, Mute Volume, Mute Mic, Brightness Up/Down, Auto-Brightness, Auto-Rotate, Rotate 360°, Cycle Sound Mode, Vibrate Ringer, Toggle AOD |
-| **Advanced** | Scroll, Smooth Scroll (Fast/Normal), Copy/Cut/Paste, App Info, Google Search                |
+| **Audio/Display** | Volume Dialog, Mute Volume, Mute Mic, Brightness Up/Down[Hold to continue Action], Auto-Brightness, Auto-Rotate, Rotate 360°, Cycle Sound Mode, Vibrate Ringer, Toggle AOD |
+| **Advanced** | Scroll, Smooth Scroll (Fast/Normal)[Hold to continue Action], Copy/Cut/Paste, App Info, Google Search                |
 | **Custom** | Launch App, Launch Shortcut, Speed Dial, URL Opener, QR Code Generator                      |
 
 </details>
