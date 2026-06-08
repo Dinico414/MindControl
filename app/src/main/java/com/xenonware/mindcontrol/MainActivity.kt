@@ -2351,7 +2351,7 @@ fun AodStylePickerDialog(
     onStyleSelected: (SettingsManager.AodStyle, Boolean) -> Unit
 ) {
     val context = LocalContext.current
-    val styles = SettingsManager.AodStyle.entries
+    val styles = SettingsManager.getAvailableAodStyles()
     val carouselState = rememberCarouselState(itemCount = { styles.size })
     val selectedIndex = carouselState.currentItem
     val scope = rememberCoroutineScope()

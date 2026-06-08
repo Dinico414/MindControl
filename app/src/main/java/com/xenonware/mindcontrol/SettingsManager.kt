@@ -89,9 +89,18 @@ object SettingsManager {
     private const val KEY_AOD_MEDIA_ENABLED = "aod_media_enabled"
     private const val KEY_SHOW_LIFT_TO_WAKE_WARNING = "show_lift_to_wake_warning"
 
-    private const val fd = BuildConfig.FEATURE_DROP
-    enum class AodStyle {
-        CONCENTRIC, ANALOG, PLANETS, STACKED, INLINE, STACKED_DOT, INLINE_DOT, STACKED_DIGITAL, INLINE_DIGITAL
+    private const val FD = BuildConfig.FEATURE_DROP
+    private val fdInt = FD.toIntOrNull() ?: 0
+    enum class AodStyle(val minFd: Int = 0) {
+        CONCENTRIC,
+        ANALOG,
+        PLANETS(1),
+        STACKED,
+        INLINE,
+        STACKED_DOT,
+        INLINE_DOT,
+        STACKED_DIGITAL,
+        INLINE_DIGITAL
     }
 
     private fun prefs(context: Context): SharedPreferences {
@@ -203,8 +212,14 @@ object SettingsManager {
         prefs(context).edit { putString(KEY_KEYBOARD_PALETTE, palette.name) }
     }
 
-    fun getAodStyle(context: Context): AodStyle =
-        AodStyle.valueOf(prefs(context).getString(KEY_AOD_STYLE, AodStyle.CONCENTRIC.name)!!)
+    fun getAvailableAodStyles(): List<AodStyle> =
+        AodStyle.entries.filter { fdInt >= it.minFd }
+
+    fun getAodStyle(context: Context): AodStyle {
+        val styleName = prefs(context).getString(KEY_AOD_STYLE, AodStyle.CONCENTRIC.name) ?: ""
+        val style = AodStyle.entries.find { it.name == styleName } ?: AodStyle.CONCENTRIC
+        return if (fdInt >= style.minFd) style else AodStyle.CONCENTRIC
+    }
 
     fun setAodStyle(context: Context, style: AodStyle) {
         prefs(context).edit { putString(KEY_AOD_STYLE, style.name) }
