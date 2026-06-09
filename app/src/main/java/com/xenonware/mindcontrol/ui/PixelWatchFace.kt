@@ -45,7 +45,7 @@ import kotlin.math.max
 import kotlin.math.sin
 
 @Composable
-fun PixelWatchFace(isActive: Boolean) {
+fun ConcentricWatchFace(isActive: Boolean) {
     val textMeasurer = rememberTextMeasurer()
     val context = LocalContext.current
     val is24Hour = DateFormat.is24HourFormat(context)
@@ -598,6 +598,252 @@ fun InlineDotWatchFace(isActive: Boolean) {
 @Composable
 fun InlineDigitalWatchFace(isActive: Boolean) {
     GenericInlineGridWatchFace(isActive = isActive, isNothingStyle = false)
+}
+
+@Composable
+fun PixelStackedWatchFace(isActive: Boolean) {
+    val context = LocalContext.current
+    val is24Hour = DateFormat.is24HourFormat(context)
+
+    val animatedAlpha by animateFloatAsState(
+        targetValue = if (isActive) 1f else 0.7f,
+        animationSpec = tween(500),
+        label = "alpha"
+    )
+
+    var time by remember { mutableLongStateOf(System.currentTimeMillis()) }
+    LaunchedEffect(isActive) {
+        while (true) {
+            time = System.currentTimeMillis()
+            if (isActive) delay(16) else delay(1000)
+        }
+    }
+
+    val calendar = Calendar.getInstance().apply { timeInMillis = time }
+    val hour = calendar.get(Calendar.HOUR_OF_DAY)
+    val displayHour = if (is24Hour) hour else (hour % 12).let { if (it == 0) 12 else it }
+    val minute = calendar.get(Calendar.MINUTE)
+
+    Canvas(
+        modifier = Modifier.fillMaxWidth(0.4f).aspectRatio(1f).graphicsLayer(alpha = animatedAlpha)
+    ) {
+        val w = size.width
+        val h = size.height
+        val cx = w / 2f
+        val cy = h / 2f
+        val digitWidth = w * 0.38f
+        val digitHeight = h * 0.45f
+        val hSpacing = w * 0.02f
+        val vSpacing = h * 0.08f
+
+        val h1 = displayHour / 10
+        val h2 = displayHour % 10
+        val m1 = minute / 10
+        val m2 = minute % 10
+
+        val topY = cy - digitHeight - vSpacing / 2f
+        val bottomY = cy + vSpacing / 2f
+        val leftX = cx - digitWidth - hSpacing / 2f
+        val rightX = cx + hSpacing / 2f
+
+        drawPixelDigit(h1, Offset(leftX, topY), digitWidth, digitHeight, Color.White, 1f)
+        drawPixelDigit(h2, Offset(rightX, topY), digitWidth, digitHeight, Color.White, 1f)
+        drawPixelDigit(m1, Offset(leftX, bottomY), digitWidth, digitHeight, Color.White, 1f)
+        drawPixelDigit(m2, Offset(rightX, bottomY), digitWidth, digitHeight, Color.White, 1f)
+    }
+}
+
+@Composable
+fun PixelInlineWatchFace(isActive: Boolean) {
+    val context = LocalContext.current
+    val is24Hour = DateFormat.is24HourFormat(context)
+
+    val animatedAlpha by animateFloatAsState(
+        targetValue = if (isActive) 1f else 0.7f,
+        animationSpec = tween(500),
+        label = "alpha"
+    )
+
+    var time by remember { mutableLongStateOf(System.currentTimeMillis()) }
+    LaunchedEffect(isActive) {
+        while (true) {
+            time = System.currentTimeMillis()
+            if (isActive) delay(16) else delay(1000)
+        }
+    }
+
+    val calendar = Calendar.getInstance().apply { timeInMillis = time }
+    val hour = calendar.get(Calendar.HOUR_OF_DAY)
+    val displayHour = if (is24Hour) hour else (hour % 12).let { if (it == 0) 12 else it }
+    val minute = calendar.get(Calendar.MINUTE)
+
+    Canvas(
+        modifier = Modifier.fillMaxWidth(0.6f).aspectRatio(2f).graphicsLayer(alpha = animatedAlpha)
+    ) {
+        val w = size.width
+        val h = size.height
+        val cx = w / 2f
+        val cy = h / 2f
+        
+        val digitWidth = w * 0.18f
+        val digitHeight = h * 0.8f
+        val spacing = w * 0.02f
+        val colonWidth = w * 0.08f
+
+        val h1 = displayHour / 10
+        val h2 = displayHour % 10
+        val m1 = minute / 10
+        val m2 = minute % 10
+
+        val totalWidth = digitWidth * 4 + spacing * 3 + colonWidth
+        val startX = cx - totalWidth / 2f
+        val y = cy - digitHeight / 2f
+
+        var currentX = startX
+        drawPixelDigit(h1, Offset(currentX, y), digitWidth, digitHeight, Color.White, 1f)
+        currentX += digitWidth + spacing
+        drawPixelDigit(h2, Offset(currentX, y), digitWidth, digitHeight, Color.White, 1f)
+        currentX += digitWidth + spacing
+        
+        // Colon
+        val dotRadius = digitWidth * 0.12f
+        drawCircle(Color.White, dotRadius, Offset(currentX + colonWidth / 2f, cy - digitHeight * 0.15f), 1f)
+        drawCircle(Color.White, dotRadius, Offset(currentX + colonWidth / 2f, cy + digitHeight * 0.15f), 1f)
+        
+        currentX += colonWidth + spacing
+        drawPixelDigit(m1, Offset(currentX, y), digitWidth, digitHeight, Color.White, 1f)
+        currentX += digitWidth + spacing
+        drawPixelDigit(m2, Offset(currentX, y), digitWidth, digitHeight, Color.White, 1f)
+    }
+}
+
+private val PIXEL_PATTERNS = arrayOf(
+    intArrayOf(0x7, 0x5, 0x5, 0x5, 0x7), // 0
+    intArrayOf(0x6, 0x2, 0x2, 0x2, 0x7), // 1
+    intArrayOf(0x7, 0x1, 0x7, 0x4, 0x7), // 2
+    intArrayOf(0x7, 0x1, 0x7, 0x1, 0x7), // 3
+    intArrayOf(0x5, 0x5, 0x7, 0x1, 0x1), // 4
+    intArrayOf(0x7, 0x4, 0x7, 0x1, 0x7), // 5
+    intArrayOf(0x7, 0x4, 0x7, 0x5, 0x7), // 6
+    intArrayOf(0x7, 0x1, 0x3, 0x6, 0x4), // 7
+    intArrayOf(0x7, 0x5, 0x7, 0x5, 0x7), // 8
+    intArrayOf(0x7, 0x5, 0x7, 0x1, 0x7)  // 9
+)
+
+private fun DrawScope.drawPixelDigit(digit: Int, offset: Offset, width: Float, height: Float, color: Color, alpha: Float) {
+    val pattern = PIXEL_PATTERNS[digit.coerceIn(0, 9)]
+    val cellSize = kotlin.math.min(width / 3f, height / 5f)
+    val startX = offset.x + (width - cellSize * 3f) / 2f
+    val startY = offset.y + (height - cellSize * 5f) / 2f
+    
+    val padding = cellSize * 0.08f
+    val innerSize = cellSize - padding * 2
+
+    for (row in 0 until 5) {
+        val rowBits = pattern[row]
+        for (col in 0 until 3) {
+            val bit = (rowBits shr (2 - col)) and 1
+            if (bit == 1) {
+                val x1 = startX + col * cellSize + padding
+                val y1 = startY + row * cellSize + padding
+                val x2 = x1 + innerSize
+                val y2 = y1 + innerSize
+
+                // Default Beveling: outer corners of the 3x5 bounding box are "cut"
+                // Meaning the right angle faces the INSIDE.
+                var type = when {
+                    col == 0 && row == 0 -> "br"
+                    col == 2 && row == 0 -> "bl"
+                    col == 0 && row == 4 -> "tr"
+                    col == 2 && row == 4 -> "tl"
+                    else -> "full"
+                }
+
+                // Digit specific overrides
+                when (digit) {
+                    1 -> {
+                        if (col == 0 && row == 0) type = "br"
+                        if (col == 0 && row == 4) type = "br"
+                        if (col == 2 && row == 4) type = "bl"
+                    }
+                    2 -> {
+                        if (col == 0 && row == 2) type = "br"
+                        if (col == 2 && row == 2) type = "tl"
+                    }
+                    3 -> {
+                        if (col == 0 && row == 2) type = "tr"
+                        if (col == 2 && row == 2) type = "bl"
+                    }
+                    4 -> {
+                        if (col == 0 && row == 0) type = "bl"
+                        if (col == 0 && row == 2) type = "tr"
+                    }
+                    5 -> {
+                        if (col == 0 && row == 0) type = "full"
+                        if (col == 2 && row == 0) type = "tl"
+                        if (col == 2 && row == 2) type = "bl"
+                    }
+                    6 -> {
+                        if (col == 2 && row == 2) type = "bl"
+                    }
+                    7 -> {
+                        if (col == 0 && row == 0) type = "full"
+                        if (col == 2 && row == 2) type = "tl"
+                        if (col == 1 && row == 2) type = "br"
+                        if (col == 1 && row == 3) type = "tl"
+                        if (col == 0 && row == 3) type = "br"
+                        if (col == 0 && row == 4) type = "full"
+                    }
+                    8 -> {
+                        if (col == 0 && row == 2) type = "tr"
+                        if (col == 2 && row == 2) type = "bl"
+                    }
+                    9 -> {
+                        if (col == 0 && row == 2) type = "tr"
+                        if (col == 0 && row == 4) type = "tr"
+                        if (col == 1 && row == 4) type = "full"
+                        if (col == 2 && row == 4) type = "tl"
+                    }
+                }
+
+                if (type != "full") {
+                    val p = Path().apply {
+                        when (type) {
+                            "tl" -> {
+                                moveTo(x1, y1)
+                                lineTo(x2, y1)
+                                lineTo(x1, y2)
+                            }
+                            "tr" -> {
+                                moveTo(x2, y1)
+                                lineTo(x1, y1)
+                                lineTo(x2, y2)
+                            }
+                            "bl" -> {
+                                moveTo(x1, y2)
+                                lineTo(x1, y1)
+                                lineTo(x2, y2)
+                            }
+                            "br" -> {
+                                moveTo(x2, y2)
+                                lineTo(x2, y1)
+                                lineTo(x1, y2)
+                            }
+                        }
+                        close()
+                    }
+                    drawPath(p, color, alpha)
+                } else {
+                    drawRect(
+                        color = color,
+                        topLeft = Offset(x1, y1),
+                        size = Size(innerSize, innerSize),
+                        alpha = alpha
+                    )
+                }
+            }
+        }
+    }
 }
 
 private val NOTHING_DOT_PATTERNS = arrayOf(

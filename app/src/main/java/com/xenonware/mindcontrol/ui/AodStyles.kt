@@ -72,7 +72,55 @@ fun ConcentricAodStyle(
         animatedTextAlpha = animatedTextAlpha,
         offsetY = offsetY,
         isMediaEnabled = isMediaEnabled,
-        watchFace = { PixelWatchFace(isActive = isActive) }
+        watchFace = { ConcentricWatchFace(isActive = isActive) }
+    )
+}
+
+@Composable
+fun PixelStackedAodStyle(
+    isActive: Boolean,
+    notifications: List<StatusBarNotification>,
+    mediaInfo: MediaInfo?,
+    isCharging: Boolean,
+    batteryLevel: Int,
+    animatedTextAlpha: Float,
+    offsetY: Float,
+    isMediaEnabled: Boolean = true
+) {
+    UnifiedAodStyle(
+        isActive = isActive,
+        notifications = notifications,
+        mediaInfo = mediaInfo,
+        isCharging = isCharging,
+        batteryLevel = batteryLevel,
+        animatedTextAlpha = animatedTextAlpha,
+        offsetY = offsetY,
+        isMediaEnabled = isMediaEnabled,
+        watchFace = { PixelStackedWatchFace(isActive = isActive) }
+    )
+}
+
+@Composable
+fun PixelInlineAodStyle(
+    isActive: Boolean,
+    notifications: List<StatusBarNotification>,
+    mediaInfo: MediaInfo?,
+    isCharging: Boolean,
+    batteryLevel: Int,
+    animatedTextAlpha: Float,
+    offsetY: Float,
+    isMediaEnabled: Boolean = true
+) {
+    UnifiedAodStyle(
+        isActive = isActive,
+        notifications = notifications,
+        mediaInfo = mediaInfo,
+        isCharging = isCharging,
+        batteryLevel = batteryLevel,
+        animatedTextAlpha = animatedTextAlpha,
+        offsetY = offsetY,
+        isMediaEnabled = isMediaEnabled,
+        watchFace = { PixelInlineWatchFace(isActive = isActive) }
     )
 }
 

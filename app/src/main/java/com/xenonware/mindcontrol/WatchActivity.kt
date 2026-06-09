@@ -64,6 +64,8 @@ import com.xenonware.mindcontrol.ui.ConcentricAodStyle
 import com.xenonware.mindcontrol.ui.InlineAodStyle
 import com.xenonware.mindcontrol.ui.InlineDigitalAodStyle
 import com.xenonware.mindcontrol.ui.InlineDotAodStyle
+import com.xenonware.mindcontrol.ui.PixelInlineAodStyle
+import com.xenonware.mindcontrol.ui.PixelStackedAodStyle
 import com.xenonware.mindcontrol.ui.PlanetsAodStyle
 import com.xenonware.mindcontrol.ui.StackedAodStyle
 import com.xenonware.mindcontrol.ui.StackedDigitalAodStyle
@@ -523,6 +525,31 @@ class WatchActivity : ComponentActivity() {
                                     isMediaEnabled = isMediaEnabled
                                 )
                             }
+                            SettingsManager.AodStyle.PIXEL_STACKED -> {
+                                PixelStackedAodStyle(
+                                    isActive = isActive,
+                                    notifications = notifications,
+                                    mediaInfo = mediaInfo,
+                                    isCharging = isCharging,
+                                    batteryLevel = batteryLevel,
+                                    animatedTextAlpha = animatedTextAlpha,
+                                    offsetY = 0f,
+                                    isMediaEnabled = isMediaEnabled
+                                )
+                            }
+                            SettingsManager.AodStyle.PIXEL_INLINE -> {
+                                PixelInlineAodStyle(
+                                    isActive = isActive,
+                                    notifications = notifications,
+                                    mediaInfo = mediaInfo,
+                                    isCharging = isCharging,
+                                    batteryLevel = batteryLevel,
+                                    animatedTextAlpha = animatedTextAlpha,
+                                    offsetY = 0f,
+                                    isMediaEnabled = isMediaEnabled
+                                )
+                            }
+
                         }
                     }
                     
