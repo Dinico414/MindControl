@@ -96,6 +96,7 @@ object SettingsManager {
         CONCENTRIC,
         ANALOG,
         PLANETS(1),
+        SPINNER(1),
         PIXEL_STACKED(1),
         PIXEL_INLINE(1),
         STACKED,

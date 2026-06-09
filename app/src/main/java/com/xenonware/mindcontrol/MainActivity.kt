@@ -192,6 +192,7 @@ import com.xenonware.mindcontrol.ui.StackedAodStyle
 import com.xenonware.mindcontrol.ui.StackedDigitalAodStyle
 import com.xenonware.mindcontrol.ui.StackedDotAodStyle
 import com.xenonware.mindcontrol.ui.PlanetsAodStyle
+import com.xenonware.mindcontrol.ui.SpinnerAodStyle
 import com.xenonware.mindcontrol.ui.PixelStackedAodStyle
 import com.xenonware.mindcontrol.ui.PixelInlineAodStyle
 import com.xenonware.mindcontrol.ui.theme.BlueTheme
@@ -2429,6 +2430,7 @@ fun AodStylePickerDialog(
                         SettingsManager.AodStyle.INLINE_DOT -> stringResource(R.string.style_inline_dot)
                         SettingsManager.AodStyle.INLINE_DIGITAL -> stringResource(R.string.style_inline_digital)
                         SettingsManager.AodStyle.PLANETS -> stringResource(R.string.style_planets)
+                        SettingsManager.AodStyle.SPINNER -> stringResource(R.string.style_spinner)
                         SettingsManager.AodStyle.PIXEL_STACKED -> stringResource(R.string.style_pixel_stacked)
                         SettingsManager.AodStyle.PIXEL_INLINE -> stringResource(R.string.style_pixel_inline)
                     }
@@ -2592,6 +2594,17 @@ fun AodStyleOption(
                             offsetY = 0f
                         )
                     }
+                    SettingsManager.AodStyle.SPINNER -> {
+                        SpinnerAodStyle(
+                            isActive = true,
+                            notifications = emptyList(),
+                            mediaInfo = null,
+                            isCharging = false,
+                            batteryLevel = 80,
+                            animatedTextAlpha = 0f,
+                            offsetY = 0f
+                        )
+                    }
                     SettingsManager.AodStyle.PIXEL_STACKED -> {
                         PixelStackedAodStyle(
                             isActive = true,
@@ -2656,6 +2669,7 @@ fun ActionList(
     val styleInlineDot = stringResource(R.string.style_inline_dot)
     val styleInlineDigital = stringResource(R.string.style_inline_digital)
     val stylePlanets = stringResource(R.string.style_planets)
+    val styleSpinner = stringResource(R.string.style_spinner)
     val stylePixelStacked = stringResource(R.string.style_pixel_stacked)
     val stylePixelInline = stringResource(R.string.style_pixel_inline)
     val speedDialName = stringResource(R.string.speed_dial)
@@ -2695,6 +2709,7 @@ fun ActionList(
                     SettingsManager.AodStyle.INLINE_DOT -> styleInlineDot
                     SettingsManager.AodStyle.INLINE_DIGITAL -> styleInlineDigital
                     SettingsManager.AodStyle.PLANETS -> stylePlanets
+                    SettingsManager.AodStyle.SPINNER -> styleSpinner
                     SettingsManager.AodStyle.PIXEL_STACKED -> stylePixelStacked
                     SettingsManager.AodStyle.PIXEL_INLINE -> stylePixelInline
                 }

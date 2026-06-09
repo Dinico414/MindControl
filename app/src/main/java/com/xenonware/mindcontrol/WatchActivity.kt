@@ -67,6 +67,7 @@ import com.xenonware.mindcontrol.ui.InlineDotAodStyle
 import com.xenonware.mindcontrol.ui.PixelInlineAodStyle
 import com.xenonware.mindcontrol.ui.PixelStackedAodStyle
 import com.xenonware.mindcontrol.ui.PlanetsAodStyle
+import com.xenonware.mindcontrol.ui.SpinnerAodStyle
 import com.xenonware.mindcontrol.ui.StackedAodStyle
 import com.xenonware.mindcontrol.ui.StackedDigitalAodStyle
 import com.xenonware.mindcontrol.ui.StackedDotAodStyle
@@ -549,7 +550,18 @@ class WatchActivity : ComponentActivity() {
                                     isMediaEnabled = isMediaEnabled
                                 )
                             }
-
+                            SettingsManager.AodStyle.SPINNER -> {
+                                SpinnerAodStyle(
+                                    isActive = isActive,
+                                    notifications = notifications,
+                                    mediaInfo = mediaInfo,
+                                    isCharging = isCharging,
+                                    batteryLevel = batteryLevel,
+                                    animatedTextAlpha = animatedTextAlpha,
+                                    offsetY = 0f,
+                                    isMediaEnabled = isMediaEnabled
+                                )
+                            }
                         }
                     }
                     
