@@ -44,6 +44,7 @@ class ButtonMapperService : AccessibilityService() {
     private var isFlashlightOn = false
     private var lastPackageName: String? = null
     private var previousPackageName: String? = null
+    private val launcherPackages = mutableSetOf<String>()
     private var isVolumePanelVisibleState = false
     private var volumePanelTimeoutRunnable: Runnable? = null
     private var lastKeyCode: Int = -1
@@ -105,6 +106,8 @@ class ButtonMapperService : AccessibilityService() {
     @SuppressLint("WakelockTimeout")
     override fun onServiceConnected() {
         Log.d(tag, "Service Connected")
+        
+        updateLauncherPackages()
 
         val info = serviceInfo
         info.flags = info.flags or 0x00000100 // FLAG_HANDLE_VOLUME_KEYS
@@ -172,7 +175,7 @@ class ButtonMapperService : AccessibilityService() {
                 val pkg = event.packageName?.toString()
                 val className = event.className?.toString()
                 
-                if (pkg != null && pkg != packageName && pkg != "com.android.systemui") {
+                if (pkg != null && pkg != packageName && pkg != "com.android.systemui" && !launcherPackages.contains(pkg)) {
                     if (pkg != lastPackageName) {
                         previousPackageName = lastPackageName
                         lastPackageName = pkg
@@ -600,7 +603,7 @@ class ButtonMapperService : AccessibilityService() {
                 true
             }
             SettingsManager.ACTION_MUTE_MIC_TOGGLE -> {
-                audioManager.isMicrophoneMute = !audioManager.isMicrophoneMute
+                toggleMicPrivacy()
                 true
             }
             SettingsManager.ACTION_FLASHLIGHT -> { toggleFlashlight(); true }
@@ -764,16 +767,81 @@ class ButtonMapperService : AccessibilityService() {
     }
 
     private fun switchToLastApp() {
-        val targetPkg = previousPackageName ?: return
-        Log.d(tag, "Switching to last app: $targetPkg")
-        val intent = packageManager.getLaunchIntentForPackage(targetPkg)
-        if (intent != null) {
-            intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+        // Double-tap recents is the most reliable way to switch to the actual last app state
+        performGlobalAction(GLOBAL_ACTION_RECENTS)
+        handler.postDelayed({
+            performGlobalAction(GLOBAL_ACTION_RECENTS)
+        }, 150)
+    }
+
+    private fun toggleMicPrivacy() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
             try {
-                startActivity(intent)
+                if (ShizukuManager.isAvailable()) {
+                    Thread {
+                        // Log help once to see what this device supports if we keep failing
+                        ShizukuManager.runShellCommandBlocking("cmd sensor_privacy help")
+
+                        // Try to get state using different variations
+                        var output = ShizukuManager.runShellCommandBlocking("cmd sensor_privacy get-state 0 1")
+                        if (output.contains("Unknown", ignoreCase = true) || output.contains("Invalid", ignoreCase = true)) {
+                            output = ShizukuManager.runShellCommandBlocking("cmd sensor_privacy get-state 0 microphone")
+                        }
+                        
+                        // Determine current state (true = blocked/muted, false = available)
+                        val isPrivacyEnabled = if (output.contains("Unknown", ignoreCase = true) || output.contains("Invalid", ignoreCase = true) || output.isEmpty()) {
+                            audioManager.isMicrophoneMute
+                        } else {
+                            output.contains("enabled", ignoreCase = true) || output.contains("true", ignoreCase = true)
+                        }
+
+                        val nextState = !isPrivacyEnabled
+                        val subCmd = if (nextState) "enable" else "disable"
+                        val stateStr = if (nextState) "true" else "false"
+
+                        // Try to set state using different variations until one works
+                        val commands = listOf(
+                            "cmd sensor_privacy set-state 0 1 $stateStr",
+                            "cmd sensor_privacy set-state 0 microphone $stateStr",
+                            "cmd sensor_privacy $subCmd 0 1",
+                            "cmd sensor_privacy $subCmd 0 microphone",
+                            "cmd sensor_privacy $subCmd microphone" // Some devices don't want user ID
+                        )
+
+                        var success = false
+                        for (cmd in commands) {
+                            val res = ShizukuManager.runShellCommandBlocking(cmd)
+                            if (res.isEmpty() || (!res.contains("Unknown", ignoreCase = true) && !res.contains("Invalid", ignoreCase = true))) {
+                                Log.d(tag, "Mic Privacy Toggle Success with command: $cmd")
+                                success = true
+                                break
+                            }
+                        }
+
+                        // Sync software mute
+                        audioManager.isMicrophoneMute = nextState
+                        Log.d(tag, "Mic Privacy Toggle: TargetState=$nextState, Success=$success")
+                    }.start()
+                } else {
+                    audioManager.isMicrophoneMute = !audioManager.isMicrophoneMute
+                }
             } catch (e: Exception) {
-                Log.e(tag, "Error switching to last app", e)
+                Log.e(tag, "Error toggling mic privacy", e)
+                audioManager.isMicrophoneMute = !audioManager.isMicrophoneMute
             }
+        } else {
+            audioManager.isMicrophoneMute = !audioManager.isMicrophoneMute
+        }
+    }
+
+    private fun updateLauncherPackages() {
+        val intent = Intent(Intent.ACTION_MAIN).apply {
+            addCategory(Intent.CATEGORY_HOME)
+        }
+        val resolveInfos = packageManager.queryIntentActivities(intent, PackageManager.MATCH_DEFAULT_ONLY)
+        launcherPackages.clear()
+        for (ri in resolveInfos) {
+            ri.activityInfo.packageName?.let { launcherPackages.add(it) }
         }
     }
 

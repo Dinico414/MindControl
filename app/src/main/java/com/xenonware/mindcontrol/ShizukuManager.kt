@@ -2,8 +2,8 @@ package com.xenonware.mindcontrol
 
 import android.os.ParcelFileDescriptor
 import android.util.Log
-import rikka.shizuku.Shizuku
 import moe.shizuku.server.IShizukuService
+import rikka.shizuku.Shizuku
 import java.io.BufferedReader
 import java.io.InputStreamReader
 
@@ -107,35 +107,39 @@ object ShizukuManager {
     }
 
     fun runShellCommand(command: String) {
-        Thread {
-            try {
-                val binder = Shizuku.getBinder()
-                if (binder != null && binder.pingBinder()) {
-                    val service = IShizukuService.Stub.asInterface(binder)
-                    val remoteProcess = service.newProcess(arrayOf("sh", "-c", command), null, null)
-                    
-                    val reader = BufferedReader(InputStreamReader(ParcelFileDescriptor.AutoCloseInputStream(remoteProcess.inputStream)))
-                    val errorReader = BufferedReader(InputStreamReader(ParcelFileDescriptor.AutoCloseInputStream(remoteProcess.errorStream)))
-                    
-                    val output = StringBuilder()
-                    var line: String?
-                    while (reader.readLine().also { line = it } != null) {
-                        output.append(line).append("\n")
-                    }
-                    
-                    val error = StringBuilder()
-                    while (errorReader.readLine().also { line = it } != null) {
-                        error.append(line).append("\n")
-                    }
-                    
-                    val exitCode = remoteProcess.waitFor()
-                    if (output.isNotEmpty()) Log.d(TAG, "Command '$command' output: ${output.toString().trim()}")
-                    if (error.isNotEmpty()) Log.e(TAG, "Command '$command' error: ${error.toString().trim()}")
-                    Log.d(TAG, "Command '$command' exited with code $exitCode")
+        Thread { runShellCommandBlocking(command) }.start()
+    }
+
+    fun runShellCommandBlocking(command: String): String {
+        try {
+            val binder = Shizuku.getBinder()
+            if (binder != null && binder.pingBinder()) {
+                val service = IShizukuService.Stub.asInterface(binder)
+                val remoteProcess = service.newProcess(arrayOf("sh", "-c", command), null, null)
+                
+                val reader = BufferedReader(InputStreamReader(ParcelFileDescriptor.AutoCloseInputStream(remoteProcess.inputStream)))
+                val errorReader = BufferedReader(InputStreamReader(ParcelFileDescriptor.AutoCloseInputStream(remoteProcess.errorStream)))
+                
+                val output = StringBuilder()
+                var line: String?
+                while (reader.readLine().also { line = it } != null) {
+                    output.append(line).append("\n")
                 }
-            } catch (e: Exception) {
-                Log.e(TAG, "Error running command: $command", e)
+                
+                val error = StringBuilder()
+                while (errorReader.readLine().also { line = it } != null) {
+                    error.append(line).append("\n")
+                }
+                
+                val exitCode = remoteProcess.waitFor()
+                if (output.isNotEmpty()) Log.d(TAG, "Command '$command' output: ${output.toString().trim()}")
+                if (error.isNotEmpty()) Log.e(TAG, "Command '$command' error: ${error.toString().trim()}")
+                Log.d(TAG, "Command '$command' exited with code $exitCode")
+                return output.toString().trim()
             }
-        }.start()
+        } catch (e: Exception) {
+            Log.e(TAG, "Error running command: $command", e)
+        }
+        return ""
     }
 }
