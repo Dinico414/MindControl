@@ -168,6 +168,7 @@ import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
@@ -188,13 +189,13 @@ import com.xenonware.mindcontrol.ui.ConcentricAodStyle
 import com.xenonware.mindcontrol.ui.InlineAodStyle
 import com.xenonware.mindcontrol.ui.InlineDigitalAodStyle
 import com.xenonware.mindcontrol.ui.InlineDotAodStyle
+import com.xenonware.mindcontrol.ui.PixelInlineAodStyle
+import com.xenonware.mindcontrol.ui.PixelStackedAodStyle
+import com.xenonware.mindcontrol.ui.PlanetsAodStyle
+import com.xenonware.mindcontrol.ui.SpinnerAodStyle
 import com.xenonware.mindcontrol.ui.StackedAodStyle
 import com.xenonware.mindcontrol.ui.StackedDigitalAodStyle
 import com.xenonware.mindcontrol.ui.StackedDotAodStyle
-import com.xenonware.mindcontrol.ui.PlanetsAodStyle
-import com.xenonware.mindcontrol.ui.SpinnerAodStyle
-import com.xenonware.mindcontrol.ui.PixelStackedAodStyle
-import com.xenonware.mindcontrol.ui.PixelInlineAodStyle
 import com.xenonware.mindcontrol.ui.theme.BlueTheme
 import com.xenonware.mindcontrol.ui.theme.GreenTheme
 import com.xenonware.mindcontrol.ui.theme.Palette
@@ -2379,11 +2380,8 @@ fun AodStylePickerDialog(
     val carouselState = rememberCarouselState(itemCount = { styles.size })
     val selectedIndex = carouselState.currentItem
     val scope = rememberCoroutineScope()
-    val configuration = LocalConfiguration.current
-    val screenWidth = configuration.screenWidthDp.dp
-    val estimatedCenterItemWidth = (screenWidth - 220.dp).coerceIn(140.dp, 260.dp)
-    val estimatedItemHeight = estimatedCenterItemWidth * 1.15f
-    val carouselHeight = estimatedItemHeight + 16.dp
+    val carouselHeight = with(LocalDensity.current) { 600.toDp() }
+    val maxItemWidth = (carouselHeight - 16.dp) / 1.15f
 
     var mediaControlsEnabled by remember { mutableStateOf(SettingsManager.isAodMediaEnabled(context)) }
 
@@ -2399,12 +2397,13 @@ fun AodStylePickerDialog(
         content = {
             Column(
                 modifier = Modifier
-                    .fillMaxWidth(),
+                    .fillMaxWidth()
+                    .verticalScroll(rememberScrollState()),
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
                 HorizontalCenteredHeroCarousel(
                     state = carouselState,
-                    maxItemWidth = estimatedCenterItemWidth,
+                    maxItemWidth = maxItemWidth,
                     modifier = Modifier
                         .height(carouselHeight)
                         .fillMaxWidth(),
