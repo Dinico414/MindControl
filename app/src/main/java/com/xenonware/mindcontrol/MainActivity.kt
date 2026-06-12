@@ -63,7 +63,6 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.rounded.ArrowBack
-import androidx.compose.material.icons.automirrored.rounded.KeyboardArrowRight
 import androidx.compose.material.icons.automirrored.rounded.RotateRight
 import androidx.compose.material.icons.automirrored.rounded.Shortcut
 import androidx.compose.material.icons.automirrored.rounded.VolumeDown
@@ -207,6 +206,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import rikka.shizuku.Shizuku
+import kotlin.time.Duration.Companion.milliseconds
 
 class MainActivity : ComponentActivity() {
 
@@ -396,7 +396,7 @@ fun MindControlMainScreen(
             } catch (_: Exception) {
                 false
             }
-            kotlinx.coroutines.delay(2000)
+            kotlinx.coroutines.delay(2000.milliseconds)
         }
     }
 
@@ -1048,7 +1048,7 @@ fun TogglesContainer(
                 false
             }
 
-            kotlinx.coroutines.delay(2000)
+            kotlinx.coroutines.delay(2000.milliseconds)
         }
     }
 
@@ -1673,17 +1673,6 @@ fun MindControlActionSelector(
 
     val displayType = getTypeDisplayName(type)
 
-    val isContinuum = action == SettingsManager.ACTION_VOLUME_UP ||
-            action == SettingsManager.ACTION_VOLUME_DOWN ||
-            action == SettingsManager.ACTION_SCROLL_UP_SMOOTH ||
-            action == SettingsManager.ACTION_SCROLL_DOWN_SMOOTH ||
-            action == SettingsManager.ACTION_SCROLL_UP_SMOOTH_FAST ||
-            action == SettingsManager.ACTION_SCROLL_DOWN_SMOOTH_FAST ||
-            action == "TAP_SCROLL_UP_SMOOTH" ||
-            action == "TAP_SCROLL_DOWN_SMOOTH" ||
-            action == SettingsManager.ACTION_BRIGHTNESS_UP ||
-            action == SettingsManager.ACTION_BRIGHTNESS_DOWN
-
     Row(
         verticalAlignment = Alignment.CenterVertically,
         modifier = Modifier
@@ -1731,14 +1720,6 @@ fun MindControlActionSelector(
                         .padding(start = 4.dp),
                     tint = MaterialTheme.colorScheme.primary
                 )
-                if (isContinuum) {
-                    Icon(
-                        imageVector = Icons.AutoMirrored.Rounded.KeyboardArrowRight,
-                        contentDescription = null,
-                        tint = MaterialTheme.colorScheme.primary,
-                        modifier = Modifier.size(20.dp)
-                    )
-                }
             }
         }
     }
@@ -1857,7 +1838,7 @@ fun ActionSelectionScreen(
             } catch (_: Exception) {
                 false
             }
-            kotlinx.coroutines.delay(2000)
+            kotlinx.coroutines.delay(2000.milliseconds)
         }
     }
 
