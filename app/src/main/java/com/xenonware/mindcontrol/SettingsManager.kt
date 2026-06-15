@@ -6,7 +6,6 @@ import android.content.SharedPreferences
 import android.content.pm.PackageManager
 import androidx.core.content.edit
 import com.xenonware.mindcontrol.ui.theme.Palette
-import com.xenonware.mindcontrol.BuildConfig
 
 object SettingsManager {
     private const val PREFS_NAME = "MindControlPrefs"
@@ -104,7 +103,8 @@ object SettingsManager {
         STACKED_DOT,
         INLINE_DOT,
         STACKED_DIGITAL,
-        INLINE_DIGITAL
+        INLINE_DIGITAL,
+        BLOCKS(1)
     }
 
     private fun prefs(context: Context): SharedPreferences {

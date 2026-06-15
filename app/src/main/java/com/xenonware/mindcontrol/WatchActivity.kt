@@ -67,6 +67,7 @@ import com.xenonware.mindcontrol.ui.InlineDotAodStyle
 import com.xenonware.mindcontrol.ui.PixelInlineAodStyle
 import com.xenonware.mindcontrol.ui.PixelStackedAodStyle
 import com.xenonware.mindcontrol.ui.PlanetsAodStyle
+import com.xenonware.mindcontrol.ui.BlocksAodStyle
 import com.xenonware.mindcontrol.ui.SpinnerAodStyle
 import com.xenonware.mindcontrol.ui.StackedAodStyle
 import com.xenonware.mindcontrol.ui.StackedDigitalAodStyle
@@ -540,6 +541,18 @@ class WatchActivity : ComponentActivity() {
                             }
                             SettingsManager.AodStyle.PIXEL_INLINE -> {
                                 PixelInlineAodStyle(
+                                    isActive = isActive,
+                                    notifications = notifications,
+                                    mediaInfo = mediaInfo,
+                                    isCharging = isCharging,
+                                    batteryLevel = batteryLevel,
+                                    animatedTextAlpha = animatedTextAlpha,
+                                    offsetY = 0f,
+                                    isMediaEnabled = isMediaEnabled
+                                )
+                            }
+                            SettingsManager.AodStyle.BLOCKS -> {
+                                BlocksAodStyle(
                                     isActive = isActive,
                                     notifications = notifications,
                                     mediaInfo = mediaInfo,

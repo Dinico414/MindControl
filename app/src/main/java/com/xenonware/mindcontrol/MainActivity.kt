@@ -184,6 +184,7 @@ import com.xenon.mylibrary.theme.QuicksandTitleVariable
 import com.xenon.mylibrary.values.MediumCornerRadius
 import com.xenon.mylibrary.values.SmallestCornerRadius
 import com.xenonware.mindcontrol.ui.AnalogAodStyle
+import com.xenonware.mindcontrol.ui.BlocksAodStyle
 import com.xenonware.mindcontrol.ui.ConcentricAodStyle
 import com.xenonware.mindcontrol.ui.InlineAodStyle
 import com.xenonware.mindcontrol.ui.InlineDigitalAodStyle
@@ -2413,6 +2414,7 @@ fun AodStylePickerDialog(
                         SettingsManager.AodStyle.SPINNER -> stringResource(R.string.style_spinner)
                         SettingsManager.AodStyle.PIXEL_STACKED -> stringResource(R.string.style_pixel_stacked)
                         SettingsManager.AodStyle.PIXEL_INLINE -> stringResource(R.string.style_pixel_inline)
+                        SettingsManager.AodStyle.BLOCKS -> stringResource(R.string.style_blocks)
                     }
 
                     AodStyleOption(
@@ -2607,6 +2609,17 @@ fun AodStyleOption(
                             offsetY = 0f
                         )
                     }
+                    SettingsManager.AodStyle.BLOCKS -> {
+                        BlocksAodStyle(
+                            isActive = true,
+                            notifications = emptyList(),
+                            mediaInfo = null,
+                            isCharging = false,
+                            batteryLevel = 80,
+                            animatedTextAlpha = 0f,
+                            offsetY = 0f
+                        )
+                    }
                 }
             }
             
@@ -2652,6 +2665,7 @@ fun ActionList(
     val styleSpinner = stringResource(R.string.style_spinner)
     val stylePixelStacked = stringResource(R.string.style_pixel_stacked)
     val stylePixelInline = stringResource(R.string.style_pixel_inline)
+    val styleBlocks = stringResource(R.string.style_blocks)
     val speedDialName = stringResource(R.string.speed_dial)
     val urlName = stringResource(R.string.url)
     val qrCodeName = stringResource(R.string.qr_code)
@@ -2692,6 +2706,7 @@ fun ActionList(
                     SettingsManager.AodStyle.SPINNER -> styleSpinner
                     SettingsManager.AodStyle.PIXEL_STACKED -> stylePixelStacked
                     SettingsManager.AodStyle.PIXEL_INLINE -> stylePixelInline
+                    SettingsManager.AodStyle.BLOCKS -> styleBlocks
                 }
                 onActionSelected("$aodActionName: $styleName")
                 showAodStyleDialog = false

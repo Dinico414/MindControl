@@ -101,6 +101,7 @@
     <string name="style_spinner">Spinner</string>
     <string name="style_pixel_stacked">Pixel (Stacked)</string>
     <string name="style_pixel_inline">Pixel (Inline)</string>
+    <string name="style_blocks">Blocks</string>
 
     <!-- Input Dialogs -->
     <string name="enter_number">Enter Number</string>
