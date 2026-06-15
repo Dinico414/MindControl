@@ -102,6 +102,7 @@
     <string name="style_pixel_stacked">Pixel (Stacked)</string>
     <string name="style_pixel_inline">Pixel (Inline)</string>
     <string name="style_blocks">Blocks</string>
+    <string name="style_bars">Bars</string>
 
     <!-- Input Dialogs -->
     <string name="enter_number">Enter Number</string>
