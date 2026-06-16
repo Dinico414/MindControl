@@ -77,39 +77,25 @@ class ButtonMapperService : AccessibilityService() {
     }
 
     private fun isTextFieldFocused(): Boolean {
-        // 1. Check if a keyboard window is currently visible
-        try {
-            val windowsList = windows
-            for (window in windowsList) {
-                // TYPE_INPUT_METHOD = 2
-                if (window.type == 2) return true
-            }
-        } catch (_: Exception) {}
-
-        // 2. Use the cached state from focus events
         if (isTextFocusActive) return true
-
+        
         val now = System.currentTimeMillis()
-        // 3. Manual check with a shorter throttle (500ms)
-        if (now - lastFocusCheckTime < 500L) return isTextFocusActive
+        if (now - lastFocusCheckTime < 2000L) return false // Only check root once every 2s to avoid spamming
         lastFocusCheckTime = now
 
         try {
             val rootNode = rootInActiveWindow ?: return false
-            val focusedNode = rootNode.findFocus(AccessibilityNodeInfo.FOCUS_INPUT)
-            if (focusedNode != null) {
-                val isEditable = focusedNode.isEditable ||
-                        focusedNode.className?.toString()?.contains("EditText", ignoreCase = true) == true
-                isTextFocusActive = isEditable
-                focusedNode.recycle()
-            } else {
-                isTextFocusActive = false
-            }
-            rootNode.recycle()
+            // Find the node that currently has keyboard input focus
+            val focusedNode = rootNode.findFocus(AccessibilityNodeInfo.FOCUS_INPUT) ?: return false
+            // Check if the node is marked as editable or is an EditText class
+            val isEditable = focusedNode.isEditable
+            val isEditText = focusedNode.className?.toString()?.contains("EditText") == true
+            isTextFocusActive = isEditable || isEditText
+            return isTextFocusActive
         } catch (e: Exception) {
             Log.e(tag, "Error checking focused node", e)
         }
-        return isTextFocusActive
+        return false
     }
 
     private val cameraCallback = object : CameraManager.AvailabilityCallback() {

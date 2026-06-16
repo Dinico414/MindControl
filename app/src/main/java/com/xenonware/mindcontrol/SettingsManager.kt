@@ -105,7 +105,7 @@ object SettingsManager {
         STACKED_DIGITAL,
         INLINE_DIGITAL,
         BLOCKS(1),
-        BARS(1)
+        BARS
     }
 
     private fun prefs(context: Context): SharedPreferences {
