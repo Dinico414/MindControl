@@ -23,6 +23,8 @@
     <string name="shizuku_unauthorized">Shizuku: UNAUTHORIZED\n(Tap to Authorize)</string>
     <string name="shizuku_not_running">Shizuku: NOT RUNNING\n(Tap to Open)</string>
     <string name="shizuku_not_installed">Shizuku: NOT INSTALLED\n(Tap to Install)</string>
+    <string name="root_authorized">Root: AUTHORIZED</string>
+    <string name="root_unauthorized">Root: UNAUTHORIZED\n(Tap to Grant)</string>
 
     <!-- Battery Optimization -->
     <string name="battery_opt_on">Battery Optimization: ON\n(Tap to Disable)</string>
@@ -117,6 +119,9 @@
     <string name="url">URL</string>
     <string name="qr_code">QR Code</string>
     <string name="requires_shizuku">Requires Shizuku</string>
+    <string name="requires_shell">Requires Shizuku or Root</string>
+    <string name="volume_shell_msg">To customize Volume buttons for Screen Off, please authorize Shizuku or Root, or use the \'Volume Skip\' toggle in Settings.</string>
+    <string name="non_volume_shell_msg">Configuring non-volume buttons for Screen Off requires Shizuku or Root permission.</string>
 
     <!-- Actions -->
     <string name="action_none">None</string>
@@ -146,7 +151,7 @@
     <string name="action_scroll_up_smooth_fast">Scroll Up (Smooth, Fast)</string>
     <string name="action_scroll_down_smooth_fast">Scroll Down (Smooth, Fast)</string>
     <string name="action_show_menu">Show Menu</string>
-    <string name="action_last_app">Last App</string>
+    <string name="action_last_app">Previous App</string>
     <string name="action_app_info">App Info</string>
     <string name="action_power_dialog">Power Dialog</string>
     <string name="action_google_search">Google Search</string>

@@ -23,6 +23,8 @@
     <string name="shizuku_unauthorized">Shizuku: NICHT AUTORISIERT\n(Tippen zum Autorisieren)</string>
     <string name="shizuku_not_running">Shizuku: LÄUFT NICHT\n(Tippen zum Öffnen)</string>
     <string name="shizuku_not_installed">Shizuku: NICHT INSTALLIERT\n(Tippen zum Installieren)</string>
+    <string name="root_authorized">Root: AUTORISIERT</string>
+    <string name="root_unauthorized">Root: NICHT AUTORISIERT\n(Tippen zum Erlauben)</string>
 
     <!-- Battery Optimization -->
     <string name="battery_opt_on">Akku-Optimierung: AN\n(Tippen zum Deaktivieren)</string>
@@ -117,13 +119,16 @@
     <string name="url">URL</string>
     <string name="qr_code">QR-Code</string>
     <string name="requires_shizuku">Erfordert Shizuku</string>
+    <string name="requires_shell">Erfordert Shizuku oder Root</string>
+    <string name="volume_shell_msg">Um die Lautstärketasten für „Bildschirm aus“ anzupassen, autorisieren Sie bitte Shizuku oder Root, oder nutzen Sie den Schalter „Lautstärke-Sprung“ in den Einstellungen.</string>
+    <string name="non_volume_shell_msg">Das Konfigurieren von Nicht-Lautstärketasten für „Bildschirm aus“ erfordert Shizuku- oder Root-Berechtigung.</string>
 
     <!-- Actions -->
     <string name="action_none">Keine</string>
     <string name="action_default">Standard</string>
     <string name="action_play_pause">Wiedergabe / Pause</string>
-    <string name="action_next">Weiter</string>
-    <string name="action_previous">Zurück</string>
+    <string name="action_next">Nächstes</string>
+    <string name="action_previous">Vorheriges</string>
     <string name="action_volume_up">Lautstärke Hoch</string>
     <string name="action_volume_down">Lautstärke Runter</string>
     <string name="action_flashlight">Taschenlampe</string>
@@ -146,7 +151,7 @@
     <string name="action_scroll_up_smooth_fast">Hochscrollen (Stufenlos, Schnell)</string>
     <string name="action_scroll_down_smooth_fast">Runterscrollen (Stufenlos, Schnell)</string>
     <string name="action_show_menu">Menü anzeigen</string>
-    <string name="action_last_app">Letzte App</string>
+    <string name="action_last_app">Vorherige App</string>
     <string name="action_app_info">App-Info</string>
     <string name="action_power_dialog">Power-Menü</string>
     <string name="action_google_search">Google Suche</string>
