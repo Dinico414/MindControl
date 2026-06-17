@@ -131,7 +131,7 @@ class ButtonMapperService : AccessibilityService() {
 
         Shizuku.addBinderReceivedListenerSticky(binderListener)
         Shizuku.addRequestPermissionResultListener(permissionListener)
-        tryStartShizuku()
+        tryStartMonitoring()
     }
 
     private fun createNotificationChannel() {
@@ -142,26 +142,25 @@ class ButtonMapperService : AccessibilityService() {
 
     private val binderListener = Shizuku.OnBinderReceivedListener {
         Log.d(tag, "Shizuku Binder Received")
-        tryStartShizuku()
+        tryStartMonitoring()
     }
 
     private val permissionListener = Shizuku.OnRequestPermissionResultListener { _, result ->
         if (result == PackageManager.PERMISSION_GRANTED) {
             Log.d(tag, "Shizuku Permission Granted")
-            tryStartShizuku()
+            tryStartMonitoring()
         }
     }
 
-    private fun tryStartShizuku() {
+    private fun tryStartMonitoring() {
         try {
-            if (Shizuku.pingBinder() &&
-                Shizuku.checkSelfPermission() == PackageManager.PERMISSION_GRANTED) {
-                ShizukuManager.startMonitoring { keyCode, isDown ->
+            if (ShellManager.isAvailable()) {
+                ShellManager.startMonitoring { keyCode, isDown ->
                     handler.post { handleKeyEvent(keyCode, isDown, fromShizuku = true) }
                 }
             }
         } catch (e: Exception) {
-            Log.e(tag, "Shizuku start error", e)
+            Log.e(tag, "Monitoring start error", e)
         }
     }
 
@@ -336,7 +335,7 @@ class ButtonMapperService : AccessibilityService() {
         val state = if (isInteractive && !isLocked) "ON" else "OFF"
 
         val isOverrideEnabled = SettingsManager.isOverrideScreenOffEnabled(this)
-        val shizukuAvailable = if (fromShizuku) true else ShizukuManager.isAvailable()
+        val shizukuAvailable = if (fromShizuku) true else ShellManager.isAvailable()
         val isVolumeKey = keyCode == 24 || keyCode == 25
 
         if (state == "OFF") {
@@ -624,7 +623,7 @@ class ButtonMapperService : AccessibilityService() {
             SettingsManager.ACTION_POWER_DIALOG -> performGlobalAction(GLOBAL_ACTION_POWER_DIALOG)
             SettingsManager.ACTION_LAST_APP -> { switchToLastApp(); true }
             SettingsManager.ACTION_APP_INFO -> { openAppInfo(); true }
-            SettingsManager.ACTION_SHOW_MENU -> { ShizukuManager.injectKey(KeyEvent.KEYCODE_MENU); true }
+            SettingsManager.ACTION_SHOW_MENU -> { ShellManager.injectKey(KeyEvent.KEYCODE_MENU); true }
             SettingsManager.ACTION_ASSISTANT -> { launchAssistant(); true }
             SettingsManager.ACTION_GOOGLE_SEARCH -> { launchGoogleSearch(); true }
             SettingsManager.ACTION_VIBRATE_RINGER -> { toggleVibrateRinger(); true }
@@ -777,15 +776,15 @@ class ButtonMapperService : AccessibilityService() {
     private fun toggleMicPrivacy() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
             try {
-                if (ShizukuManager.isAvailable()) {
+                if (ShellManager.isAvailable()) {
                     Thread {
                         // Log help once to see what this device supports if we keep failing
-                        ShizukuManager.runShellCommandBlocking("cmd sensor_privacy help")
+                        ShellManager.runShellCommandBlocking("cmd sensor_privacy help")
 
                         // Try to get state using different variations
-                        var output = ShizukuManager.runShellCommandBlocking("cmd sensor_privacy get-state 0 1")
+                        var output = ShellManager.runShellCommandBlocking("cmd sensor_privacy get-state 0 1")
                         if (output.contains("Unknown", ignoreCase = true) || output.contains("Invalid", ignoreCase = true)) {
-                            output = ShizukuManager.runShellCommandBlocking("cmd sensor_privacy get-state 0 microphone")
+                            output = ShellManager.runShellCommandBlocking("cmd sensor_privacy get-state 0 microphone")
                         }
                         
                         // Determine current state (true = blocked/muted, false = available)
@@ -810,7 +809,7 @@ class ButtonMapperService : AccessibilityService() {
 
                         var success = false
                         for (cmd in commands) {
-                            val res = ShizukuManager.runShellCommandBlocking(cmd)
+                            val res = ShellManager.runShellCommandBlocking(cmd)
                             if (res.isEmpty() || (!res.contains("Unknown", ignoreCase = true) && !res.contains("Invalid", ignoreCase = true))) {
                                 Log.d(tag, "Mic Privacy Toggle Success with command: $cmd")
                                 success = true
@@ -1163,9 +1162,12 @@ class ButtonMapperService : AccessibilityService() {
                 Settings.System.SCREEN_BRIGHTNESS_MODE_AUTOMATIC
             }
 
-            if (ShizukuManager.isAvailable()) {
-                ShizukuManager.runShellCommand("settings put system screen_brightness_mode $next")
+            if (ShellManager.isShizukuAvailable()) {
+                ShellManager.runShellCommand("settings put system screen_brightness_mode $next")
                 Log.d(tag, "Auto-Brightness Toggle (Shizuku): $mode -> $next")
+            } else if (ShellManager.isRootAvailable()) {
+                ShellManager.runShellCommand("settings put system screen_brightness_mode $next")
+                Log.d(tag, "Auto-Brightness Toggle (Root): $mode -> $next")
             } else {
                 val ok = Settings.System.putInt(
                     contentResolver,
@@ -1186,11 +1188,11 @@ class ButtonMapperService : AccessibilityService() {
         try {
             val current = Settings.Global.getInt(contentResolver, Settings.Global.WIFI_ON, 0)
             val next = if (current == 1) "disable" else "enable"
-            if (ShizukuManager.isAvailable()) {
-                ShizukuManager.runShellCommand("svc wifi $next")
-                Log.d(tag, "Wifi Toggle (Shizuku): $current -> $next")
+            if (ShellManager.isAvailable()) {
+                ShellManager.runShellCommand("svc wifi $next")
+                Log.d(tag, "Wifi Toggle: $current -> $next")
             } else {
-                Log.e(tag, "Wifi toggle requires Shizuku or Root on this Android version")
+                Log.e(tag, "Wifi toggle requires Shell access (Shizuku or Root)")
             }
         } catch (e: Exception) {
             Log.e(tag, "Wifi toggle error", e)
@@ -1205,11 +1207,11 @@ class ButtonMapperService : AccessibilityService() {
             val next = !isEnabled
             val cmd = if (next) "enable" else "disable"
 
-            if (ShizukuManager.isAvailable()) {
-                ShizukuManager.runShellCommand("svc bluetooth $cmd")
-                Log.d(tag, "Bluetooth Toggle (Shizuku): $isEnabled -> $next")
+            if (ShellManager.isAvailable()) {
+                ShellManager.runShellCommand("svc bluetooth $cmd")
+                Log.d(tag, "Bluetooth Toggle: $isEnabled -> $next")
             } else {
-                Log.e(tag, "Bluetooth toggle requires Shizuku or Root")
+                Log.e(tag, "Bluetooth toggle requires Shell access")
             }
         } catch (e: Exception) {
             Log.e(tag, "Bluetooth toggle error", e)
@@ -1220,11 +1222,11 @@ class ButtonMapperService : AccessibilityService() {
         try {
             val current = Settings.Global.getInt(contentResolver, "mobile_data", 0)
             val next = if (current == 1) "disable" else "enable"
-            if (ShizukuManager.isAvailable()) {
-                ShizukuManager.runShellCommand("svc data $next")
-                Log.d(tag, "Data Toggle (Shizuku): $current -> $next")
+            if (ShellManager.isAvailable()) {
+                ShellManager.runShellCommand("svc data $next")
+                Log.d(tag, "Data Toggle: $current -> $next")
             } else {
-                Log.e(tag, "Mobile Data toggle requires Shizuku or Root")
+                Log.e(tag, "Mobile Data toggle requires Shell access")
             }
         } catch (e: Exception) {
             Log.e(tag, "Data toggle error", e)
@@ -1235,11 +1237,11 @@ class ButtonMapperService : AccessibilityService() {
         try {
             val current = Settings.Global.getInt(contentResolver, "nfc_on", 0)
             val next = if (current == 1) "disable" else "enable"
-            if (ShizukuManager.isAvailable()) {
-                ShizukuManager.runShellCommand("svc nfc $next")
-                Log.d(tag, "NFC Toggle (Shizuku): $current -> $next")
+            if (ShellManager.isAvailable()) {
+                ShellManager.runShellCommand("svc nfc $next")
+                Log.d(tag, "NFC Toggle: $current -> $next")
             } else {
-                Log.e(tag, "NFC toggle requires Shizuku or Root")
+                Log.e(tag, "NFC toggle requires Shell access")
             }
         } catch (e: Exception) {
             Log.e(tag, "NFC toggle error", e)
@@ -1252,11 +1254,11 @@ class ButtonMapperService : AccessibilityService() {
             val isEnabled = lm.isLocationEnabled
             val nextMode = if (isEnabled) 0 else 3 // 0 = OFF, 3 = HIGH_ACCURACY
             
-            if (ShizukuManager.isAvailable()) {
-                ShizukuManager.runShellCommand("settings put secure location_mode $nextMode")
-                Log.d(tag, "Location Toggle (Shizuku): $isEnabled -> $nextMode")
+            if (ShellManager.isAvailable()) {
+                ShellManager.runShellCommand("settings put secure location_mode $nextMode")
+                Log.d(tag, "Location Toggle: $isEnabled -> $nextMode")
             } else {
-                Log.e(tag, "Location toggle requires Shizuku or Root")
+                Log.e(tag, "Location toggle requires Shell access")
             }
         } catch (e: Exception) {
             Log.e(tag, "Location toggle error", e)
@@ -1337,6 +1339,6 @@ class ButtonMapperService : AccessibilityService() {
         wakeLock?.let { if (it.isHeld) it.release() }
         Shizuku.removeBinderReceivedListener(binderListener)
         Shizuku.removeRequestPermissionResultListener(permissionListener)
-        ShizukuManager.stopMonitoring()
+        ShellManager.stopMonitoring()
     }
 }

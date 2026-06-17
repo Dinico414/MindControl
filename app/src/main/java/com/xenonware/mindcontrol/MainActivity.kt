@@ -266,7 +266,7 @@ val PairSaver = listSaver<Pair<Int, String>?, Any>(
 
 // ---- Action availability helpers ----------------------------------------------------------------
 
-private val SHIZUKU_REQUIRED_ACTIONS = setOf(
+private val SHELL_REQUIRED_ACTIONS = setOf(
     SettingsManager.ACTION_WIFI_TOGGLE,
     SettingsManager.ACTION_BLUETOOTH_TOGGLE,
     SettingsManager.ACTION_DATA_TOGGLE,
@@ -277,12 +277,12 @@ private val SHIZUKU_REQUIRED_ACTIONS = setOf(
 )
 
 
-private fun isActionDisabled(action: String, shizukuReady: Boolean): Boolean {
-    return !shizukuReady && action in SHIZUKU_REQUIRED_ACTIONS
+private fun isActionDisabled(action: String, shellReady: Boolean): Boolean {
+    return !shellReady && action in SHELL_REQUIRED_ACTIONS
 }
 
-private fun disabledReasonFor(action: String, shizukuReady: Boolean): Int? = when {
-    !shizukuReady && action in SHIZUKU_REQUIRED_ACTIONS -> R.string.requires_shizuku
+private fun disabledReasonFor(action: String, shellReady: Boolean): Int? = when {
+    !shellReady && action in SHELL_REQUIRED_ACTIONS -> R.string.requires_shell
     else -> null
 }
 
@@ -381,7 +381,7 @@ fun MindControlMainScreen(
     var actionSelectionConfig by rememberSaveable(stateSaver = ActionConfigSaver) { mutableStateOf(null) }
     var isScreenOff by rememberSaveable { mutableStateOf(false) }
 
-    var shizukuPermission by remember { mutableStateOf(false) }
+    var shellPermission by remember { mutableStateOf(false) }
 
     val notificationPermissionLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.RequestPermission()
@@ -392,12 +392,7 @@ fun MindControlMainScreen(
             notificationPermissionLauncher.launch(android.Manifest.permission.POST_NOTIFICATIONS)
         }
         while (true) {
-            shizukuPermission = try {
-                Shizuku.pingBinder() &&
-                        Shizuku.checkSelfPermission() == PackageManager.PERMISSION_GRANTED
-            } catch (_: Exception) {
-                false
-            }
+            shellPermission = ShellManager.isAvailable()
             kotlinx.coroutines.delay(2000.milliseconds)
         }
     }
@@ -518,7 +513,7 @@ fun MindControlMainScreen(
                         keyboardPalette = keyboardPalette,
                         isFromKeyboard = configFromKeyboard,
                         isScreenOff = isScreenOff,
-                        shizukuPermission = shizukuPermission,
+                        shellPermission = shellPermission,
                         onScreenOffChange = { isScreenOff = it },
                         onBack = {
                             val cameFromKeyboard = configFromKeyboard
@@ -1007,9 +1002,6 @@ fun TogglesContainer(
         )
     }
 
-    var shizukuPermission by remember { mutableStateOf(false) }
-    var shizukuAvailable by remember { mutableStateOf(false) }
-    var shizukuInstalled by remember { mutableStateOf(false) }
     var isNotificationListenerEnabled by remember { mutableStateOf(false) }
     val powerManager = remember { context.getSystemService(Context.POWER_SERVICE) as PowerManager }
     var isBatteryOptimized by remember {
@@ -1027,28 +1019,6 @@ fun TogglesContainer(
                 ?.contains(context.packageName) == true
             
             isBatteryOptimized = !powerManager.isIgnoringBatteryOptimizations(context.packageName)
-
-            shizukuInstalled = try {
-                context.packageManager.getPackageInfo("moe.shizuku.privileged.api", PackageManager.PackageInfoFlags.of(0))
-                true
-            } catch (_: Exception) {
-                false
-            }
-
-            shizukuAvailable = try {
-                Shizuku.pingBinder()
-            } catch (_: Exception) {
-                false
-            }
-            shizukuPermission = if (shizukuAvailable) {
-                try {
-                    Shizuku.checkSelfPermission() == PackageManager.PERMISSION_GRANTED
-                } catch (_: Exception) {
-                    false
-                }
-            } else {
-                false
-            }
 
             kotlinx.coroutines.delay(2000.milliseconds)
         }
@@ -1125,49 +1095,61 @@ fun TogglesContainer(
                 }
             }
 
-            // --- Shizuku Status (Always Visible) ---
-            Card(
-                onClick = {
-                    when {
-                        !shizukuInstalled -> {
-                            val appId = "moe.shizuku.privileged.api"
-                            try {
-                                context.startActivity(Intent(Intent.ACTION_VIEW, "market://details?id=$appId".toUri()))
-                            } catch (_: Exception) {
-                                context.startActivity(Intent(Intent.ACTION_VIEW, "https://play.google.com/store/apps/details?id=$appId".toUri()))
+            // --- Privileged Access Status (Shizuku or Root) ---
+            val isRooted = ShellManager.isDeviceRooted()
+            val shizukuInstalled = try {
+                context.packageManager.getPackageInfo("moe.shizuku.privileged.api", PackageManager.PackageInfoFlags.of(0))
+                true
+            } catch (_: Exception) {
+                false
+            }
+
+            if (shizukuInstalled || isRooted) {
+                val shizukuAvailable = ShellManager.isShizukuAvailable()
+                val rootAvailable = ShellManager.isRootAvailable()
+                val hasAccess = shizukuAvailable || rootAvailable
+
+                Card(
+                    onClick = {
+                        if (isRooted && !rootAvailable) {
+                            // Try to request root
+                            Thread { ShellManager.isRootAvailable() }.start()
+                        } else if (shizukuInstalled) {
+                            when {
+                                !shizukuAvailable -> {
+                                    val intent = context.packageManager.getLaunchIntentForPackage("moe.shizuku.privileged.api")
+                                    if (intent != null) context.startActivity(intent)
+                                }
+                                else -> {
+                                    try { Shizuku.requestPermission(0) } catch (e: Exception) { Log.e("MainActivity", "Shizuku request error", e) }
+                                }
                             }
                         }
-                        !shizukuAvailable -> {
-                            val intent = context.packageManager.getLaunchIntentForPackage("moe.shizuku.privileged.api")
-                            if (intent != null) context.startActivity(intent)
-                        }
-                        !shizukuPermission -> {
-                            try { Shizuku.requestPermission(0) } catch (e: Exception) { Log.e("MainActivity", "Shizuku request error", e) }
-                        }
-                    }
-                },
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(vertical = 4.dp),
-                colors = CardDefaults.cardColors(
-                    containerColor = if (shizukuAvailable && shizukuPermission) Color(0xFFE8F5E9) else Color(0xFFFFEBEE)
-                ),
-                border = BorderStroke(
-                    1.dp, if (shizukuAvailable && shizukuPermission) Color(0xFF2E7D32) else Color(0xFFC62828)
-                )
-            ) {
-                Column(modifier = Modifier.padding(12.dp)) {
-                    val shizukuText = when {
-                        shizukuAvailable && shizukuPermission -> stringResource(R.string.shizuku_authorized)
-                        shizukuAvailable && !shizukuPermission -> stringResource(R.string.shizuku_unauthorized)
-                        shizukuInstalled -> stringResource(R.string.shizuku_not_running)
-                        else -> stringResource(R.string.shizuku_not_installed)
-                    }
-                    Text(
-                        text = shizukuText,
-                        color = if (shizukuAvailable && shizukuPermission) Color(0xFF2E7D32) else Color(0xFFC62828),
-                        style = MaterialTheme.typography.bodyMedium
+                    },
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(vertical = 4.dp),
+                    colors = CardDefaults.cardColors(
+                        containerColor = if (hasAccess) Color(0xFFE8F5E9) else Color(0xFFFFEBEE)
+                    ),
+                    border = BorderStroke(
+                        1.dp, if (hasAccess) Color(0xFF2E7D32) else Color(0xFFC62828)
                     )
+                ) {
+                    Column(modifier = Modifier.padding(12.dp)) {
+                        val statusText = when {
+                            rootAvailable -> stringResource(R.string.root_authorized)
+                            shizukuAvailable -> stringResource(R.string.shizuku_authorized)
+                            isRooted -> stringResource(R.string.root_unauthorized)
+                            shizukuInstalled -> stringResource(R.string.shizuku_unauthorized)
+                            else -> stringResource(R.string.shizuku_not_running)
+                        }
+                        Text(
+                            text = statusText,
+                            color = if (hasAccess) Color(0xFF2E7D32) else Color(0xFFC62828),
+                            style = MaterialTheme.typography.bodyMedium
+                        )
+                    }
                 }
             }
 
@@ -1374,7 +1356,7 @@ fun TogglesContainer(
                 })
             }
 
-            if (!(shizukuAvailable && shizukuPermission)) {
+            if (!ShellManager.isAvailable()) {
                 Row(
                     verticalAlignment = Alignment.CenterVertically,
                     modifier = Modifier
@@ -1426,7 +1408,7 @@ fun ButtonConfigScreen(
     keyboardPalette: Palette,
     isFromKeyboard: Boolean = false,
     isScreenOff: Boolean,
-    shizukuPermission: Boolean,
+    shellPermission: Boolean,
     onScreenOffChange: (Boolean) -> Unit,
     onBack: () -> Unit,
     onSelectAction: (Int, String, String) -> Unit,
@@ -1459,8 +1441,8 @@ fun ButtonConfigScreen(
                     val message = when {
                         !overrideScreenOff -> stringResource(R.string.override_disabled_msg)
                         keyCode == 27 -> stringResource(R.string.camera_limit_msg)
-                        isVolumeButton && !shizukuPermission -> stringResource(R.string.volume_shizuku_msg)
-                        !shizukuPermission -> stringResource(R.string.non_volume_shizuku_msg)
+                        isVolumeButton && !shellPermission -> stringResource(R.string.volume_shell_msg)
+                        !shellPermission -> stringResource(R.string.non_volume_shell_msg)
                         else -> stringResource(R.string.config_unavailable_msg)
                     }
                     Text(message)
@@ -1527,10 +1509,10 @@ fun ButtonConfigScreen(
                                 showDisabledDialog = true // Will show the "Override Off" message
                             } else if (keyCode == 27) {
                                 showDisabledDialog = true // Hardware limitation
-                            } else if (isVolumeButton && !shizukuPermission) {
+                            } else if (isVolumeButton && !shellPermission) {
                                 showDisabledDialog = true // Use toggle instead
-                            } else if (!isVolumeButton && !shizukuPermission) {
-                                showDisabledDialog = true // Requires Shizuku
+                            } else if (!isVolumeButton && !shellPermission) {
+                                showDisabledDialog = true // Requires Shell access
                             } else if (keyCode == 134 && !isScreenOff) {
                                 showFocusWarningDialog = true
                             } else {
@@ -1539,7 +1521,7 @@ fun ButtonConfigScreen(
                         },
                         border = if (!isScreenOff) BorderStroke(1.dp, MaterialTheme.colorScheme.primary) else null,
                         colors = when {
-                            !overrideScreenOff || keyCode == 27 || (isVolumeButton && !shizukuPermission) || (!isVolumeButton && !shizukuPermission) -> ButtonDefaults.buttonColors(
+                            !overrideScreenOff || keyCode == 27 || (isVolumeButton && !shellPermission) || (!isVolumeButton && !shellPermission) -> ButtonDefaults.buttonColors(
                                 containerColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.12f),
                                 contentColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.38f)
                             )
@@ -1831,15 +1813,10 @@ fun ActionSelectionScreen(
     val backgroundColor = MaterialTheme.colorScheme.background
     val isScreenOff = config.state == "OFF"
 
-    var shizukuReady by remember { mutableStateOf(false) }
+    var shellReady by remember { mutableStateOf(false) }
     LaunchedEffect(Unit) {
         while (true) {
-            shizukuReady = try {
-                Shizuku.pingBinder() &&
-                        Shizuku.checkSelfPermission() == PackageManager.PERMISSION_GRANTED
-            } catch (_: Exception) {
-                false
-            }
+            shellReady = ShellManager.isAvailable()
             kotlinx.coroutines.delay(2000.milliseconds)
         }
     }
@@ -1912,11 +1889,11 @@ fun ActionSelectionScreen(
                 beyondViewportPageCount = 1
             ) { page ->
                 when (page) {
-                    0 -> ActionsTab(config, onActionSelected, shizukuReady)
+                    0 -> ActionsTab(config, onActionSelected, shellReady)
                     1 -> AppsTab(config, onActionSelected, isScreenOff)
                     2 -> ShortcutsTab(config, onActionSelected, isScreenOff)
-                    3 -> SystemTab(config, onActionSelected, shizukuReady)
-                    4 -> MediaTab(config, onActionSelected, shizukuReady)
+                    3 -> SystemTab(config, onActionSelected, shellReady)
+                    4 -> MediaTab(config, onActionSelected, shellReady)
                 }
             }
         }
@@ -1927,7 +1904,7 @@ fun ActionSelectionScreen(
 fun ActionsTab(
     config: ActionConfig,
     onActionSelected: (String) -> Unit,
-    shizukuReady: Boolean,
+    shellReady: Boolean,
 ) {
     val actions = listOf(
         SettingsManager.ACTION_NONE,
@@ -1959,7 +1936,7 @@ fun ActionsTab(
         SettingsManager.ACTION_URL,
         SettingsManager.ACTION_QR_CODE,
     )
-    ActionList(actions, config, onActionSelected, shizukuReady)
+    ActionList(actions, config, onActionSelected, shellReady)
 }
 
 @Composable
@@ -2224,7 +2201,7 @@ fun ShortcutsTab(
 fun SystemTab(
     config: ActionConfig,
     onActionSelected: (String) -> Unit,
-    shizukuReady: Boolean,
+    shellReady: Boolean,
 ) {
     val actions = listOf(
         SettingsManager.ACTION_VIBRATE_RINGER,
@@ -2243,14 +2220,14 @@ fun SystemTab(
         SettingsManager.ACTION_ROTATE_360,
         SettingsManager.ACTION_AUTOROTATE_TOGGLE
     )
-    ActionList(actions, config, onActionSelected, shizukuReady)
+    ActionList(actions, config, onActionSelected, shellReady)
 }
 
 @Composable
 fun MediaTab(
     config: ActionConfig,
     onActionSelected: (String) -> Unit,
-    shizukuReady: Boolean,
+    shellReady: Boolean,
 ) {
     val actions = listOf(
         SettingsManager.ACTION_VOLUME_UP,
@@ -2267,7 +2244,7 @@ fun MediaTab(
         SettingsManager.ACTION_STEP_FORWARD,
         SettingsManager.ACTION_STEP_BACKWARD,
     )
-    ActionList(actions, config, onActionSelected, shizukuReady)
+    ActionList(actions, config, onActionSelected, shellReady)
 }
 
 @Composable
@@ -2293,7 +2270,7 @@ fun LiftToWakeWarningDialog(
                 context.startActivity(intent)
 
                 // If Shizuku is available, scroll to the bottom after a short delay
-                if (ShizukuManager.isAvailable()) {
+                if (ShellManager.isAvailable()) {
                     Handler(Looper.getMainLooper()).postDelayed({
                         // 1. Slow swipe to collapse the header and move the list
                         // 2. sleep to let the animation finish
@@ -2305,7 +2282,7 @@ fun LiftToWakeWarningDialog(
                             append(" && input keyevent 123")
                             repeat(25) { append(" && input keyevent 20") }
                         }
-                        ShizukuManager.runShellCommand(scrollCommand)
+                        ShellManager.runShellCommand(scrollCommand)
                     }, 1500L)
                 }
             } catch (_: Exception) {
@@ -2657,7 +2634,7 @@ fun ActionList(
     actions: List<String>,
     config: ActionConfig,
     onActionSelected: (String) -> Unit,
-    shizukuReady: Boolean = true,
+    shellReady: Boolean = true,
 ) {
     val context = LocalContext.current
     var showInputDialog by rememberSaveable { mutableStateOf<String?>(null) }
@@ -2784,8 +2761,8 @@ fun ActionList(
     ) {
         items(actions.size) { index ->
             val action = actions[index]
-            val disabled = isActionDisabled(action, shizukuReady)
-            val disabledReasonRes = disabledReasonFor(action, shizukuReady)
+            val disabled = isActionDisabled(action, shellReady)
+            val disabledReasonRes = disabledReasonFor(action, shellReady)
 
             val displayName = getActionDisplayName(action)
 
