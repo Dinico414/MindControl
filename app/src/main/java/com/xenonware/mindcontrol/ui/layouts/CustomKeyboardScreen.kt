@@ -1,4 +1,4 @@
-package com.xenonware.mindcontrol
+package com.xenonware.mindcontrol.ui.layouts
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -37,6 +37,7 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.xenon.mylibrary.theme.QuicksandTitleVariable
+import com.xenonware.mindcontrol.ButtonState
 import com.xenonware.mindcontrol.ui.theme.Palette
 import com.xenonware.mindcontrol.ui.theme.PaletteTheme
 
