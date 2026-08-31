@@ -40,6 +40,7 @@
     <string name="accessibility_disclosure_title">Accessibility Disclosure</string>
     <string name="grant_permission">Grant Permission</string>
     <string name="accessibility_disclosure_content">MindControl uses Accessibility Services to detect hardware button presses (such as volume and camera buttons) and map them to custom actions.\n\n• This service is required for the app\'s core functionality.\n• No personal data is collected or shared.\n• Key presses are processed locally on your device.</string>
+    <string name="accessibility_guide">If you cannot enable the service due to \"Restricted Settings\", go to App Info (three dots in top right) and select \"Allow restricted settings\".</string>
 
     <!-- Settings Toggles -->
     <string name="disable_in_camera">Disable in camera</string>

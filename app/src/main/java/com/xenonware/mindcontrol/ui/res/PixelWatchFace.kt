@@ -1,4 +1,4 @@
-package com.xenonware.mindcontrol.ui
+package com.xenonware.mindcontrol.ui.res
 
 import android.text.format.DateFormat
 import androidx.compose.animation.core.animateFloatAsState
@@ -35,6 +35,7 @@ import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.drawText
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.rememberTextMeasurer
+import androidx.compose.ui.unit.TextUnit
 import androidx.compose.ui.unit.sp
 import com.xenon.mylibrary.theme.QuicksandTitleVariable
 import kotlinx.coroutines.delay
@@ -42,7 +43,9 @@ import java.util.Calendar
 import java.util.Locale
 import kotlin.math.cos
 import kotlin.math.max
+import kotlin.math.min
 import kotlin.math.sin
+import kotlin.time.Duration.Companion.milliseconds
 
 @Composable
 fun ConcentricWatchFace(isActive: Boolean) {
@@ -66,7 +69,7 @@ fun ConcentricWatchFace(isActive: Boolean) {
             isLongInactive = false
             if (wereMinutesHidden) {
                 isReappearing = true
-                delay(250L) // Delay seconds/pill expansion if minutes were hidden
+                delay(250L.milliseconds) // Delay seconds/pill expansion if minutes were hidden
                 isReappearing = false
             }
             isShortInactive = false
@@ -77,7 +80,7 @@ fun ConcentricWatchFace(isActive: Boolean) {
 
             isShortInactive = true
 
-            delay(300_000L)
+            delay(300_000L.milliseconds)
             isLongInactive = true
         }
     }
@@ -104,13 +107,13 @@ fun ConcentricWatchFace(isActive: Boolean) {
         while (true) {
             time = System.currentTimeMillis()
             if (!isFullyInactive) {
-                delay(16)
+                delay(16.milliseconds)
             } else {
                 val calendar = Calendar.getInstance().apply { timeInMillis = time }
                 val seconds = calendar.get(Calendar.SECOND)
                 val millis = calendar.get(Calendar.MILLISECOND)
                 val delayToNextMinute = 60000L - (seconds * 1000L + millis)
-                delay(max(delayToNextMinute, 100L))
+                delay(max(delayToNextMinute, 100L).milliseconds)
             }
         }
     }
@@ -154,7 +157,7 @@ fun ConcentricWatchFace(isActive: Boolean) {
         val secondaryColor = Color.Gray
         val pillOutlineColor = Color.LightGray
 
-        fun pxToSp(px: Float): androidx.compose.ui.unit.TextUnit =
+        fun pxToSp(px: Float): TextUnit =
             (px / localDensity.density / localDensity.fontScale).sp
 
         val hourStyle = TextStyle(
@@ -326,13 +329,13 @@ fun StackedWatchFace(isActive: Boolean) {
         while (true) {
             time = System.currentTimeMillis()
             if (!isFullyInactive) {
-                delay(16)
+                delay(16.milliseconds)
             } else {
                 val calendar = Calendar.getInstance().apply { timeInMillis = time }
                 val seconds = calendar.get(Calendar.SECOND)
                 val millis = calendar.get(Calendar.MILLISECOND)
                 val delayToNextMinute = 60000L - (seconds * 1000L + millis)
-                delay(max(delayToNextMinute, 100L))
+                delay(max(delayToNextMinute, 100L).milliseconds)
             }
         }
     }
@@ -361,7 +364,7 @@ fun StackedWatchFace(isActive: Boolean) {
         val cy = h / 2f
         val r = w / 2f
 
-        fun pxToSp(px: Float): androidx.compose.ui.unit.TextUnit =
+        fun pxToSp(px: Float): TextUnit =
             (px / localDensity.density / localDensity.fontScale).sp
 
         val textStyle = TextStyle(
@@ -413,13 +416,13 @@ fun InlineWatchFace(isActive: Boolean) {
         while (true) {
             time = System.currentTimeMillis()
             if (!isFullyInactive) {
-                delay(16)
+                delay(16.milliseconds)
             } else {
                 val calendar = Calendar.getInstance().apply { timeInMillis = time }
                 val seconds = calendar.get(Calendar.SECOND)
                 val millis = calendar.get(Calendar.MILLISECOND)
                 val delayToNextMinute = 60000L - (seconds * 1000L + millis)
-                delay(max(delayToNextMinute, 100L))
+                delay(max(delayToNextMinute, 100L).milliseconds)
             }
         }
     }
@@ -448,7 +451,7 @@ fun InlineWatchFace(isActive: Boolean) {
         val cy = h / 2f
         val r = w / 2f
 
-        fun pxToSp(px: Float): androidx.compose.ui.unit.TextUnit =
+        fun pxToSp(px: Float): TextUnit =
             (px / localDensity.density / localDensity.fontScale).sp
 
         val textStyle = TextStyle(
@@ -500,7 +503,7 @@ fun AnalogWatchFace(isActive: Boolean) {
     LaunchedEffect(isActive) {
         while (true) {
             time = System.currentTimeMillis()
-            if (isActive) delay(16) else delay(1000)
+            if (isActive) delay(16.milliseconds) else delay(1000.milliseconds)
         }
     }
 
@@ -615,7 +618,7 @@ fun PixelStackedWatchFace(isActive: Boolean) {
     LaunchedEffect(isActive) {
         while (true) {
             time = System.currentTimeMillis()
-            if (isActive) delay(16) else delay(1000)
+            if (isActive) delay(16.milliseconds) else delay(1000.milliseconds)
         }
     }
 
@@ -668,7 +671,7 @@ fun PixelInlineWatchFace(isActive: Boolean) {
     LaunchedEffect(isActive) {
         while (true) {
             time = System.currentTimeMillis()
-            if (isActive) delay(16) else delay(1000)
+            if (isActive) delay(16.milliseconds) else delay(1000.milliseconds)
         }
     }
 
@@ -729,7 +732,7 @@ fun SpinnerWatchFace(isActive: Boolean) {
     LaunchedEffect(isActive) {
         while (true) {
             time = System.currentTimeMillis()
-            if (isActive) delay(16) else delay(1000)
+            if (isActive) delay(16.milliseconds) else delay(1000.milliseconds)
         }
     }
 
@@ -829,7 +832,7 @@ private val PIXEL_PATTERNS = arrayOf(
 
 private fun DrawScope.drawPixelDigit(digit: Int, offset: Offset, width: Float, height: Float, color: Color, alpha: Float) {
     val pattern = PIXEL_PATTERNS[digit.coerceIn(0, 9)]
-    val cellSize = kotlin.math.min(width / 3f, height / 5f)
+    val cellSize = min(width / 3f, height / 5f)
     val startX = offset.x + (width - cellSize * 3f) / 2f
     val startY = offset.y + (height - cellSize * 5f) / 2f
     
@@ -848,11 +851,11 @@ private fun DrawScope.drawPixelDigit(digit: Int, offset: Offset, width: Float, h
 
                 // Default Beveling: outer corners of the 3x5 bounding box are "cut"
                 // Meaning the right angle faces the INSIDE.
-                var type = when {
-                    col == 0 && row == 0 -> "br"
-                    col == 2 && row == 0 -> "bl"
-                    col == 0 && row == 4 -> "tr"
-                    col == 2 && row == 4 -> "tl"
+                var type = when (col) {
+                    0 if row == 0 -> "br"
+                    2 if row == 0 -> "bl"
+                    0 if row == 4 -> "tr"
+                    2 if row == 4 -> "tl"
                     else -> "full"
                 }
 
@@ -964,7 +967,7 @@ private fun DrawScope.drawNothingDigit(digit: Int, offset: Offset, width: Float,
     val pattern = NOTHING_DOT_PATTERNS[digit.coerceIn(0, 9)]
     
     // Use a uniform cell size to ensure horizontal and vertical spacing are identical.
-    val cellSize = kotlin.math.min(width / 4f, height / 7f)
+    val cellSize = min(width / 4f, height / 7f)
     
     // Center the 4x7 grid within the allocated width/height.
     val startX = offset.x + (width - cellSize * 4f) / 2f
@@ -1003,17 +1006,15 @@ private fun DrawScope.drawDigitalDigit(digit: Int, offset: Offset, width: Float,
 
     val x = offset.x
     val y = offset.y
-    val w = width
-    val h = height
-    val mh = y + h / 2f
+    val mh = y + height / 2f
 
     // Standard meeting points for a 7-segment display
     val p1 = Offset(x + r, y + r)      // Top-Left
-    val p2 = Offset(x + w - r, y + r)  // Top-Right
+    val p2 = Offset(x + width - r, y + r)  // Top-Right
     val p3 = Offset(x + r, mh)         // Mid-Left
-    val p4 = Offset(x + w - r, mh)     // Mid-Right
-    val p5 = Offset(x + r, y + h - r)  // Bottom-Left
-    val p6 = Offset(x + w - r, y + h - r) // Bottom-Right
+    val p4 = Offset(x + width - r, mh)     // Mid-Right
+    val p5 = Offset(x + r, y + height - r)  // Bottom-Left
+    val p6 = Offset(x + width - r, y + height - r) // Bottom-Right
 
     // Offset based on gap to make horizontal segments shorter for alignment
     val hg = g * 1.5f 
@@ -1047,14 +1048,14 @@ private fun DrawScope.drawDigitalDigit(digit: Int, offset: Offset, width: Float,
 
     // Segment D (Bottom)
     if ((segments and 0x08) != 0) {
-        val ly = y + h - r
+        val ly = y + height - r
         drawSeg(listOf(
             Offset(p5.x + hg, ly),     // Left Point
-            Offset(p5.x + hg + r, y + h - t), // Top-Left
-            Offset(p6.x - hg - r, y + h - t), // Top-Right
+            Offset(p5.x + hg + r, y + height - t), // Top-Left
+            Offset(p6.x - hg - r, y + height - t), // Top-Right
             Offset(p6.x - hg, ly),     // Right Point
-            Offset(p6.x - hg - r, y + h), // Bottom-Right
-            Offset(p5.x + hg + r, y + h)  // Bottom-Left
+            Offset(p6.x - hg - r, y + height), // Bottom-Right
+            Offset(p5.x + hg + r, y + height)  // Bottom-Left
         ))
     }
 
@@ -1075,14 +1076,14 @@ private fun DrawScope.drawDigitalDigit(digit: Int, offset: Offset, width: Float,
 
     // Segment B (Top Right)
     if ((segments and 0x02) != 0) {
-        val lx = x + w - r
+        val lx = x + width - r
         drawSeg(listOf(
             Offset(lx, p2.y + g),           // Top Point
-            Offset(x + w, p2.y + g + r),    // Top-Right
-            Offset(x + w, p4.y - g - r),    // Bottom-Right
+            Offset(x + width, p2.y + g + r),    // Top-Right
+            Offset(x + width, p4.y - g - r),    // Bottom-Right
             Offset(lx, p4.y - g),           // Bottom Point
-            Offset(x + w - t, p4.y - g - r), // Bottom-Left
-            Offset(x + w - t, p2.y + g + r)  // Top-Left
+            Offset(x + width - t, p4.y - g - r), // Bottom-Left
+            Offset(x + width - t, p2.y + g + r)  // Top-Left
         ))
     }
 
@@ -1101,14 +1102,14 @@ private fun DrawScope.drawDigitalDigit(digit: Int, offset: Offset, width: Float,
 
     // Segment C (Bottom Right)
     if ((segments and 0x04) != 0) {
-        val lx = x + w - r
+        val lx = x + width - r
         drawSeg(listOf(
             Offset(lx, p4.y + g),           // Top Point
-            Offset(x + w, p4.y + g + r),    // Top-Right
-            Offset(x + w, p6.y - g - r),    // Bottom-Right
+            Offset(x + width, p4.y + g + r),    // Top-Right
+            Offset(x + width, p6.y - g - r),    // Bottom-Right
             Offset(lx, p6.y - g),           // Bottom Point
-            Offset(x + w - t, p6.y - g - r), // Bottom-Left
-            Offset(x + w - t, p4.y + g + r)  // Top-Left
+            Offset(x + width - t, p6.y - g - r), // Bottom-Left
+            Offset(x + width - t, p4.y + g + r)  // Top-Left
         ))
     }
 }
@@ -1128,7 +1129,7 @@ private fun GenericStackedGridWatchFace(isActive: Boolean, isNothingStyle: Boole
     LaunchedEffect(isActive) {
         while (true) {
             time = System.currentTimeMillis()
-            if (isActive) delay(16) else delay(1000)
+            if (isActive) delay(16.milliseconds) else delay(1000.milliseconds)
         }
     }
 
@@ -1187,7 +1188,7 @@ private fun GenericInlineGridWatchFace(isActive: Boolean, isNothingStyle: Boolea
     LaunchedEffect(isActive) {
         while (true) {
             time = System.currentTimeMillis()
-            if (isActive) delay(16) else delay(1000)
+            if (isActive) delay(16.milliseconds) else delay(1000.milliseconds)
         }
     }
 
@@ -1265,7 +1266,7 @@ fun PlanetsWatchFace(isActive: Boolean) {
     LaunchedEffect(isActive) {
         while (true) {
             time = System.currentTimeMillis()
-            if (isActive) delay(16) else delay(1000)
+            if (isActive) delay(16.milliseconds) else delay(1000.milliseconds)
         }
     }
 
@@ -1388,13 +1389,13 @@ fun QuicksandBlocksWatchFace(isActive: Boolean) {
         while (true) {
             time = System.currentTimeMillis()
             if (!isFullyInactive) {
-                delay(16)
+                delay(16.milliseconds)
             } else {
                 val calendar = Calendar.getInstance().apply { timeInMillis = time }
                 val seconds = calendar.get(Calendar.SECOND)
                 val millis = calendar.get(Calendar.MILLISECOND)
                 val delayToNextMinute = 60000L - (seconds * 1000L + millis)
-                delay(max(delayToNextMinute, 100L))
+                delay(max(delayToNextMinute, 100L).milliseconds)
             }
         }
     }
@@ -1422,7 +1423,7 @@ fun QuicksandBlocksWatchFace(isActive: Boolean) {
 
         val cx = w / 2f
 
-        fun pxToSp(px: Float): androidx.compose.ui.unit.TextUnit =
+        fun pxToSp(px: Float): TextUnit =
             (px / localDensity.density / localDensity.fontScale).sp
 
         // Lower area for 6 big blocks in 3x2 grid
@@ -1436,17 +1437,17 @@ fun QuicksandBlocksWatchFace(isActive: Boolean) {
         // Solve for S. If gridWidth is at most w * 0.85f:
         // 3 * S + 2 * g = w * 0.85f => 3 * S = 0.85 * w - 2 * g
         // S = (w * 0.85f - 2 * g) / 3f
-        val S = (w * 0.85f - 2 * g) / 3f
+        val s = (w * 0.85f - 2 * g) / 3f
         
-        val gridWidth = 3 * S + 2 * g
-        val gridHeight = 2 * S + g
+        val gridWidth = 3 * s + 2 * g
+        val gridHeight = 2 * s + g
         
         val startX = cx - gridWidth / 2f
         val startY = blockAreaTop + (blockAreaHeight - gridHeight) / 2f
 
         // Hour on top of the left first square (first block col 0, row 0)
         // Let's center it horizontally with the first square
-        val hourCenterX = startX + S / 2f
+        val hourCenterX = startX + s / 2f
 
         val hourStyle = TextStyle(
             color = Color.White,
@@ -1470,11 +1471,11 @@ fun QuicksandBlocksWatchFace(isActive: Boolean) {
         for (row in 0 until 2) {
             for (col in 0 until 3) {
                 val blockIndex = row * 3 + col
-                val bx = startX + col * (S + g)
-                val by = startY + row * (S + g)
+                val bx = startX + col * (s + g)
+                val by = startY + row * (s + g)
 
                 // Each of the 6 big blocks is divided into a 3x3 grid of cells
-                val c = S / 3f
+                val c = s / 3f
 
                 // State of the block
                 when {
@@ -1483,7 +1484,7 @@ fun QuicksandBlocksWatchFace(isActive: Boolean) {
                         drawRect(
                             color = Color.White,
                             topLeft = Offset(bx, by),
-                            size = Size(S, S)
+                            size = Size(s, s)
                         )
                     }
                     blockIndex == completedIntervals -> {
@@ -1557,7 +1558,7 @@ fun BarsWatchFace(isActive: Boolean) {
     LaunchedEffect(isActive) {
         while (true) {
             time = System.currentTimeMillis()
-            if (isActive) delay(16) else delay(1000)
+            if (isActive) delay(16.milliseconds) else delay(1000.milliseconds)
         }
     }
 
@@ -1568,7 +1569,6 @@ fun BarsWatchFace(isActive: Boolean) {
 
     val totalHourSegments = if (is24Hour) 24 else 12
     val activeHourSegments = if (is24Hour) hour else (hour % 12).let { if (it == 0) 12 else it }
-    val activeMinuteSegments = minute
 
     Canvas(
         modifier = Modifier
@@ -1632,7 +1632,7 @@ fun BarsWatchFace(isActive: Boolean) {
         val minuteSpacing = 1.2f
         val minuteSegmentHeight = (drawableHeight - (60 - 1) * minuteSpacing) / 60
 
-        for (i in 0 until activeMinuteSegments) {
+        for (i in 0 until minute) {
             // Drawn from bottom to top
             val y = h - (i * (minuteSegmentHeight + minuteSpacing)) - minuteSegmentHeight
 
@@ -1650,7 +1650,7 @@ fun BarsWatchFace(isActive: Boolean) {
         } else {
             h
         }
-        // At full fill, hourWaterLevelY == reservedTop, so hourTextY == 0 (just fits).
+        // At fulfill, hourWaterLevelY == reservedTop, so hourTextY == 0 (just fits).
         val hourTextY = (hourWaterLevelY - numberBaseline - paddingAboveBar).coerceAtLeast(0f)
 
         drawText(
@@ -1659,8 +1659,8 @@ fun BarsWatchFace(isActive: Boolean) {
         )
 
         // Draw Minute Number
-        val minuteWaterLevelY = if (activeMinuteSegments > 0) {
-            h - activeMinuteSegments * minuteSegmentHeight - (activeMinuteSegments - 1) * minuteSpacing
+        val minuteWaterLevelY = if (minute > 0) {
+            h - minute * minuteSegmentHeight - (minute - 1) * minuteSpacing
         } else {
             h
         }

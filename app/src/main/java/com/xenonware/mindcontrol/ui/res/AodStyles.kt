@@ -1,4 +1,4 @@
-package com.xenonware.mindcontrol.ui
+package com.xenonware.mindcontrol.ui.res
 
 import android.service.notification.StatusBarNotification
 import android.util.Log
@@ -42,7 +42,6 @@ import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp

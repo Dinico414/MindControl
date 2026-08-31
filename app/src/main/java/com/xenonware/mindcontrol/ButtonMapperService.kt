@@ -774,61 +774,57 @@ class ButtonMapperService : AccessibilityService() {
     }
 
     private fun toggleMicPrivacy() {
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-            try {
-                if (ShellManager.isAvailable()) {
-                    Thread {
-                        // Log help once to see what this device supports if we keep failing
-                        ShellManager.runShellCommandBlocking("cmd sensor_privacy help")
+        try {
+            if (ShellManager.isAvailable()) {
+                Thread {
+                    // Log help once to see what this device supports if we keep failing
+                    ShellManager.runShellCommandBlocking("cmd sensor_privacy help")
 
-                        // Try to get state using different variations
-                        var output = ShellManager.runShellCommandBlocking("cmd sensor_privacy get-state 0 1")
-                        if (output.contains("Unknown", ignoreCase = true) || output.contains("Invalid", ignoreCase = true)) {
-                            output = ShellManager.runShellCommandBlocking("cmd sensor_privacy get-state 0 microphone")
+                    // Try to get state using different variations
+                    var output = ShellManager.runShellCommandBlocking("cmd sensor_privacy get-state 0 1")
+                    if (output.contains("Unknown", ignoreCase = true) || output.contains("Invalid", ignoreCase = true)) {
+                        output = ShellManager.runShellCommandBlocking("cmd sensor_privacy get-state 0 microphone")
+                    }
+
+                    // Determine current state (true = blocked/muted, false = available)
+                    val isPrivacyEnabled = if (output.contains("Unknown", ignoreCase = true) || output.contains("Invalid", ignoreCase = true) || output.isEmpty()) {
+                        audioManager.isMicrophoneMute
+                    } else {
+                        output.contains("enabled", ignoreCase = true) || output.contains("true", ignoreCase = true)
+                    }
+
+                    val nextState = !isPrivacyEnabled
+                    val subCmd = if (nextState) "enable" else "disable"
+                    val stateStr = if (nextState) "true" else "false"
+
+                    // Try to set state using different variations until one works
+                    val commands = listOf(
+                        "cmd sensor_privacy set-state 0 1 $stateStr",
+                        "cmd sensor_privacy set-state 0 microphone $stateStr",
+                        "cmd sensor_privacy $subCmd 0 1",
+                        "cmd sensor_privacy $subCmd 0 microphone",
+                        "cmd sensor_privacy $subCmd microphone" // Some devices don't want user ID
+                    )
+
+                    var success = false
+                    for (cmd in commands) {
+                        val res = ShellManager.runShellCommandBlocking(cmd)
+                        if (res.isEmpty() || (!res.contains("Unknown", ignoreCase = true) && !res.contains("Invalid", ignoreCase = true))) {
+                            Log.d(tag, "Mic Privacy Toggle Success with command: $cmd")
+                            success = true
+                            break
                         }
-                        
-                        // Determine current state (true = blocked/muted, false = available)
-                        val isPrivacyEnabled = if (output.contains("Unknown", ignoreCase = true) || output.contains("Invalid", ignoreCase = true) || output.isEmpty()) {
-                            audioManager.isMicrophoneMute
-                        } else {
-                            output.contains("enabled", ignoreCase = true) || output.contains("true", ignoreCase = true)
-                        }
+                    }
 
-                        val nextState = !isPrivacyEnabled
-                        val subCmd = if (nextState) "enable" else "disable"
-                        val stateStr = if (nextState) "true" else "false"
-
-                        // Try to set state using different variations until one works
-                        val commands = listOf(
-                            "cmd sensor_privacy set-state 0 1 $stateStr",
-                            "cmd sensor_privacy set-state 0 microphone $stateStr",
-                            "cmd sensor_privacy $subCmd 0 1",
-                            "cmd sensor_privacy $subCmd 0 microphone",
-                            "cmd sensor_privacy $subCmd microphone" // Some devices don't want user ID
-                        )
-
-                        var success = false
-                        for (cmd in commands) {
-                            val res = ShellManager.runShellCommandBlocking(cmd)
-                            if (res.isEmpty() || (!res.contains("Unknown", ignoreCase = true) && !res.contains("Invalid", ignoreCase = true))) {
-                                Log.d(tag, "Mic Privacy Toggle Success with command: $cmd")
-                                success = true
-                                break
-                            }
-                        }
-
-                        // Sync software mute
-                        audioManager.isMicrophoneMute = nextState
-                        Log.d(tag, "Mic Privacy Toggle: TargetState=$nextState, Success=$success")
-                    }.start()
-                } else {
-                    audioManager.isMicrophoneMute = !audioManager.isMicrophoneMute
-                }
-            } catch (e: Exception) {
-                Log.e(tag, "Error toggling mic privacy", e)
+                    // Sync software mute
+                    audioManager.isMicrophoneMute = nextState
+                    Log.d(tag, "Mic Privacy Toggle: TargetState=$nextState, Success=$success")
+                }.start()
+            } else {
                 audioManager.isMicrophoneMute = !audioManager.isMicrophoneMute
             }
-        } else {
+        } catch (e: Exception) {
+            Log.e(tag, "Error toggling mic privacy", e)
             audioManager.isMicrophoneMute = !audioManager.isMicrophoneMute
         }
     }

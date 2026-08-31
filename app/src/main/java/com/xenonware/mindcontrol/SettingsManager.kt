@@ -196,7 +196,7 @@ object SettingsManager {
             }
             
             try {
-                // Da wir im Manifest ${applicationId}.Alias nutzen, 
+                // Da wir im Manifest ${applicationId}. Alias nutzen,
                 // bauen wir den Namen hier exakt so zusammen.
                 val aliasClass = "$packageName.$aliasSuffix"
                 packageManager.setComponentEnabledSetting(

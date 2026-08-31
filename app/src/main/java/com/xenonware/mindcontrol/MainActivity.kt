@@ -50,6 +50,7 @@ import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeDrawing
 import androidx.compose.foundation.layout.size
@@ -183,20 +184,20 @@ import com.xenon.mylibrary.res.XenonDialog
 import com.xenon.mylibrary.theme.QuicksandTitleVariable
 import com.xenon.mylibrary.values.MediumCornerRadius
 import com.xenon.mylibrary.values.SmallestCornerRadius
-import com.xenonware.mindcontrol.ui.AnalogAodStyle
-import com.xenonware.mindcontrol.ui.BlocksAodStyle
-import com.xenonware.mindcontrol.ui.BarsAodStyle
-import com.xenonware.mindcontrol.ui.ConcentricAodStyle
-import com.xenonware.mindcontrol.ui.InlineAodStyle
-import com.xenonware.mindcontrol.ui.InlineDigitalAodStyle
-import com.xenonware.mindcontrol.ui.InlineDotAodStyle
-import com.xenonware.mindcontrol.ui.PixelInlineAodStyle
-import com.xenonware.mindcontrol.ui.PixelStackedAodStyle
-import com.xenonware.mindcontrol.ui.PlanetsAodStyle
-import com.xenonware.mindcontrol.ui.SpinnerAodStyle
-import com.xenonware.mindcontrol.ui.StackedAodStyle
-import com.xenonware.mindcontrol.ui.StackedDigitalAodStyle
-import com.xenonware.mindcontrol.ui.StackedDotAodStyle
+import com.xenonware.mindcontrol.ui.res.AnalogAodStyle
+import com.xenonware.mindcontrol.ui.res.BarsAodStyle
+import com.xenonware.mindcontrol.ui.res.BlocksAodStyle
+import com.xenonware.mindcontrol.ui.res.ConcentricAodStyle
+import com.xenonware.mindcontrol.ui.res.InlineAodStyle
+import com.xenonware.mindcontrol.ui.res.InlineDigitalAodStyle
+import com.xenonware.mindcontrol.ui.res.InlineDotAodStyle
+import com.xenonware.mindcontrol.ui.res.PixelInlineAodStyle
+import com.xenonware.mindcontrol.ui.res.PixelStackedAodStyle
+import com.xenonware.mindcontrol.ui.res.PlanetsAodStyle
+import com.xenonware.mindcontrol.ui.res.SpinnerAodStyle
+import com.xenonware.mindcontrol.ui.res.StackedAodStyle
+import com.xenonware.mindcontrol.ui.res.StackedDigitalAodStyle
+import com.xenonware.mindcontrol.ui.res.StackedDotAodStyle
 import com.xenonware.mindcontrol.ui.theme.BlueTheme
 import com.xenonware.mindcontrol.ui.theme.GreenTheme
 import com.xenonware.mindcontrol.ui.theme.Palette
@@ -361,6 +362,18 @@ fun getTypeDisplayName(type: String): String {
     }
     return if (resId != null) stringResource(resId) else type.split("_").joinToString(" ") { word ->
         word.lowercase().replaceFirstChar { if (it.isLowerCase()) it.titlecase() else it.toString() }
+    }
+}
+
+private fun openAppInfo(context: Context) {
+    try {
+        val intent = Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS).apply {
+            data = android.net.Uri.fromParts("package", context.packageName, null)
+            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+        }
+        context.startActivity(intent)
+    } catch (e: Exception) {
+        Log.e("MainActivity", "Error opening app info", e)
     }
 }
 
@@ -1104,25 +1117,68 @@ fun TogglesContainer(
                 false
             }
 
-            if (shizukuInstalled || isRooted) {
-                val shizukuAvailable = ShellManager.isShizukuAvailable()
-                val rootAvailable = ShellManager.isRootAvailable()
-                val hasAccess = shizukuAvailable || rootAvailable
+            val shizukuAvailable = ShellManager.isShizukuAvailable()
+            val rootAvailable = ShellManager.isRootAvailable()
 
+            if (rootAvailable) {
+                // Root is available, show ONLY the green root box.
+                Card(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(vertical = 4.dp),
+                    colors = CardDefaults.cardColors(containerColor = Color(0xFFE8F5E9)),
+                    border = BorderStroke(1.dp, Color(0xFF2E7D32))
+                ) {
+                    Column(modifier = Modifier.padding(12.dp)) {
+                        Text(
+                            text = stringResource(R.string.root_authorized),
+                            color = Color(0xFF2E7D32),
+                            style = MaterialTheme.typography.bodyMedium
+                        )
+                    }
+                }
+            } else if (isRooted || shizukuInstalled) {
+                // Root box (red) if rooted
+                if (isRooted) {
+                    Card(
+                        onClick = {
+                            Thread { ShellManager.isRootAvailable() }.start()
+                        },
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(vertical = 4.dp),
+                        colors = CardDefaults.cardColors(containerColor = Color(0xFFFFEBEE)),
+                        border = BorderStroke(1.dp, Color(0xFFC62828))
+                    ) {
+                        Column(modifier = Modifier.padding(12.dp)) {
+                            Text(
+                                text = stringResource(R.string.root_unauthorized),
+                                color = Color(0xFFC62828),
+                                style = MaterialTheme.typography.bodyMedium
+                            )
+                        }
+                    }
+                }
+
+                // Shizuku box
                 Card(
                     onClick = {
-                        if (isRooted && !rootAvailable) {
-                            // Try to request root
-                            Thread { ShellManager.isRootAvailable() }.start()
-                        } else if (shizukuInstalled) {
-                            when {
-                                !shizukuAvailable -> {
-                                    val intent = context.packageManager.getLaunchIntentForPackage("moe.shizuku.privileged.api")
-                                    if (intent != null) context.startActivity(intent)
+                        if (shizukuInstalled) {
+                            if (!shizukuAvailable) {
+                                val intent = context.packageManager.getLaunchIntentForPackage("moe.shizuku.privileged.api")
+                                if (intent != null) context.startActivity(intent)
+                            } else {
+                                try {
+                                    Shizuku.requestPermission(0)
+                                } catch (e: Exception) {
+                                    Log.e("MainActivity", "Shizuku request error", e)
                                 }
-                                else -> {
-                                    try { Shizuku.requestPermission(0) } catch (e: Exception) { Log.e("MainActivity", "Shizuku request error", e) }
-                                }
+                            }
+                        } else {
+                            try {
+                                context.startActivity(Intent(Intent.ACTION_VIEW, "market://details?id=moe.shizuku.privileged.api".toUri()))
+                            } catch (_: Exception) {
+                                context.startActivity(Intent(Intent.ACTION_VIEW, "https://play.google.com/store/apps/details?id=moe.shizuku.privileged.api".toUri()))
                             }
                         }
                     },
@@ -1130,23 +1186,21 @@ fun TogglesContainer(
                         .fillMaxWidth()
                         .padding(vertical = 4.dp),
                     colors = CardDefaults.cardColors(
-                        containerColor = if (hasAccess) Color(0xFFE8F5E9) else Color(0xFFFFEBEE)
+                        containerColor = if (shizukuAvailable) Color(0xFFE8F5E9) else Color(0xFFFFEBEE)
                     ),
                     border = BorderStroke(
-                        1.dp, if (hasAccess) Color(0xFF2E7D32) else Color(0xFFC62828)
+                        1.dp, if (shizukuAvailable) Color(0xFF2E7D32) else Color(0xFFC62828)
                     )
                 ) {
                     Column(modifier = Modifier.padding(12.dp)) {
                         val statusText = when {
-                            rootAvailable -> stringResource(R.string.root_authorized)
                             shizukuAvailable -> stringResource(R.string.shizuku_authorized)
-                            isRooted -> stringResource(R.string.root_unauthorized)
                             shizukuInstalled -> stringResource(R.string.shizuku_unauthorized)
-                            else -> stringResource(R.string.shizuku_not_running)
+                            else -> stringResource(R.string.shizuku_not_installed)
                         }
                         Text(
                             text = statusText,
-                            color = if (hasAccess) Color(0xFF2E7D32) else Color(0xFFC62828),
+                            color = if (shizukuAvailable) Color(0xFF2E7D32) else Color(0xFFC62828),
                             style = MaterialTheme.typography.bodyMedium
                         )
                     }
@@ -1297,10 +1351,39 @@ fun TogglesContainer(
                         context.startActivity(intent)
                     },
                     content = {
-                        Text(
-                            stringResource(R.string.accessibility_disclosure_content),
-                            style = MaterialTheme.typography.bodyMedium
-                        )
+                        Column(modifier = Modifier.fillMaxWidth()) {
+                            Text(
+                                stringResource(R.string.accessibility_disclosure_content),
+                                style = MaterialTheme.typography.bodyMedium
+                            )
+
+                            Surface(
+                                onClick = { openAppInfo(context) },
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(top = 16.dp),
+                                shape = RoundedCornerShape(20.dp),
+                                color = Color.Transparent,
+                                border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f))
+                            ) {
+                                Row(
+                                    modifier = Modifier.padding(12.dp),
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Icon(
+                                        Icons.Rounded.Info,
+                                        contentDescription = "Accessibility Guide",
+                                        tint = MaterialTheme.colorScheme.primary,
+                                        modifier = Modifier.padding(end = 12.dp)
+                                    )
+                                    Text(
+                                        text = stringResource(R.string.accessibility_guide),
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.8f)
+                                    )
+                                }
+                            }
+                        }
                     }
                 )
             }

@@ -40,6 +40,7 @@
     <string name="accessibility_disclosure_title">Bedienungshilfen Erklärung</string>
     <string name="grant_permission">Berechtigung erteilen</string>
     <string name="accessibility_disclosure_content">MindControl verwendet Bedienungshilfen, um Hardware-Tastendrücke (wie Lautstärke- und Kameratasten) zu erkennen und benutzerdefinierten Aktionen zuzuordnen.\n\n• Dieser Dienst ist für die Kernfunktionalität der App erforderlich.\n• Es werden keine personenbezogenen Daten gesammelt oder geteilt.\n• Tastendrücke werden lokal auf Ihrem Gerät verarbeitet.</string>
+    <string name="accessibility_guide">Wenn Sie den Dienst nicht aktivieren können, tippen Sie auf die drei Punkte oben rechts in den App-Einstellungen und wählen Sie \"Eingeschränkte Einstellungen zulassen\".</string>
 
     <!-- Settings Toggles -->
     <string name="disable_in_camera">In Kamera deaktivieren</string>

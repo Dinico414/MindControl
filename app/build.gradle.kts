@@ -12,7 +12,7 @@ android {
         minSdk = 35
         targetSdk = 37
         versionCode = 3
-        versionName = "1.2"
+        versionName = "1.3"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         buildConfigField("String", "FEATURE_DROP", "\"${libs.versions.featureDrop.get()}\"")

@@ -59,24 +59,28 @@ import androidx.compose.ui.unit.IntOffset
 import androidx.core.view.WindowCompat
 import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.WindowInsetsControllerCompat
-import com.xenonware.mindcontrol.ui.AnalogAodStyle
-import com.xenonware.mindcontrol.ui.ConcentricAodStyle
-import com.xenonware.mindcontrol.ui.InlineAodStyle
-import com.xenonware.mindcontrol.ui.InlineDigitalAodStyle
-import com.xenonware.mindcontrol.ui.InlineDotAodStyle
-import com.xenonware.mindcontrol.ui.PixelInlineAodStyle
-import com.xenonware.mindcontrol.ui.PixelStackedAodStyle
-import com.xenonware.mindcontrol.ui.PlanetsAodStyle
-import com.xenonware.mindcontrol.ui.BlocksAodStyle
-import com.xenonware.mindcontrol.ui.BarsAodStyle
-import com.xenonware.mindcontrol.ui.SpinnerAodStyle
-import com.xenonware.mindcontrol.ui.StackedAodStyle
-import com.xenonware.mindcontrol.ui.StackedDigitalAodStyle
-import com.xenonware.mindcontrol.ui.StackedDotAodStyle
+import com.xenonware.mindcontrol.ui.res.AnalogAodStyle
+import com.xenonware.mindcontrol.ui.res.BarsAodStyle
+import com.xenonware.mindcontrol.ui.res.BlocksAodStyle
+import com.xenonware.mindcontrol.ui.res.ConcentricAodStyle
+import com.xenonware.mindcontrol.ui.res.InlineAodStyle
+import com.xenonware.mindcontrol.ui.res.InlineDigitalAodStyle
+import com.xenonware.mindcontrol.ui.res.InlineDotAodStyle
+import com.xenonware.mindcontrol.ui.res.PixelInlineAodStyle
+import com.xenonware.mindcontrol.ui.res.PixelStackedAodStyle
+import com.xenonware.mindcontrol.ui.res.PlanetsAodStyle
+import com.xenonware.mindcontrol.ui.res.SpinnerAodStyle
+import com.xenonware.mindcontrol.ui.res.StackedAodStyle
+import com.xenonware.mindcontrol.ui.res.StackedDigitalAodStyle
+import com.xenonware.mindcontrol.ui.res.StackedDotAodStyle
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import kotlin.math.abs
+import kotlin.math.max
+import kotlin.math.min
 import kotlin.math.roundToInt
+import kotlin.time.Duration.Companion.milliseconds
 
 @Suppress("DEPRECATION")
 class WatchActivity : ComponentActivity() {
@@ -141,7 +145,7 @@ class WatchActivity : ComponentActivity() {
                     } else if (isConnected) {
                         toggleAttempted = false // Reset if it connects
                     }
-                    delay(5000)
+                    delay(5000.milliseconds)
                 }
             }
 
@@ -223,7 +227,7 @@ class WatchActivity : ComponentActivity() {
 
             LaunchedEffect(isActive) {
                 if (isActive) {
-                    delay(10000)
+                    delay(10000.milliseconds)
                     isActive = false
                 }
             }
@@ -275,7 +279,7 @@ class WatchActivity : ComponentActivity() {
                                             if (lockedDirection == "V" && totalDragY < -unlockThreshold && !isFinishing) {
                                                 isFinishing = true
                                                 Log.d("WatchActivity", "Triggering UNLOCK")
-                                                // Swipe UP to unlock - Bounce off screen
+                                                // Swipe UP to unlock - Bounce off-screen
                                                 scope.launch {
                                                     animOffsetY.animateTo(
                                                         targetValue = -screenHeight,
@@ -337,7 +341,7 @@ class WatchActivity : ComponentActivity() {
                                     ) { change, dragAmount ->
                                         change.consume()
 
-                                        val screenMin = kotlin.math.min(screenWidth, screenHeight)
+                                        val screenMin = min(screenWidth, screenHeight)
                                         val maxVisualX = screenWidth * 0.2f
                                         val maxVisualY = screenHeight * 0.2f
                                         val maxRadius = screenMin * 0.08f
@@ -347,9 +351,9 @@ class WatchActivity : ComponentActivity() {
                                             totalDragX += dragAmount.x
                                             totalDragY += dragAmount.y
                                             
-                                            val absX = kotlin.math.abs(totalDragX)
-                                            val absY = kotlin.math.abs(totalDragY)
-                                            val maxDrag = kotlin.math.max(absX, absY)
+                                            val absX = abs(totalDragX)
+                                            val absY = abs(totalDragY)
+                                            val maxDrag = max(absX, absY)
 
                                             if (maxDrag > 15 * densityVal) {
                                                 lockedDirection = if (absY > absX || mediaInfo == null) "V" else "H"
@@ -360,20 +364,20 @@ class WatchActivity : ComponentActivity() {
                                             else totalDragX += dragAmount.x
                                         }
 
-                                        val absX = kotlin.math.abs(totalDragX)
-                                        val absY = kotlin.math.abs(totalDragY)
-                                        val maxDrag = kotlin.math.max(absX, absY)
+                                        val absX = abs(totalDragX)
+                                        val absY = abs(totalDragY)
+                                        val maxDrag = max(absX, absY)
 
-                                        var targetX = 0f
-                                        var targetY = 0f
-                                        var targetRadius = 0f
+                                        var targetX: Float
+                                        var targetY: Float
+                                        var targetRadius: Float
 
                                         if (mediaInfo == null) {
                                             // STRICT MODE: No media player active
                                             targetX = 0f
                                             targetY = totalDragY.coerceIn(-maxVisualY, 0f)
                                             targetRadius = if (totalDragY < 0) {
-                                                ((kotlin.math.abs(totalDragY) - deadzone) / (unlockThreshold - deadzone)).coerceIn(0f, 1f) * maxRadius
+                                                ((abs(totalDragY) - deadzone) / (unlockThreshold - deadzone)).coerceIn(0f, 1f) * maxRadius
                                             } else 0f
                                         } else {
                                             // NORMAL MODE: Media player active
