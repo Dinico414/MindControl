@@ -3,6 +3,7 @@ package com.xenonware.mindcontrol.ui.layouts
 import android.content.res.Configuration
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -27,11 +28,16 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalConfiguration
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.rememberTextMeasurer
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import com.xenon.mylibrary.theme.QuicksandTitleVariable
@@ -55,6 +61,15 @@ fun GridScreen(
 ) {
     val pressedKeys by ButtonState.pressedKeys.collectAsState()
 
+    val aiButtonName = stringResource(R.string.ai_button)
+    val cameraUpName = stringResource(R.string.camera_up)
+    val cameraDownName = stringResource(R.string.camera_down)
+    val keyboardName = stringResource(R.string.keyboard)
+    val volumeUpName = stringResource(R.string.volume_up)
+    val volumeDownName = stringResource(R.string.volume_down)
+    val cameraButtonName = stringResource(R.string.camera_button)
+    val focusButtonName = stringResource(R.string.focus_button)
+
     Column(modifier = modifier.fillMaxSize()) {
         // Top Part (Weight 2f)
         Row(
@@ -65,7 +80,7 @@ fun GridScreen(
             // AI Button
             RedTheme {
                 Surface(
-                    onClick = { onButtonSelected(131, "AI Button") },
+                    onClick = { onButtonSelected(131, aiButtonName) },
                     modifier = Modifier
                         .weight(1f)
                         .fillMaxHeight()
@@ -112,7 +127,7 @@ fun GridScreen(
                 YellowTheme {
                     // Camera Up
                     Surface(
-                        onClick = { onButtonSelected(133, "Camera Up") },
+                        onClick = { onButtonSelected(133, cameraUpName) },
                         modifier = Modifier
                             .weight(1f)
                             .fillMaxWidth()
@@ -157,7 +172,7 @@ fun GridScreen(
                     }
                     // Camera Down
                     Surface(
-                        onClick = { onButtonSelected(132, "Camera Down") },
+                        onClick = { onButtonSelected(132, cameraDownName) },
                         modifier = Modifier
                             .weight(1f)
                             .fillMaxWidth()
@@ -232,7 +247,7 @@ fun GridScreen(
                 if (hasKeyboard) {
                     PaletteTheme(palette = keyboardPalette) {
                         Surface(
-                            onClick = { onButtonSelected(111, "Keyboard Button") },
+                            onClick = { onButtonSelected(111, keyboardName) },
                             modifier = Modifier
                                 .weight(1f)
                                 .fillMaxWidth()
@@ -284,7 +299,7 @@ fun GridScreen(
                 GreenTheme {
                     // Volume Up
                     Surface(
-                        onClick = { onButtonSelected(24, "Volume Up") },
+                        onClick = { onButtonSelected(24, volumeUpName) },
                         modifier = Modifier
                             .weight(1f)
                             .fillMaxWidth()
@@ -329,7 +344,7 @@ fun GridScreen(
                     }
                     // Volume Down
                     Surface(
-                        onClick = { onButtonSelected(25, "Volume Down") },
+                        onClick = { onButtonSelected(25, volumeDownName) },
                         modifier = Modifier
                             .weight(1f)
                             .fillMaxWidth()
@@ -382,7 +397,7 @@ fun GridScreen(
                     BlueTheme {
                         // Camera Button
                         Surface(
-                            onClick = { onButtonSelected(27, "Camera Button") },
+                            onClick = { onButtonSelected(27, cameraButtonName) },
                             modifier = Modifier
                                 .weight(1f)
                                 .fillMaxHeight()
@@ -398,7 +413,7 @@ fun GridScreen(
                             Column(
                                 horizontalAlignment = Alignment.CenterHorizontally,
                                 verticalArrangement = Arrangement.Center,
-                                modifier = Modifier.padding(8.dp)
+                                modifier = Modifier.padding(horizontal = 4.dp, vertical = 8.dp)
                             ) {
                                 Icon(
                                     imageVector = Icons.Rounded.CameraAlt,
@@ -406,18 +421,18 @@ fun GridScreen(
                                     tint = if (pressedKeys.contains(27)) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onPrimaryContainer
                                 )
                                 Spacer(modifier = Modifier.height(4.dp))
-                                Text(
-                                    text = stringResource(R.string.camera_button),
-                                    style = MaterialTheme.typography.titleMedium,
-                                    textAlign = TextAlign.Center,
-                                    color = if (pressedKeys.contains(27)) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onPrimaryContainer,
-                                    fontFamily = QuicksandTitleVariable
+                                AutoHyphenatedButtonText(
+                                    text = cameraButtonName,
+                                    style = MaterialTheme.typography.titleMedium.copy(
+                                        fontFamily = QuicksandTitleVariable
+                                    ),
+                                    color = if (pressedKeys.contains(27)) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onPrimaryContainer
                                 )
                             }
                         }
                         // Focus Button
                         Surface(
-                            onClick = { onButtonSelected(134, "Focus Button") },
+                            onClick = { onButtonSelected(134, focusButtonName) },
                             modifier = Modifier
                                 .weight(1f)
                                 .fillMaxHeight()
@@ -433,7 +448,7 @@ fun GridScreen(
                             Column(
                                 horizontalAlignment = Alignment.CenterHorizontally,
                                 verticalArrangement = Arrangement.Center,
-                                modifier = Modifier.padding(8.dp)
+                                modifier = Modifier.padding(horizontal = 4.dp, vertical = 8.dp)
                             ) {
                                 Icon(
                                     imageVector = Icons.Rounded.FilterCenterFocus,
@@ -441,12 +456,12 @@ fun GridScreen(
                                     tint = if (pressedKeys.contains(134)) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onPrimaryContainer
                                 )
                                 Spacer(modifier = Modifier.height(4.dp))
-                                Text(
-                                    text = stringResource(R.string.focus_button),
-                                    style = MaterialTheme.typography.titleMedium,
-                                    textAlign = TextAlign.Center,
-                                    color = if (pressedKeys.contains(134)) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onPrimaryContainer,
-                                    fontFamily = QuicksandTitleVariable
+                                AutoHyphenatedButtonText(
+                                    text = focusButtonName,
+                                    style = MaterialTheme.typography.titleMedium.copy(
+                                        fontFamily = QuicksandTitleVariable
+                                    ),
+                                    color = if (pressedKeys.contains(134)) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onPrimaryContainer
                                 )
                             }
                         }
@@ -454,5 +469,44 @@ fun GridScreen(
                 }
             }
         }
+    }
+}
+
+@Composable
+private fun AutoHyphenatedButtonText(
+    text: String,
+    style: TextStyle,
+    color: Color,
+    modifier: Modifier = Modifier,
+) {
+    BoxWithConstraints(modifier = modifier, contentAlignment = Alignment.Center) {
+        val textMeasurer = rememberTextMeasurer()
+        val density = LocalDensity.current
+        val maxWidthPx = with(density) { maxWidth.toPx() }
+
+        val singleLineWidth = remember(text, style, maxWidthPx) {
+            textMeasurer.measure(
+                text = text,
+                style = style,
+                maxLines = 1,
+            ).size.width
+        }
+
+        val displayText = if (singleLineWidth <= maxWidthPx) {
+            text
+        } else {
+            when (text) {
+                "Kamerataste" -> "Kamera-\ntaste"
+                "Fokustaste" -> "Fokus-\ntaste"
+                else -> text
+            }
+        }
+
+        Text(
+            text = displayText,
+            style = style,
+            textAlign = TextAlign.Center,
+            color = color,
+        )
     }
 }

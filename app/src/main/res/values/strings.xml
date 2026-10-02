@@ -7,8 +7,8 @@
     <string name="camera_up">Camera Up</string>
     <string name="camera_down">Camera Down</string>
     <string name="keyboard">Keyboard</string>
-    <string name="volume_up">Volume Up</string>
-    <string name="volume_down">Volume Down</string>
+    <string name="volume_up">Volume +</string>
+    <string name="volume_down">Volume -</string>
     <string name="camera_button">Camera Button</string>
     <string name="focus_button">Focus Button</string>
     <string name="settings">Settings</string>

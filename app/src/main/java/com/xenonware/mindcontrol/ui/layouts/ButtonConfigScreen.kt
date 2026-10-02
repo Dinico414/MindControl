@@ -119,9 +119,21 @@ fun ButtonConfigScreen(
             )
         }
 
+        val displayName = when (keyCode) {
+            131 -> stringResource(R.string.ai_button)
+            133 -> stringResource(R.string.camera_up)
+            132 -> stringResource(R.string.camera_down)
+            24 -> stringResource(R.string.volume_up)
+            25 -> stringResource(R.string.volume_down)
+            27 -> stringResource(R.string.camera_button)
+            134 -> stringResource(R.string.focus_button)
+            111 -> stringResource(R.string.keyboard)
+            else -> name
+        }
+
         ActivityScreen(
             modifier = modifier,
-            titleText = stringResource(R.string.button_config_title, name),
+            titleText = stringResource(R.string.button_config_title, displayName),
             onNavigationIconClick = onBack,
             navigationIcon = {
                 Icon(

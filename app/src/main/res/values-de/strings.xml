@@ -7,8 +7,8 @@
     <string name="camera_up">Kamera Hoch</string>
     <string name="camera_down">Kamera Runter</string>
     <string name="keyboard">Tastatur</string>
-    <string name="volume_up">Lautstärke Hoch</string>
-    <string name="volume_down">Lautstärke Runter</string>
+    <string name="volume_up">Lautstärke +</string>
+    <string name="volume_down">Lautstärke -</string>
     <string name="camera_button">Kamerataste</string>
     <string name="focus_button">Fokustaste</string>
     <string name="settings">Einstellungen</string>
@@ -67,9 +67,9 @@
     <string name="button_config_title">%1$s Konfiguration</string>
     <string name="screen_on">Bildschirm an</string>
     <string name="screen_off">Bildschirm aus</string>
-    <string name="press_single">Einmal drücken</string>
-    <string name="press_double">Zweimal drücken</string>
-    <string name="press_triple">Dreimal drücken</string>
+    <string name="press_single">Einfach drücken</string>
+    <string name="press_double">Zweifach drücken</string>
+    <string name="press_triple">Dreifach drücken</string>
     <string name="press_hold">Gedrückt halten</string>
     <string name="press_and_hold">Drücken und Halten</string>
 
