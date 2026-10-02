@@ -223,4 +223,7 @@
     <string name="root_denied">Root denied – tap to retry or allow in your root manager</string>
     <string name="shizuku_available">Shizuku available – tap to grant</string>
     <string name="shizuku_denied">Shizuku denied – tap to open Shizuku</string>
+
+    <string name="buy_me_a_coffee">Buy me a coffee</string>
+    <string name="buy_me_a_coffee_description">Support the developer of MindControl</string>
 </resources>

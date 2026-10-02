@@ -223,4 +223,7 @@
     <string name="root_denied">Root verweigert – Tippen zum Wiederholen oder im Root-Manager erlauben</string>
     <string name="shizuku_available">Shizuku verfügbar – Tippen zum Erlauben</string>
     <string name="shizuku_denied">Shizuku verweigert – Tippen zum Öffnen von Shizuku</string>
+
+    <string name="buy_me_a_coffee">Kauf mir einen Kaffee</string>
+    <string name="buy_me_a_coffee_description">Unterstütze den Entwickler von MindControl</string>
 </resources>
