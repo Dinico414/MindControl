@@ -16,9 +16,10 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
-import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
@@ -30,7 +31,6 @@ import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.rounded.KeyboardDoubleArrowRight
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.ListItem
 import androidx.compose.material3.ListItemDefaults
 import androidx.compose.material3.MaterialTheme
@@ -56,10 +56,10 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.DialogProperties
 import androidx.core.graphics.drawable.toBitmap
+import com.xenon.mylibrary.ActivityScreen
 import com.xenon.mylibrary.res.XenonDialog
 import com.xenonware.mindcontrol.R
 import com.xenonware.mindcontrol.SettingsManager
@@ -70,10 +70,13 @@ import com.xenonware.mindcontrol.ui.res.LiftToWakeWarningDialog
 import com.xenonware.mindcontrol.ui.res.disabledReasonFor
 import com.xenonware.mindcontrol.ui.res.getActionDisplayName
 import com.xenonware.mindcontrol.ui.res.getTypeDisplayName
+import com.xenonware.mindcontrol.ui.res.horizontalFadingEdges
 import com.xenonware.mindcontrol.ui.res.isActionDisabled
+import com.xenonware.mindcontrol.ui.res.topFadingEdge
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import java.util.Locale
 import kotlin.time.Duration.Companion.milliseconds
 
 data class ActionConfig(val keyCode: Int, val state: String, val type: String)
@@ -96,11 +99,11 @@ fun ActionSelectionScreen(
         stringResource(R.string.tab_apps),
         stringResource(R.string.tab_shortcuts),
         stringResource(R.string.tab_system),
-        stringResource(R.string.tab_media)
+        stringResource(R.string.tab_media),
+        stringResource(R.string.tab_display)
     )
     val pagerState = rememberPagerState(pageCount = { tabs.size })
     val scope = rememberCoroutineScope()
-    val backgroundColor = MaterialTheme.colorScheme.background
     val isScreenOff = config.state == "OFF"
 
     var shellReady by remember { mutableStateOf(false) }
@@ -113,81 +116,92 @@ fun ActionSelectionScreen(
 
     val displayType = getTypeDisplayName(config.type)
 
-    Surface(color = backgroundColor, modifier = Modifier.fillMaxSize()) {
-        Column(modifier = modifier.fillMaxSize()) {
-            Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(8.dp)) {
-                IconButton(onClick = onBack) {
-                    Icon(
-                        Icons.AutoMirrored.Filled.ArrowBack,
-                        contentDescription = stringResource(R.string.back),
-                        tint = MaterialTheme.colorScheme.onBackground
-                    )
-                }
-                Text(
-                    stringResource(R.string.select_action_title, displayType),
-                    style = MaterialTheme.typography.titleLarge,
-                    color = MaterialTheme.colorScheme.onBackground,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                    modifier = Modifier.weight(1f)
-                )
-            }
+    ActivityScreen(
+        modifier = modifier,
+        titleText = stringResource(R.string.select_action_title, displayType),
+        onNavigationIconClick = onBack,
+        navigationIcon = {
+            Icon(
+                Icons.AutoMirrored.Filled.ArrowBack,
+                contentDescription = stringResource(R.string.back)
+            )
+        },
+        expandable = false,
+        contentModifier = Modifier.fillMaxSize(),
+        content = { paddingValues ->
+            Column(modifier = Modifier.fillMaxSize()) {
+                Spacer(modifier = Modifier.height(16.dp))
 
-            PrimaryScrollableTabRow(
-                selectedTabIndex = pagerState.currentPage,
-                containerColor = Color.Transparent,
-                contentColor = MaterialTheme.colorScheme.primary,
-                edgePadding = 16.dp,
-                indicator = {},
-                divider = {}
-            ) {
-                tabs.forEachIndexed { index, title ->
-                    val selected = pagerState.currentPage == index
-                    Box(
-                        modifier = Modifier
-                            .padding(vertical = 8.dp, horizontal = 4.dp)
-                            .clip(RoundedCornerShape(30.dp))
-                            .background(
-                                if (selected) MaterialTheme.colorScheme.primary
-                                else MaterialTheme.colorScheme.primary.copy(alpha = 0.1f)
+                PrimaryScrollableTabRow(
+                    selectedTabIndex = pagerState.currentPage,
+                    containerColor = Color.Transparent,
+                    contentColor = MaterialTheme.colorScheme.primary,
+                    edgePadding = 32.dp,
+                    indicator = {},
+                    divider = {},
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .horizontalFadingEdges(28.dp)
+                ) {
+                    tabs.forEachIndexed { index, title ->
+                        val selected = pagerState.currentPage == index
+                        Box(
+                            modifier = Modifier
+                                .padding(horizontal = 4.dp)
+                                .clip(RoundedCornerShape(30.dp))
+                                .background(
+                                    if (selected) MaterialTheme.colorScheme.primary
+                                    else MaterialTheme.colorScheme.primary.copy(alpha = 0.1f)
+                                )
+                                .then(
+                                    if (!selected) Modifier.border(
+                                        1.dp,
+                                        MaterialTheme.colorScheme.primary,
+                                        RoundedCornerShape(30.dp)
+                                    ) else Modifier
+                                )
+                                .clickable {
+                                    scope.launch { pagerState.animateScrollToPage(index) }
+                                }
+                                .padding(horizontal = 16.dp, vertical = 8.dp),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Text(
+                                text = title,
+                                color = if (selected) MaterialTheme.colorScheme.onPrimary
+                                else MaterialTheme.colorScheme.primary,
+                                style = MaterialTheme.typography.labelLarge
                             )
-                            .then(
-                                if (!selected) Modifier.border(
-                                    1.dp,
-                                    MaterialTheme.colorScheme.primary,
-                                    RoundedCornerShape(30.dp)
-                                ) else Modifier
-                            )
-                            .clickable {
-                                scope.launch { pagerState.animateScrollToPage(index) }
-                            }
-                            .padding(horizontal = 16.dp, vertical = 8.dp),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Text(
-                            text = title,
-                            color = if (selected) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.primary,
-                            style = MaterialTheme.typography.labelLarge
-                        )
+                        }
+                    }
+                }
+
+                HorizontalPager(
+                    state = pagerState,
+                    beyondViewportPageCount = 1,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .weight(1f)
+                        .topFadingEdge(16.dp)
+                ) { page ->
+                    val contentPadding = PaddingValues(
+                        top = 16.dp,
+                        bottom = 16.dp + paddingValues.calculateBottomPadding(),
+                        start = 16.dp,
+                        end = 16.dp
+                    )
+                    when (page) {
+                        0 -> ActionsTab(config, onActionSelected, shellReady, contentPadding)
+                        1 -> AppsTab(config, onActionSelected, isScreenOff, contentPadding)
+                        2 -> ShortcutsTab(config, onActionSelected, isScreenOff, contentPadding)
+                        3 -> SystemTab(config, onActionSelected, shellReady, contentPadding)
+                        4 -> MediaTab(config, onActionSelected, shellReady, contentPadding)
+                        5 -> DisplayTab(config, onActionSelected, shellReady, contentPadding)
                     }
                 }
             }
-
-            HorizontalPager(
-                state = pagerState,
-                modifier = Modifier.weight(1f),
-                beyondViewportPageCount = 1
-            ) { page ->
-                when (page) {
-                    0 -> ActionsTab(config, onActionSelected, shellReady)
-                    1 -> AppsTab(config, onActionSelected, isScreenOff)
-                    2 -> ShortcutsTab(config, onActionSelected, isScreenOff)
-                    3 -> SystemTab(config, onActionSelected, shellReady)
-                    4 -> MediaTab(config, onActionSelected, shellReady)
-                }
-            }
         }
-    }
+    )
 }
 
 @Composable
@@ -195,6 +209,7 @@ fun ActionsTab(
     config: ActionConfig,
     onActionSelected: (String) -> Unit,
     shellReady: Boolean,
+    contentPadding: PaddingValues
 ) {
     val actions = listOf(
         SettingsManager.ACTION_NONE,
@@ -226,7 +241,7 @@ fun ActionsTab(
         SettingsManager.ACTION_URL,
         SettingsManager.ACTION_QR_CODE,
     )
-    ActionList(actions, config, onActionSelected, shellReady)
+    ActionList(actions, config, onActionSelected, shellReady, contentPadding)
 }
 
 @Composable
@@ -234,6 +249,7 @@ fun AppsTab(
     config: ActionConfig,
     onActionSelected: (String) -> Unit,
     isScreenOff: Boolean,
+    contentPadding: PaddingValues
 ) {
     val context = LocalContext.current
     val pm = context.packageManager
@@ -262,7 +278,7 @@ fun AppsTab(
 
     LazyColumn(
         modifier = Modifier.fillMaxSize(),
-        contentPadding = PaddingValues(16.dp),
+        contentPadding = contentPadding,
         verticalArrangement = Arrangement.spacedBy(2.dp)
     ) {
         if (isScreenOff) {
@@ -285,8 +301,8 @@ fun AppsTab(
             }
             Surface(
                 color = if (isScreenOff)
-                    MaterialTheme.colorScheme.surfaceContainer.copy(alpha = 0.4f)
-                else MaterialTheme.colorScheme.surfaceContainer,
+                    MaterialTheme.colorScheme.surfaceContainerHighest.copy(alpha = 0.4f)
+                else MaterialTheme.colorScheme.surfaceContainerHighest,
                 shape = shape,
                 modifier = Modifier.fillMaxWidth()
             ) {
@@ -346,6 +362,7 @@ fun ShortcutsTab(
     config: ActionConfig,
     onActionSelected: (String) -> Unit,
     isScreenOff: Boolean,
+    contentPadding: PaddingValues
 ) {
     val context = LocalContext.current
     val pm = context.packageManager
@@ -410,7 +427,7 @@ fun ShortcutsTab(
     } else {
         LazyColumn(
             modifier = Modifier.fillMaxSize(),
-            contentPadding = PaddingValues(16.dp),
+            contentPadding = contentPadding,
             verticalArrangement = Arrangement.spacedBy(2.dp)
         ) {
             if (isScreenOff) {
@@ -433,8 +450,8 @@ fun ShortcutsTab(
                 }
                 Surface(
                     color = if (isScreenOff)
-                        MaterialTheme.colorScheme.surfaceContainer.copy(alpha = 0.4f)
-                    else MaterialTheme.colorScheme.surfaceContainer,
+                        MaterialTheme.colorScheme.surfaceContainerHighest.copy(alpha = 0.4f)
+                    else MaterialTheme.colorScheme.surfaceContainerHighest,
                     shape = shape,
                     modifier = Modifier.fillMaxWidth()
                 ) {
@@ -492,6 +509,7 @@ fun SystemTab(
     config: ActionConfig,
     onActionSelected: (String) -> Unit,
     shellReady: Boolean,
+    contentPadding: PaddingValues
 ) {
     val actions = listOf(
         SettingsManager.ACTION_VIBRATE_RINGER,
@@ -510,7 +528,7 @@ fun SystemTab(
         SettingsManager.ACTION_ROTATE_360,
         SettingsManager.ACTION_AUTOROTATE_TOGGLE
     )
-    ActionList(actions, config, onActionSelected, shellReady)
+    ActionList(actions, config, onActionSelected, shellReady, contentPadding)
 }
 
 @Composable
@@ -518,6 +536,7 @@ fun MediaTab(
     config: ActionConfig,
     onActionSelected: (String) -> Unit,
     shellReady: Boolean,
+    contentPadding: PaddingValues
 ) {
     val actions = listOf(
         SettingsManager.ACTION_VOLUME_UP,
@@ -534,7 +553,326 @@ fun MediaTab(
         SettingsManager.ACTION_STEP_FORWARD,
         SettingsManager.ACTION_STEP_BACKWARD,
     )
-    ActionList(actions, config, onActionSelected, shellReady)
+    ActionList(actions, config, onActionSelected, shellReady, contentPadding)
+}
+
+@Composable
+fun DisplayTab(
+    config: ActionConfig,
+    onActionSelected: (String) -> Unit,
+    shellReady: Boolean,
+    contentPadding: PaddingValues
+) {
+    val sizeActions = listOf(
+        SettingsManager.ACTION_ASPECT_RATIO_FULL_4_3,
+        SettingsManager.ACTION_ASPECT_RATIO_FULL_16_9,
+        SettingsManager.ACTION_ASPECT_RATIO_CYCLE,
+        SettingsManager.ACTION_ASPECT_RATIO_UP,
+        SettingsManager.ACTION_ASPECT_RATIO_DOWN,
+        SettingsManager.ACTION_SIZE_FULL,
+        SettingsManager.ACTION_SIZE_4_3,
+        SettingsManager.ACTION_SIZE_16_9,
+        SettingsManager.ACTION_CUSTOM_SIZE_TOGGLE,
+    )
+    val densityActions = listOf(
+        SettingsManager.ACTION_DENSITY_CYCLE,
+        SettingsManager.ACTION_DENSITY_300,
+        SettingsManager.ACTION_DENSITY_400,
+        SettingsManager.ACTION_CUSTOM_DENSITY_TOGGLE,
+    )
+
+    val context = LocalContext.current
+    var showCustomSizeDialog by rememberSaveable { mutableStateOf(false) }
+    var showCustomDensityDialog by rememberSaveable { mutableStateOf(false) }
+
+    var widthInput by rememberSaveable { mutableStateOf("") }
+    var heightInput by rememberSaveable { mutableStateOf("") }
+    var densityInput by rememberSaveable { mutableStateOf("") }
+
+    fun calculateAspectRatio(w: Int, h: Int): String {
+        fun gcd(a: Int, b: Int): Int = if (b == 0) a else gcd(b, a % b)
+        val div = gcd(w, h)
+        val sw = w / div
+        val sh = h / div
+        val standard = when {
+            (sw == 16 && sh == 9) || (sw == 9 && sh == 16) -> if (sw > sh) "16:9" else "9:16"
+            (sw == 4 && sh == 3) || (sw == 3 && sh == 4) -> if (sw > sh) "4:3" else "3:4"
+            (sw == 1 && sh == 1) -> "1:1"
+            (sw == 3 && sh == 2) || (sw == 2 && sh == 3) -> if (sw > sh) "3:2" else "2:3"
+            (sw == 5 && sh == 4) || (sw == 4 && sh == 5) -> if (sw > sh) "5:4" else "4:5"
+            (sw == 18 && sh == 9) || (sw == 9 && sh == 18) -> if (sw > sh) "18:9 (2:1)" else "9:18 (1:2)"
+            (sw == 19 && sh == 9) || (sw == 9 && sh == 19) -> if (sw > sh) "19:9" else "9:19"
+            (sw == 20 && sh == 9) || (sw == 9 && sh == 20) -> if (sw > sh) "20:9" else "9:20"
+            (sw == 21 && sh == 9) || (sw == 9 && sh == 21) -> if (sw > sh) "21:9" else "9:21"
+            else -> {
+                val ratio = if (h > 0) w.toFloat() / h else 1f
+                String.format(Locale.US, "%.2f:1 (%d:%d)", ratio, sw, sh)
+            }
+        }
+        return standard
+    }
+
+    val customSizeBaseName = stringResource(R.string.action_custom_size_toggle)
+    val customDensityBaseName = stringResource(R.string.action_custom_density_toggle)
+
+    if (showCustomSizeDialog) {
+        val wVal = widthInput.toIntOrNull()
+        val hVal = heightInput.toIntOrNull()
+        val isValid = wVal != null && hVal != null && wVal in 720..2000 && hVal in 720..2000
+        val ratioText = if (wVal != null && hVal != null && wVal > 0 && hVal > 0) {
+            calculateAspectRatio(wVal, hVal)
+        } else null
+
+        XenonDialog(
+            properties = DialogProperties(usePlatformDefaultWidth = true),
+            onDismissRequest = { showCustomSizeDialog = false },
+            title = stringResource(R.string.custom_size_title),
+            confirmButtonText = stringResource(R.string.ok),
+            onConfirmButtonClick = {
+                if (wVal != null && hVal != null && isValid) {
+                    val sizeString = "${wVal}x${hVal}"
+                    SettingsManager.setAction(
+                        context,
+                        config.keyCode,
+                        config.state,
+                        config.type,
+                        SettingsManager.PREFIX_CUSTOM_SIZE + sizeString
+                    )
+                    onActionSelected("$customSizeBaseName: $sizeString")
+                    showCustomSizeDialog = false
+                }
+            },
+            content = {
+                Column(
+                    verticalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    OutlinedTextField(
+                        value = widthInput,
+                        onValueChange = { widthInput = it.filter { char -> char.isDigit() } },
+                        singleLine = true,
+                        label = { Text(stringResource(R.string.width_hint)) },
+                        placeholder = { Text("Width") },
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                    OutlinedTextField(
+                        value = heightInput,
+                        onValueChange = { heightInput = it.filter { char -> char.isDigit() } },
+                        singleLine = true,
+                        label = { Text(stringResource(R.string.height_hint)) },
+                        placeholder = { Text("Height") },
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                    if (ratioText != null) {
+                        Text(
+                            text = stringResource(R.string.aspect_ratio_label, ratioText),
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.primary
+                        )
+                    }
+                    if (!isValid && (widthInput.isNotEmpty() || heightInput.isNotEmpty())) {
+                        Text(
+                            text = stringResource(R.string.invalid_size_error),
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.error
+                        )
+                    }
+                }
+            }
+        )
+    }
+
+    if (showCustomDensityDialog) {
+        val dVal = densityInput.toIntOrNull()
+        val isValid = dVal != null && dVal in 150..600
+
+        XenonDialog(
+            properties = DialogProperties(usePlatformDefaultWidth = true),
+            onDismissRequest = { showCustomDensityDialog = false },
+            title = stringResource(R.string.custom_density_title),
+            confirmButtonText = stringResource(R.string.ok),
+            onConfirmButtonClick = {
+                if (dVal != null && isValid) {
+                    SettingsManager.setAction(
+                        context,
+                        config.keyCode,
+                        config.state,
+                        config.type,
+                        SettingsManager.PREFIX_CUSTOM_DENSITY + dVal
+                    )
+                    onActionSelected("$customDensityBaseName: $dVal")
+                    showCustomDensityDialog = false
+                }
+            },
+            content = {
+                Column(
+                    verticalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    OutlinedTextField(
+                        value = densityInput,
+                        onValueChange = { densityInput = it.filter { char -> char.isDigit() } },
+                        singleLine = true,
+                        label = { Text(stringResource(R.string.density_hint)) },
+                        placeholder = { Text("Density") },
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                    if (!isValid && densityInput.isNotEmpty()) {
+                        Text(
+                            text = stringResource(R.string.invalid_density_error),
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.error
+                        )
+                    }
+                }
+            }
+        )
+    }
+
+    LazyColumn(
+        modifier = Modifier.fillMaxSize(),
+        contentPadding = contentPadding,
+        verticalArrangement = Arrangement.spacedBy(2.dp)
+    ) {
+        items(sizeActions.size) { index ->
+            val action = sizeActions[index]
+            val disabled = isActionDisabled(action, shellReady)
+            val disabledReasonRes = disabledReasonFor(action, shellReady)
+            val displayName = getActionDisplayName(action)
+            val shape = when {
+                sizeActions.size == 1 -> RoundedCornerShape(30.dp)
+                index == 0 -> RoundedCornerShape(topStart = 30.dp, topEnd = 30.dp, bottomStart = 4.dp, bottomEnd = 4.dp)
+                index == sizeActions.size - 1 -> RoundedCornerShape(topStart = 4.dp, topEnd = 4.dp, bottomStart = 30.dp, bottomEnd = 30.dp)
+                else -> RoundedCornerShape(4.dp)
+            }
+            Surface(
+                color = if (disabled)
+                    MaterialTheme.colorScheme.surfaceContainerHighest.copy(alpha = 0.4f)
+                else MaterialTheme.colorScheme.surfaceContainerHighest,
+                shape = shape,
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                ListItem(
+                    headlineContent = {
+                        Text(
+                            displayName,
+                            color = if (disabled)
+                                MaterialTheme.colorScheme.onSurface.copy(alpha = 0.38f)
+                            else MaterialTheme.colorScheme.onSurface
+                        )
+                    },
+                    supportingContent = disabledReasonRes?.let { resId ->
+                        {
+                            Text(
+                                stringResource(resId),
+                                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f),
+                                style = MaterialTheme.typography.bodySmall
+                            )
+                        }
+                    },
+                    leadingContent = {
+                        ActionIcon(
+                            action = action,
+                            modifier = Modifier.size(24.dp),
+                            tint = if (disabled)
+                                MaterialTheme.colorScheme.primary.copy(alpha = 0.38f)
+                            else MaterialTheme.colorScheme.primary
+                        )
+                    },
+                    modifier = Modifier
+                        .clickable(enabled = !disabled) {
+                            if (action == SettingsManager.ACTION_CUSTOM_SIZE_TOGGLE) {
+                                val currentSavedAction =
+                                    SettingsManager.getAction(context, config.keyCode, config.state, config.type)
+                                if (currentSavedAction.startsWith(SettingsManager.PREFIX_CUSTOM_SIZE)) {
+                                    val parts = currentSavedAction.removePrefix(SettingsManager.PREFIX_CUSTOM_SIZE).split("x")
+                                    widthInput = parts.getOrNull(0) ?: ""
+                                    heightInput = parts.getOrNull(1) ?: ""
+                                } else {
+                                    widthInput = ""
+                                    heightInput = ""
+                                }
+                                showCustomSizeDialog = true
+                            } else {
+                                SettingsManager.setAction(context, config.keyCode, config.state, config.type, action)
+                                onActionSelected(displayName)
+                            }
+                        }
+                        .padding(vertical = 4.dp),
+                    colors = ListItemDefaults.colors(containerColor = Color.Transparent)
+                )
+            }
+        }
+
+        item {
+            Spacer(modifier = Modifier.height(16.dp))
+        }
+
+        items(densityActions.size) { index ->
+            val action = densityActions[index]
+            val disabled = isActionDisabled(action, shellReady)
+            val disabledReasonRes = disabledReasonFor(action, shellReady)
+            val displayName = getActionDisplayName(action)
+            val shape = when {
+                densityActions.size == 1 -> RoundedCornerShape(30.dp)
+                index == 0 -> RoundedCornerShape(topStart = 30.dp, topEnd = 30.dp, bottomStart = 4.dp, bottomEnd = 4.dp)
+                index == densityActions.size - 1 -> RoundedCornerShape(topStart = 4.dp, topEnd = 4.dp, bottomStart = 30.dp, bottomEnd = 30.dp)
+                else -> RoundedCornerShape(4.dp)
+            }
+            Surface(
+                color = if (disabled)
+                    MaterialTheme.colorScheme.surfaceContainerHighest.copy(alpha = 0.4f)
+                else MaterialTheme.colorScheme.surfaceContainerHighest,
+                shape = shape,
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                ListItem(
+                    headlineContent = {
+                        Text(
+                            displayName,
+                            color = if (disabled)
+                                MaterialTheme.colorScheme.onSurface.copy(alpha = 0.38f)
+                            else MaterialTheme.colorScheme.onSurface
+                        )
+                    },
+                    supportingContent = disabledReasonRes?.let { resId ->
+                        {
+                            Text(
+                                stringResource(resId),
+                                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f),
+                                style = MaterialTheme.typography.bodySmall
+                            )
+                        }
+                    },
+                    leadingContent = {
+                        ActionIcon(
+                            action = action,
+                            modifier = Modifier.size(24.dp),
+                            tint = if (disabled)
+                                MaterialTheme.colorScheme.primary.copy(alpha = 0.38f)
+                            else MaterialTheme.colorScheme.primary
+                        )
+                    },
+                    modifier = Modifier
+                        .clickable(enabled = !disabled) {
+                            if (action == SettingsManager.ACTION_CUSTOM_DENSITY_TOGGLE) {
+                                val currentSavedAction =
+                                    SettingsManager.getAction(context, config.keyCode, config.state, config.type)
+                                if (currentSavedAction.startsWith(SettingsManager.PREFIX_CUSTOM_DENSITY)) {
+                                    densityInput = currentSavedAction.removePrefix(SettingsManager.PREFIX_CUSTOM_DENSITY)
+                                } else {
+                                    densityInput = ""
+                                }
+                                showCustomDensityDialog = true
+                            } else {
+                                SettingsManager.setAction(context, config.keyCode, config.state, config.type, action)
+                                onActionSelected(displayName)
+                            }
+                        }
+                        .padding(vertical = 4.dp),
+                    colors = ListItemDefaults.colors(containerColor = Color.Transparent)
+                )
+            }
+        }
+    }
 }
 
 @Composable
@@ -543,6 +881,7 @@ fun ActionList(
     config: ActionConfig,
     onActionSelected: (String) -> Unit,
     shellReady: Boolean = true,
+    contentPadding: PaddingValues
 ) {
     val context = LocalContext.current
     var showInputDialog by rememberSaveable { mutableStateOf<String?>(null) }
@@ -664,7 +1003,7 @@ fun ActionList(
 
     LazyColumn(
         modifier = Modifier.fillMaxSize(),
-        contentPadding = PaddingValues(16.dp),
+        contentPadding = contentPadding,
         verticalArrangement = Arrangement.spacedBy(2.dp)
     ) {
         items(actions.size) { index ->
@@ -694,8 +1033,8 @@ fun ActionList(
 
             Surface(
                 color = if (disabled)
-                    MaterialTheme.colorScheme.surfaceContainer.copy(alpha = 0.4f)
-                else MaterialTheme.colorScheme.surfaceContainer,
+                    MaterialTheme.colorScheme.surfaceContainerHighest.copy(alpha = 0.4f)
+                else MaterialTheme.colorScheme.surfaceContainerHighest,
                 shape = shape,
                 modifier = Modifier.fillMaxWidth()
             ) {

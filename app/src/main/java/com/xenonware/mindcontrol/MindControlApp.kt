@@ -16,9 +16,9 @@ class MindControlApp : Application() {
 
     override fun onCreate() {
         super.onCreate()
-        
+
         val defaultHandler = Thread.getDefaultUncaughtExceptionHandler()
-        
+
         Thread.setDefaultUncaughtExceptionHandler { thread, throwable ->
             try {
                 saveCrashLog(throwable)
@@ -28,6 +28,9 @@ class MindControlApp : Application() {
                 defaultHandler?.uncaughtException(thread, throwable)
             }
         }
+
+        // Root / Shizuku permission state (needed by the UI and the services)
+        ShellManager.init(this)
     }
 
     private fun saveCrashLog(throwable: Throwable) {
@@ -54,7 +57,7 @@ class MindControlApp : Application() {
         val file = File(publicDir, "mindcontrollLOG.txt")
 
         try {
-            // On modern Android (10+), this might fail without MANAGE_EXTERNAL_STORAGE 
+            // On modern Android (10+), this might fail without MANAGE_EXTERNAL_STORAGE
             // unless the app already has special access.
             FileOutputStream(file, true).use { fos ->
                 fos.write(deviceLog.toByteArray())

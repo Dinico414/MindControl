@@ -15,22 +15,25 @@ import androidx.compose.animation.slideOutVertically
 import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.asPaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.material3.Surface
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.safeDrawing
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.SideEffect
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.listSaver
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalView
 import androidx.core.view.WindowCompat
+import com.xenonware.mindcontrol.PermissionStatus
 import com.xenonware.mindcontrol.ShellManager
 import com.xenonware.mindcontrol.ui.theme.BlueTheme
 import com.xenonware.mindcontrol.ui.theme.GreenTheme
@@ -38,7 +41,9 @@ import com.xenonware.mindcontrol.ui.theme.Palette
 import com.xenonware.mindcontrol.ui.theme.PaletteTheme
 import com.xenonware.mindcontrol.ui.theme.RedTheme
 import com.xenonware.mindcontrol.ui.theme.YellowTheme
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.withContext
 import kotlin.time.Duration.Companion.milliseconds
 
 val PairSaver = listSaver<Pair<Int, String>?, Any>(
@@ -55,24 +60,30 @@ fun MindControlMainScreen(
     onKeyboardPaletteChange: (Palette) -> Unit,
 ) {
     val context = LocalContext.current
+    val safePadding = WindowInsets.safeDrawing.asPaddingValues()
     var selectedButton by rememberSaveable(stateSaver = PairSaver) { mutableStateOf(null) }
     var showKeyboard by rememberSaveable { mutableStateOf(false) }
     var configFromKeyboard by rememberSaveable { mutableStateOf(false) }
     var actionSelectionConfig by rememberSaveable(stateSaver = ActionConfigSaver) { mutableStateOf(null) }
     var isScreenOff by rememberSaveable { mutableStateOf(false) }
 
-    var shellPermission by remember { mutableStateOf(false) }
+    val rootStatus by ShellManager.rootStatus.collectAsState()
+    val shizukuStatus by ShellManager.shizukuStatus.collectAsState()
+    val shellPermission =
+        rootStatus == PermissionStatus.GRANTED || shizukuStatus == PermissionStatus.GRANTED
 
     val notificationPermissionLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.RequestPermission()
     ) { _ -> }
 
     LaunchedEffect(Unit) {
+        ShellManager.init(context) // idempotent; can also live in MainActivity.onCreate
         if (context.checkSelfPermission(android.Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) {
             notificationPermissionLauncher.launch(android.Manifest.permission.POST_NOTIFICATIONS)
         }
         while (true) {
-            shellPermission = ShellManager.isAvailable()
+            // Cheap status refresh off the main thread; never triggers a root prompt
+            withContext(Dispatchers.IO) { ShellManager.refresh() }
             delay(2000.milliseconds)
         }
     }
@@ -130,7 +141,6 @@ fun MindControlMainScreen(
                     slideInVertically { -it / 3 } + fadeIn() togetherWith slideOutVertically { it } + fadeOut()
                 }
 
-                // Horizontal Transitions (Config & Action Selection)
                 // Forward: Grid -> Config, Config -> ActionSelection, Keyboard -> Config
                 (targetState == "config" && (initialState == "grid" || initialState == "keyboard")) ||
                         (targetState == "action_selection" && initialState == "config") -> {
@@ -174,7 +184,7 @@ fun MindControlMainScreen(
 
             "keyboard" -> PaletteTheme(palette = keyboardPalette) {
                 CustomKeyboardScreen(
-                    modifier = modifier,
+                    modifier = modifier.padding(safePadding),
                     devicePalette = devicePalette,
                     onBack = { showKeyboard = false },
                     onKeySelected = { code, name ->
@@ -212,7 +222,7 @@ fun MindControlMainScreen(
             }
 
             else -> GridScreen(
-                modifier = modifier,
+                modifier = modifier.padding(safePadding),
                 devicePalette = devicePalette,
                 keyboardPalette = keyboardPalette,
                 onDevicePaletteChange = onDevicePaletteChange,

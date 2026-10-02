@@ -80,6 +80,7 @@
     <string name="tab_shortcuts">Verknüpfungen</string>
     <string name="tab_system">System</string>
     <string name="tab_media">Medien</string>
+    <string name="tab_display">Display</string>
     <string name="no_shortcuts_found">Keine Apps mit Verknüpfungsunterstützung gefunden</string>
     <string name="wake_screen_apps_msg">Das Starten von Apps erfordert das Aufwecken des Bildschirms, was im „Bildschirm aus“-Modus deaktiviert ist.</string>
     <string name="wake_screen_shortcuts_msg">Verknüpfungen starten Aktivitäten, die den Bildschirm aufwecken und im „Bildschirm aus“-Modus deaktiviert sind.</string>
@@ -178,6 +179,35 @@
     <string name="action_mute_vol">Stummschalten</string>
     <string name="action_mute_mic_toggle">Mikrofon stummschalten</string>
     <string name="action_volume_dialog">Lautstärkedialog</string>
+    <string name="action_aspect_ratio_full_4_3">Seitenverhältnis: Voll &amp; 4:3</string>
+    <string name="action_aspect_ratio_full_16_9">Seitenverhältnis: Voll &amp; 16:9</string>
+    <string name="action_aspect_ratio_cycle">Seitenverhältnis: Zyklus (Voll, 4:3, 16:9)</string>
+    <string name="action_aspect_ratio_full_4_3_16_9">Seitenverhältnis: Voll, 4:3 &amp; 16:9</string>
+    <string name="action_aspect_ratio_up">Seitenverhältnis: Zyklus hoch</string>
+    <string name="action_aspect_ratio_down">Seitenverhältnis: Zyklus runter</string>
+    <string name="action_size_full">Größe setzen: Voll (1080x1240)</string>
+    <string name="action_size_4_3">Größe setzen: 4:3 (1080x1440)</string>
+    <string name="action_size_16_9">Größe setzen: 16:9 (1080x1920)</string>
+    <string name="action_density_300_400">Bildschirmdichte: 300 &amp; 400</string>
+    <string name="action_density_300_200">Bildschirmdichte: 300 &amp; 200</string>
+    <string name="action_density_cycle">Bildschirmdichte: Zyklus (200, 300, 400)</string>
+    <string name="action_density_up">Bildschirmdichte: Zyklus hoch</string>
+    <string name="action_density_down">Bildschirmdichte: Zyklus runter</string>
+    <string name="action_density_200">Dichte setzen: 200</string>
+    <string name="action_density_300">Dichte setzen: 300</string>
+    <string name="action_density_400">Dichte setzen: 400</string>
+    <string name="action_custom_size_toggle">Benutzerdefinierte Größe (Umschalten)</string>
+    <string name="action_custom_density_toggle">Benutzerdefinierte Dichte (Umschalten)</string>
+    <string name="custom_size_title">Größe konfigurieren</string>
+    <string name="custom_density_title">Dichte konfigurieren</string>
+    <string name="width_hint">Breite (720 – 2000)</string>
+    <string name="height_hint">Höhe (720 – 2000)</string>
+    <string name="density_hint">Dichte (150 – 600)</string>
+    <string name="aspect_ratio_label">Berechnetes Seitenverhältnis: %1$s</string>
+    <string name="invalid_size_error">Breite und Höhe müssen zwischen 720 und 2000 liegen.</string>
+    <string name="invalid_density_error">Dichte muss zwischen 150 und 600 liegen.</string>
+    <string name="section_screen_size">Bildschirmgröße &amp; Skalierung</string>
+    <string name="section_screen_density">Bildschirmdichte</string>
 
     <string name="qr_code_share">QR-Code teilen</string>
     <string name="notification_title">MindControl Aktiv</string>
@@ -188,4 +218,9 @@
     <string name="aod_unknown_artist">Unbekannter Künstler</string>
     <string name="aod_charging">Lädt</string>
     <string name="aod_media_controls">Mediensteuerung anzeigen</string>
+
+    <string name="root_available">Root verfügbar – Tippen zum Erlauben</string>
+    <string name="root_denied">Root verweigert – Tippen zum Wiederholen oder im Root-Manager erlauben</string>
+    <string name="shizuku_available">Shizuku verfügbar – Tippen zum Erlauben</string>
+    <string name="shizuku_denied">Shizuku verweigert – Tippen zum Öffnen von Shizuku</string>
 </resources>

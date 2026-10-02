@@ -12,15 +12,13 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Surface
@@ -39,14 +37,16 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.DialogProperties
+import com.xenon.mylibrary.ActivityScreen
 import com.xenon.mylibrary.res.XenonDialog
-import com.xenon.mylibrary.values.MediumCornerRadius
+import com.xenon.mylibrary.values.ExtraLargerCornerRadius 
 import com.xenon.mylibrary.values.SmallestCornerRadius
 import com.xenonware.mindcontrol.R
 import com.xenonware.mindcontrol.SettingsManager
 import com.xenonware.mindcontrol.ui.res.ActionIcon
 import com.xenonware.mindcontrol.ui.res.getActionDisplayName
 import com.xenonware.mindcontrol.ui.res.getTypeDisplayName
+import com.xenonware.mindcontrol.ui.res.topFadingEdge
 import com.xenonware.mindcontrol.ui.theme.BlueTheme
 import com.xenonware.mindcontrol.ui.theme.GreenTheme
 import com.xenonware.mindcontrol.ui.theme.Palette
@@ -118,153 +118,160 @@ fun ButtonConfigScreen(
                 }
             )
         }
-        Surface(color = MaterialTheme.colorScheme.background, modifier = Modifier.fillMaxSize()) {
-            Column(modifier = modifier.fillMaxSize()) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    IconButton(onClick = onBack) {
-                        Icon(
-                            Icons.AutoMirrored.Filled.ArrowBack,
-                            contentDescription = stringResource(R.string.back),
-                            tint = MaterialTheme.colorScheme.onSurface
-                        )
-                    }
-                    Text(
-                        text = stringResource(R.string.button_config_title, name),
-                        style = MaterialTheme.typography.titleLarge,
-                        color = MaterialTheme.colorScheme.onSurface,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis,
-                        modifier = Modifier.weight(1f)
-                    )
-                }
 
-                Spacer(modifier = Modifier.height(16.dp))
-
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceEvenly
-                ) {
-                    Button(
-                        onClick = { onScreenOffChange(false) },
-                        border = if (isScreenOff) BorderStroke(1.dp, MaterialTheme.colorScheme.primary) else null,
-                        colors = if (!isScreenOff) ButtonDefaults.buttonColors(
-                            containerColor = MaterialTheme.colorScheme.primary,
-                            contentColor = MaterialTheme.colorScheme.onPrimary
-                        )
-                        else ButtonDefaults.buttonColors(
-                            containerColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.1f),
-                            contentColor = MaterialTheme.colorScheme.primary
-                        )
-                    ) { Text(stringResource(R.string.screen_on)) }
-
-                    Button(
-                        onClick = {
-                            if (!overrideScreenOff) {
-                                showDisabledDialog = true // Will show the "Override Off" message
-                            } else if (keyCode == 27) {
-                                showDisabledDialog = true // Hardware limitation
-                            } else if (isVolumeButton && !shellPermission) {
-                                showDisabledDialog = true // Use toggle instead
-                            } else if (!isVolumeButton && !shellPermission) {
-                                showDisabledDialog = true // Requires Shell access
-                            } else if (keyCode == 134 && !isScreenOff) {
-                                showFocusWarningDialog = true
-                            } else {
-                                onScreenOffChange(true)
-                            }
-                        },
-                        border = if (!isScreenOff) BorderStroke(1.dp, MaterialTheme.colorScheme.primary) else null,
-                        colors = when {
-                            !overrideScreenOff || keyCode == 27 || (isVolumeButton && !shellPermission) || (!isVolumeButton && !shellPermission) -> ButtonDefaults.buttonColors(
-                                containerColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.12f),
-                                contentColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.38f)
-                            )
-                            isScreenOff -> ButtonDefaults.buttonColors(
-                                containerColor = MaterialTheme.colorScheme.primary,
-                                contentColor = MaterialTheme.colorScheme.onPrimary
-                            )
-                            else -> ButtonDefaults.buttonColors(
-                                containerColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.1f),
-                                contentColor = MaterialTheme.colorScheme.primary
-                            )
-                        }
-                    ) { Text(stringResource(R.string.screen_off)) }
-                }
-
+        ActivityScreen(
+            modifier = modifier,
+            titleText = stringResource(R.string.button_config_title, name),
+            onNavigationIconClick = onBack,
+            navigationIcon = {
+                Icon(
+                    Icons.AutoMirrored.Filled.ArrowBack,
+                    contentDescription = stringResource(R.string.back)
+                )
+            },
+            expandable = false,
+            contentModifier = Modifier.fillMaxSize(),
+            content = { paddingValues ->
                 val stateStr = if (isScreenOff) "OFF" else "ON"
-
-                Spacer(modifier = Modifier.height(16.dp))
-
                 val pressTypes = if (keyCode == 132 || keyCode == 133) listOf("SINGLE_PRESS")
                 else listOf("SINGLE_PRESS", "DOUBLE_PRESS", "TRIPLE_PRESS")
                 val holdTypes = if (keyCode == 132 || keyCode == 133) emptyList()
                 else listOf("HOLD", "PRESS_AND_HOLD")
 
-                Column(
-                    modifier = Modifier
-                        .weight(1f)
-                        .verticalScroll(rememberScrollState())
-                        .padding(horizontal = 16.dp),
-                    verticalArrangement = Arrangement.spacedBy(2.dp)
-                ) {
-                    pressTypes.forEachIndexed { index, type ->
-                        val shape = when {
-                            pressTypes.size == 1 -> RoundedCornerShape(MediumCornerRadius)
-                            index == 0 -> RoundedCornerShape(
-                                topStart = MediumCornerRadius,
-                                topEnd = MediumCornerRadius,
-                                bottomStart = SmallestCornerRadius,
-                                bottomEnd = SmallestCornerRadius
-                            )
-                            index == pressTypes.size - 1 -> RoundedCornerShape(
-                                topStart = SmallestCornerRadius,
-                                topEnd = SmallestCornerRadius,
-                                bottomStart = MediumCornerRadius,
-                                bottomEnd = MediumCornerRadius
-                            )
-                            else -> RoundedCornerShape(SmallestCornerRadius)
-                        }
+                Column(modifier = Modifier.fillMaxSize()) {
+                    Spacer(modifier = Modifier.height(16.dp))
 
-                        Surface(
-                            color = MaterialTheme.colorScheme.surfaceContainer,
-                            shape = shape,
-                            modifier = Modifier.fillMaxWidth()
-                        ) {
-                            MindControlActionSelector(keyCode, stateStr, type, onSelectAction)
-                        }
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 16.dp)
+                            .height(40.dp),
+                        horizontalArrangement = Arrangement.SpaceEvenly
+                    ) {
+                        Button(
+                            onClick = { onScreenOffChange(false) },
+                            border = if (isScreenOff) BorderStroke(1.dp, MaterialTheme.colorScheme.primary) else null,
+                            colors = if (!isScreenOff) ButtonDefaults.buttonColors(
+                                containerColor = MaterialTheme.colorScheme.primary,
+                                contentColor = MaterialTheme.colorScheme.onPrimary
+                            )
+                            else ButtonDefaults.buttonColors(
+                                containerColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.1f),
+                                contentColor = MaterialTheme.colorScheme.primary
+                            )
+                        ) { Text(stringResource(R.string.screen_on)) }
+
+                        Button(
+                            onClick = {
+                                if (!overrideScreenOff) {
+                                    showDisabledDialog = true
+                                } else if (keyCode == 27) {
+                                    showDisabledDialog = true
+                                } else if (isVolumeButton && !shellPermission) {
+                                    showDisabledDialog = true
+                                } else if (!isVolumeButton && !shellPermission) {
+                                    showDisabledDialog = true
+                                } else if (keyCode == 134 && !isScreenOff) {
+                                    showFocusWarningDialog = true
+                                } else {
+                                    onScreenOffChange(true)
+                                }
+                            },
+                            border = if (!isScreenOff) BorderStroke(1.dp, MaterialTheme.colorScheme.primary) else null,
+                            colors = when {
+                                !overrideScreenOff || keyCode == 27 || (isVolumeButton && !shellPermission) || (!isVolumeButton && !shellPermission) -> ButtonDefaults.buttonColors(
+                                    containerColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.12f),
+                                    contentColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.38f)
+                                )
+                                isScreenOff -> ButtonDefaults.buttonColors(
+                                    containerColor = MaterialTheme.colorScheme.primary,
+                                    contentColor = MaterialTheme.colorScheme.onPrimary
+                                )
+                                else -> ButtonDefaults.buttonColors(
+                                    containerColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.1f),
+                                    contentColor = MaterialTheme.colorScheme.primary
+                                )
+                            }
+                        ) { Text(stringResource(R.string.screen_off)) }
                     }
 
-                    if (holdTypes.isNotEmpty()) {
-                        Spacer(modifier = Modifier.height(14.dp)) // 14 + 2 (from verticalArrangement) = 16dp
-                        holdTypes.forEachIndexed { index, type ->
-                            val shape = when (index) {
-                                0 -> RoundedCornerShape(
-                                    topStart = MediumCornerRadius,
-                                    topEnd = MediumCornerRadius,
+                    LazyColumn(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .weight(1f)
+                            .topFadingEdge(16.dp),
+                        contentPadding = PaddingValues(
+                            top = 16.dp,
+                            bottom = 16.dp + paddingValues.calculateBottomPadding(),
+                            start = 16.dp,
+                            end = 16.dp
+                        ),
+                        verticalArrangement = Arrangement.spacedBy(2.dp)
+                    ) {
+                        items(pressTypes.size) { index ->
+                            val type = pressTypes[index]
+                            val shape = when {
+                                pressTypes.size == 1 -> RoundedCornerShape(ExtraLargerCornerRadius )
+                                index == 0 -> RoundedCornerShape(
+                                    topStart = ExtraLargerCornerRadius ,
+                                    topEnd = ExtraLargerCornerRadius ,
                                     bottomStart = SmallestCornerRadius,
                                     bottomEnd = SmallestCornerRadius
                                 )
-                                holdTypes.size - 1 -> RoundedCornerShape(
+                                index == pressTypes.size - 1 -> RoundedCornerShape(
                                     topStart = SmallestCornerRadius,
                                     topEnd = SmallestCornerRadius,
-                                    bottomStart = MediumCornerRadius,
-                                    bottomEnd = MediumCornerRadius
+                                    bottomStart = ExtraLargerCornerRadius ,
+                                    bottomEnd = ExtraLargerCornerRadius 
                                 )
                                 else -> RoundedCornerShape(SmallestCornerRadius)
                             }
 
                             Surface(
-                                color = MaterialTheme.colorScheme.surfaceContainer,
+                                color = MaterialTheme.colorScheme.surfaceContainerHighest,
                                 shape = shape,
                                 modifier = Modifier.fillMaxWidth()
                             ) {
                                 MindControlActionSelector(keyCode, stateStr, type, onSelectAction)
                             }
                         }
+
+                        if (holdTypes.isNotEmpty()) {
+                            item {
+                                Spacer(modifier = Modifier.height(14.dp))
+                            }
+                            items(holdTypes.size) { index ->
+                                val type = holdTypes[index]
+                                val shape = when {
+                                    holdTypes.size == 1 -> RoundedCornerShape(ExtraLargerCornerRadius )
+                                    index == 0 -> RoundedCornerShape(
+                                        topStart = ExtraLargerCornerRadius ,
+                                        topEnd = ExtraLargerCornerRadius ,
+                                        bottomStart = SmallestCornerRadius,
+                                        bottomEnd = SmallestCornerRadius
+                                    )
+                                    index == holdTypes.size - 1 -> RoundedCornerShape(
+                                        topStart = SmallestCornerRadius,
+                                        topEnd = SmallestCornerRadius,
+                                        bottomStart = ExtraLargerCornerRadius ,
+                                        bottomEnd = ExtraLargerCornerRadius 
+                                    )
+                                    else -> RoundedCornerShape(SmallestCornerRadius)
+                                }
+
+                                Surface(
+                                    color = MaterialTheme.colorScheme.surfaceContainerHighest,
+                                    shape = shape,
+                                    modifier = Modifier.fillMaxWidth()
+                                ) {
+                                    MindControlActionSelector(keyCode, stateStr, type, onSelectAction)
+                                }
+                            }
+                        }
                     }
                 }
             }
-        }
+        )
     }
 }
 

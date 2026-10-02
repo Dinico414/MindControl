@@ -2,8 +2,6 @@ package com.xenonware.mindcontrol.ui.res
 
 import android.graphics.drawable.Drawable
 import androidx.compose.foundation.Image
-import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.ArrowBack
 import androidx.compose.material.icons.automirrored.rounded.RotateRight
@@ -14,13 +12,13 @@ import androidx.compose.material.icons.automirrored.rounded.VolumeUp
 import androidx.compose.material.icons.rounded.Apps
 import androidx.compose.material.icons.rounded.ArrowCircleDown
 import androidx.compose.material.icons.rounded.ArrowCircleUp
+import androidx.compose.material.icons.rounded.AspectRatio
 import androidx.compose.material.icons.rounded.Assistant
 import androidx.compose.material.icons.rounded.Block
 import androidx.compose.material.icons.rounded.Bluetooth
 import androidx.compose.material.icons.rounded.BrightnessAuto
 import androidx.compose.material.icons.rounded.BrightnessHigh
 import androidx.compose.material.icons.rounded.BrightnessLow
-import androidx.compose.material.icons.rounded.CameraAlt
 import androidx.compose.material.icons.rounded.ContentCopy
 import androidx.compose.material.icons.rounded.ContentCut
 import androidx.compose.material.icons.rounded.ContentPaste
@@ -28,7 +26,6 @@ import androidx.compose.material.icons.rounded.DataUsage
 import androidx.compose.material.icons.rounded.DoNotDisturbOn
 import androidx.compose.material.icons.rounded.FastForward
 import androidx.compose.material.icons.rounded.FastRewind
-import androidx.compose.material.icons.rounded.FilterCenterFocus
 import androidx.compose.material.icons.rounded.FlashlightOn
 import androidx.compose.material.icons.rounded.Forward10
 import androidx.compose.material.icons.rounded.History
@@ -60,6 +57,7 @@ import androidx.compose.material.icons.rounded.SettingsBackupRestore
 import androidx.compose.material.icons.rounded.SkipNext
 import androidx.compose.material.icons.rounded.SkipPrevious
 import androidx.compose.material.icons.rounded.Stop
+import androidx.compose.material.icons.rounded.Straighten
 import androidx.compose.material.icons.rounded.Tune
 import androidx.compose.material.icons.rounded.Vibration
 import androidx.compose.material.icons.rounded.WatchLater
@@ -74,7 +72,6 @@ import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.unit.dp
 import androidx.core.graphics.drawable.toBitmap
 import com.xenonware.mindcontrol.R
 import com.xenonware.mindcontrol.SettingsManager
@@ -87,6 +84,20 @@ val SHELL_REQUIRED_ACTIONS = setOf(
     SettingsManager.ACTION_LOCATION_TOGGLE,
     SettingsManager.ACTION_AUTO_BRIGHTNESS_TOGGLE,
     SettingsManager.ACTION_SHOW_MENU,
+    SettingsManager.ACTION_ASPECT_RATIO_FULL_4_3,
+    SettingsManager.ACTION_ASPECT_RATIO_FULL_16_9,
+    SettingsManager.ACTION_ASPECT_RATIO_CYCLE,
+    SettingsManager.ACTION_ASPECT_RATIO_FULL_4_3_16_9,
+    SettingsManager.ACTION_ASPECT_RATIO_UP,
+    SettingsManager.ACTION_ASPECT_RATIO_DOWN,
+    SettingsManager.ACTION_SIZE_FULL,
+    SettingsManager.ACTION_SIZE_4_3,
+    SettingsManager.ACTION_SIZE_16_9,
+    SettingsManager.ACTION_CUSTOM_SIZE_TOGGLE,
+    SettingsManager.ACTION_DENSITY_CYCLE,
+    SettingsManager.ACTION_DENSITY_300,
+    SettingsManager.ACTION_DENSITY_400,
+    SettingsManager.ACTION_CUSTOM_DENSITY_TOGGLE,
 )
 
 fun isActionDisabled(action: String, shellReady: Boolean): Boolean {
@@ -154,9 +165,31 @@ fun getActionDisplayName(action: String): String {
         SettingsManager.ACTION_MUTE_VOL -> R.string.action_mute_vol
         SettingsManager.ACTION_MUTE_MIC_TOGGLE -> R.string.action_mute_mic_toggle
         SettingsManager.ACTION_VOLUME_DIALOG -> R.string.action_volume_dialog
+        SettingsManager.ACTION_ASPECT_RATIO_FULL_4_3 -> R.string.action_aspect_ratio_full_4_3
+        SettingsManager.ACTION_ASPECT_RATIO_FULL_16_9 -> R.string.action_aspect_ratio_full_16_9
+        SettingsManager.ACTION_ASPECT_RATIO_CYCLE -> R.string.action_aspect_ratio_cycle
+        SettingsManager.ACTION_ASPECT_RATIO_FULL_4_3_16_9 -> R.string.action_aspect_ratio_full_4_3_16_9
+        SettingsManager.ACTION_ASPECT_RATIO_UP -> R.string.action_aspect_ratio_up
+        SettingsManager.ACTION_ASPECT_RATIO_DOWN -> R.string.action_aspect_ratio_down
+        SettingsManager.ACTION_SIZE_FULL -> R.string.action_size_full
+        SettingsManager.ACTION_SIZE_4_3 -> R.string.action_size_4_3
+        SettingsManager.ACTION_SIZE_16_9 -> R.string.action_size_16_9
+        SettingsManager.ACTION_CUSTOM_SIZE_TOGGLE -> R.string.action_custom_size_toggle
+        SettingsManager.ACTION_DENSITY_CYCLE -> R.string.action_density_cycle
+        SettingsManager.ACTION_DENSITY_300 -> R.string.action_density_300
+        SettingsManager.ACTION_DENSITY_400 -> R.string.action_density_400
+        SettingsManager.ACTION_CUSTOM_DENSITY_TOGGLE -> R.string.action_custom_density_toggle
         else -> null
     }
-    return if (resId != null) stringResource(resId) else action.split("_").joinToString(" ") { word ->
+    return if (resId != null) stringResource(resId) else if (action.startsWith(SettingsManager.PREFIX_CUSTOM_SIZE)) {
+        val size = action.removePrefix(SettingsManager.PREFIX_CUSTOM_SIZE)
+        val toggleName = stringResource(R.string.action_custom_size_toggle)
+        "$toggleName: $size"
+    } else if (action.startsWith(SettingsManager.PREFIX_CUSTOM_DENSITY)) {
+        val density = action.removePrefix(SettingsManager.PREFIX_CUSTOM_DENSITY)
+        val toggleName = stringResource(R.string.action_custom_density_toggle)
+        "$toggleName: $density"
+    } else action.split("_").joinToString(" ") { word ->
         word.lowercase().replaceFirstChar { if (it.isLowerCase()) it.titlecase() else it.toString() }
     }
 }
@@ -194,6 +227,8 @@ fun ActionIcon(action: String, modifier: Modifier = Modifier, tint: Color = Loca
         action.startsWith(SettingsManager.PREFIX_SPEED_DIAL) || action == SettingsManager.ACTION_SPEED_DIAL -> Icons.Rounded.Phone
         action.startsWith(SettingsManager.PREFIX_URL) || action == SettingsManager.ACTION_URL -> Icons.Rounded.Language
         action.startsWith(SettingsManager.PREFIX_QR_CODE) || action == SettingsManager.ACTION_QR_CODE -> Icons.Rounded.QrCode
+        action.startsWith(SettingsManager.PREFIX_CUSTOM_SIZE) || action == SettingsManager.ACTION_CUSTOM_SIZE_TOGGLE -> Icons.Rounded.AspectRatio
+        action.startsWith(SettingsManager.PREFIX_CUSTOM_DENSITY) || action == SettingsManager.ACTION_CUSTOM_DENSITY_TOGGLE -> Icons.Rounded.Straighten
         action == SettingsManager.ACTION_NONE -> Icons.Rounded.Block
         action == SettingsManager.ACTION_DEFAULT -> Icons.Rounded.SettingsBackupRestore
         action == SettingsManager.ACTION_HOME -> Icons.Rounded.Home
@@ -240,6 +275,18 @@ fun ActionIcon(action: String, modifier: Modifier = Modifier, tint: Color = Loca
         action == SettingsManager.ACTION_MUTE_VOL -> Icons.AutoMirrored.Rounded.VolumeOff
         action == SettingsManager.ACTION_VOLUME_DIALOG -> Icons.Rounded.Tune
         action == SettingsManager.ACTION_MUTE_MIC_TOGGLE -> Icons.Rounded.MicOff
+        action == SettingsManager.ACTION_ASPECT_RATIO_FULL_4_3 ||
+        action == SettingsManager.ACTION_ASPECT_RATIO_FULL_16_9 ||
+        action == SettingsManager.ACTION_ASPECT_RATIO_CYCLE ||
+        action == SettingsManager.ACTION_ASPECT_RATIO_FULL_4_3_16_9 ||
+        action == SettingsManager.ACTION_ASPECT_RATIO_UP ||
+        action == SettingsManager.ACTION_ASPECT_RATIO_DOWN ||
+        action == SettingsManager.ACTION_SIZE_FULL ||
+        action == SettingsManager.ACTION_SIZE_4_3 ||
+        action == SettingsManager.ACTION_SIZE_16_9 -> Icons.Rounded.AspectRatio
+        action == SettingsManager.ACTION_DENSITY_CYCLE ||
+        action == SettingsManager.ACTION_DENSITY_300 ||
+        action == SettingsManager.ACTION_DENSITY_400 -> Icons.Rounded.Straighten
         action == SettingsManager.ACTION_PREVIOUS -> Icons.Rounded.SkipPrevious
         action == SettingsManager.ACTION_NEXT -> Icons.Rounded.SkipNext
         action == SettingsManager.ACTION_PLAY_PAUSE -> Icons.Rounded.PlayArrow

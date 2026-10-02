@@ -643,6 +643,51 @@ class ButtonMapperService : AccessibilityService() {
             SettingsManager.ACTION_DATA_TOGGLE -> { toggleData(); true }
             SettingsManager.ACTION_NFC_TOGGLE -> { toggleNfc(); true }
             SettingsManager.ACTION_LOCATION_TOGGLE -> { toggleLocation(); true }
+            SettingsManager.ACTION_ASPECT_RATIO_FULL_4_3 -> {
+                toggleAspectRatio(listOf("1080x1240", "1080x1440"), direction = 1)
+                true
+            }
+            SettingsManager.ACTION_ASPECT_RATIO_FULL_16_9 -> {
+                toggleAspectRatio(listOf("1080x1240", "1080x1920"), direction = 1)
+                true
+            }
+            SettingsManager.ACTION_ASPECT_RATIO_CYCLE, SettingsManager.ACTION_ASPECT_RATIO_FULL_4_3_16_9 -> {
+                toggleAspectRatio(listOf("1080x1240", "1080x1440", "1080x1920"), direction = 1)
+                true
+            }
+            SettingsManager.ACTION_ASPECT_RATIO_UP -> {
+                toggleAspectRatio(listOf("1080x1240", "1080x1440", "1080x1920"), direction = 1)
+                true
+            }
+            SettingsManager.ACTION_ASPECT_RATIO_DOWN -> {
+                toggleAspectRatio(listOf("1080x1240", "1080x1440", "1080x1920"), direction = -1)
+                true
+            }
+            SettingsManager.ACTION_SIZE_FULL -> {
+                ShellManager.runShellCommand("wm size 1080x1240")
+                true
+            }
+            SettingsManager.ACTION_SIZE_4_3 -> {
+                ShellManager.runShellCommand("wm size 1080x1440")
+                true
+            }
+            SettingsManager.ACTION_SIZE_16_9 -> {
+                ShellManager.runShellCommand("wm size 1080x1920")
+                true
+            }
+            SettingsManager.ACTION_DENSITY_CYCLE -> {
+                toggleDensity(listOf("300", "400"), direction = 1)
+                true
+            }
+
+            SettingsManager.ACTION_DENSITY_300 -> {
+                ShellManager.runShellCommand("wm density 300")
+                true
+            }
+            SettingsManager.ACTION_DENSITY_400 -> {
+                ShellManager.runShellCommand("wm density 400")
+                true
+            }
             SettingsManager.ACTION_SCROLL_UP, "TAP_SCROLL_UP" -> { performScroll(true); true }
             SettingsManager.ACTION_SCROLL_DOWN, "TAP_SCROLL_DOWN" -> { performScroll(false); true }
             SettingsManager.ACTION_SCROLL_UP_SMOOTH, "TAP_SCROLL_UP_SMOOTH" -> { performScroll(true); true }
@@ -664,6 +709,14 @@ class ButtonMapperService : AccessibilityService() {
                     true
                 } else if (finalAction.startsWith(SettingsManager.PREFIX_QR_CODE)) {
                     showQrCode(finalAction.removePrefix(SettingsManager.PREFIX_QR_CODE))
+                    true
+                } else if (finalAction.startsWith(SettingsManager.PREFIX_CUSTOM_SIZE)) {
+                    val customSize = finalAction.removePrefix(SettingsManager.PREFIX_CUSTOM_SIZE)
+                    toggleAspectRatio(listOf("1080x1240", customSize), direction = 1)
+                    true
+                } else if (finalAction.startsWith(SettingsManager.PREFIX_CUSTOM_DENSITY)) {
+                    val customDensity = finalAction.removePrefix(SettingsManager.PREFIX_CUSTOM_DENSITY)
+                    toggleDensity(listOf("300", customDensity), direction = 1)
                     true
                 } else {
                     false
@@ -1258,6 +1311,56 @@ class ButtonMapperService : AccessibilityService() {
             }
         } catch (e: Exception) {
             Log.e(tag, "Location toggle error", e)
+        }
+    }
+
+    private fun toggleAspectRatio(sizes: List<String>, direction: Int = 1) {
+        try {
+            if (ShellManager.isAvailable()) {
+                val output = ShellManager.runShellCommandBlocking("wm size")
+                val lines = output.lines()
+                val overrideLine = lines.find { it.contains("Override size:", ignoreCase = true) }
+                val activeLine = overrideLine ?: lines.find { it.contains("Physical size:", ignoreCase = true) } ?: output
+
+                val currentIndex = sizes.indexOfFirst { activeLine.contains(it) }
+                val nextIndex = if (currentIndex != -1) {
+                    (currentIndex + direction + sizes.size) % sizes.size
+                } else {
+                    0
+                }
+                val nextSize = sizes[nextIndex]
+                ShellManager.runShellCommand("wm size $nextSize")
+                Log.d(tag, "Aspect Ratio Toggle: $currentIndex -> $nextIndex ($nextSize)")
+            } else {
+                Log.e(tag, "Aspect Ratio toggle requires Shell access (Shizuku or Root)")
+            }
+        } catch (e: Exception) {
+            Log.e(tag, "Aspect Ratio toggle error", e)
+        }
+    }
+
+    private fun toggleDensity(densities: List<String>, direction: Int = 1) {
+        try {
+            if (ShellManager.isAvailable()) {
+                val output = ShellManager.runShellCommandBlocking("wm density")
+                val lines = output.lines()
+                val overrideLine = lines.find { it.contains("Override density:", ignoreCase = true) }
+                val activeLine = overrideLine ?: lines.find { it.contains("Physical density:", ignoreCase = true) } ?: output
+
+                val currentIndex = densities.indexOfFirst { activeLine.contains(it) }
+                val nextIndex = if (currentIndex != -1) {
+                    (currentIndex + direction + densities.size) % densities.size
+                } else {
+                    0
+                }
+                val nextDensity = densities[nextIndex]
+                ShellManager.runShellCommand("wm density $nextDensity")
+                Log.d(tag, "Density Toggle: $currentIndex -> $nextIndex ($nextDensity)")
+            } else {
+                Log.e(tag, "Density toggle requires Shell access (Shizuku or Root)")
+            }
+        } catch (e: Exception) {
+            Log.e(tag, "Density toggle error", e)
         }
     }
 

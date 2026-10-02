@@ -10,7 +10,6 @@ import android.provider.Settings
 import android.util.Log
 import android.view.accessibility.AccessibilityManager
 import androidx.compose.foundation.BorderStroke
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -33,6 +32,7 @@ import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -50,14 +50,24 @@ import androidx.compose.ui.window.DialogProperties
 import androidx.core.net.toUri
 import com.xenon.mylibrary.res.XenonDialog
 import com.xenon.mylibrary.theme.QuicksandTitleVariable
+import com.xenonware.mindcontrol.PermissionStatus
 import com.xenonware.mindcontrol.R
 import com.xenonware.mindcontrol.SettingsManager
 import com.xenonware.mindcontrol.ShellManager
 import com.xenonware.mindcontrol.ui.theme.Palette
 import com.xenonware.mindcontrol.ui.theme.PaletteRow
 import kotlinx.coroutines.delay
-import rikka.shizuku.Shizuku
 import kotlin.time.Duration.Companion.milliseconds
+
+private const val SHIZUKU_PACKAGE = "moe.shizuku.privileged.api"
+
+// Status colors (same style as the existing cards)
+private val GreenContainer = Color(0xFFE8F5E9)
+private val GreenContent = Color(0xFF2E7D32)
+private val YellowContainer = Color(0xFFFFF8E1)
+private val YellowContent = Color(0xFF9A6B00)
+private val RedContainer = Color(0xFFFFEBEE)
+private val RedContent = Color(0xFFC62828)
 
 fun openAppInfo(context: Context) {
     try {
@@ -68,6 +78,57 @@ fun openAppInfo(context: Context) {
         context.startActivity(intent)
     } catch (e: Exception) {
         Log.e("TogglesContainer", "Error opening app info", e)
+    }
+}
+
+private fun isShizukuInstalled(context: Context): Boolean = try {
+    context.packageManager.getPackageInfo(SHIZUKU_PACKAGE, PackageManager.PackageInfoFlags.of(0))
+    true
+} catch (_: Exception) {
+    false
+}
+
+private fun openShizukuStorePage(context: Context) {
+    try {
+        context.startActivity(Intent(Intent.ACTION_VIEW, "market://details?id=$SHIZUKU_PACKAGE".toUri()))
+    } catch (_: Exception) {
+        context.startActivity(Intent(Intent.ACTION_VIEW, "https://play.google.com/store/apps/details?id=$SHIZUKU_PACKAGE".toUri()))
+    }
+}
+
+/** Yellow = available, red = denied / not running / not installed, green = granted. */
+@Composable
+private fun PermissionStatusCard(
+    text: String,
+    status: PermissionStatus,
+    onClick: (() -> Unit)?,
+) {
+    val (container, content) = when (status) {
+        PermissionStatus.GRANTED -> GreenContainer to GreenContent
+        PermissionStatus.AVAILABLE -> YellowContainer to YellowContent
+        PermissionStatus.DENIED, PermissionStatus.UNAVAILABLE -> RedContainer to RedContent
+    }
+    Card(
+        onClick = onClick ?: {},
+        enabled = onClick != null,
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(vertical = 4.dp),
+        colors = CardDefaults.cardColors(
+            containerColor = container,
+            disabledContainerColor = container,
+            contentColor = content,
+            disabledContentColor = content
+        ),
+        border = BorderStroke(1.dp, content)
+    ) {
+        Column(modifier = Modifier.padding(12.dp)) {
+            Text(
+                text = text,
+                color = content,
+                style = MaterialTheme.typography.bodyMedium
+            )
+        }
     }
 }
 
@@ -122,6 +183,13 @@ fun TogglesContainer(
     }
     var showAccessibilityDisclosure by rememberSaveable { mutableStateOf(false) }
 
+    // Root / Shizuku state (reactive, never blocks the UI thread, never prompts on its own)
+    val rootStatus by ShellManager.rootStatus.collectAsState()
+    val shizukuStatus by ShellManager.shizukuStatus.collectAsState()
+    var shizukuInstalled by remember { mutableStateOf(isShizukuInstalled(context)) }
+    val shellGranted =
+        rootStatus == PermissionStatus.GRANTED || shizukuStatus == PermissionStatus.GRANTED
+
     LaunchedEffect(Unit) {
         while (true) {
             isServiceEnabled =
@@ -130,8 +198,10 @@ fun TogglesContainer(
 
             isNotificationListenerEnabled = Settings.Secure.getString(context.contentResolver, "enabled_notification_listeners")
                 ?.contains(context.packageName) == true
-            
+
             isBatteryOptimized = !powerManager.isIgnoringBatteryOptimizations(context.packageName)
+
+            shizukuInstalled = isShizukuInstalled(context)
 
             delay(2000.milliseconds)
         }
@@ -193,118 +263,58 @@ fun TogglesContainer(
                     .fillMaxWidth()
                     .padding(vertical = 4.dp),
                 colors = CardDefaults.cardColors(
-                    containerColor = if (isServiceEnabled) Color(0xFFE8F5E9) else Color(0xFFFFEBEE)
+                    containerColor = if (isServiceEnabled) GreenContainer else RedContainer
                 ),
                 border = BorderStroke(
-                    1.dp, if (isServiceEnabled) Color(0xFF2E7D32) else Color(0xFFC62828)
+                    1.dp, if (isServiceEnabled) GreenContent else RedContent
                 )
             ) {
                 Column(modifier = Modifier.padding(12.dp)) {
                     Text(
                         text = if (isServiceEnabled) stringResource(R.string.accessibility_active) else stringResource(R.string.accessibility_inactive),
-                        color = if (isServiceEnabled) Color(0xFF2E7D32) else Color(0xFFC62828),
+                        color = if (isServiceEnabled) GreenContent else RedContent,
                         style = MaterialTheme.typography.bodyMedium
                     )
                 }
             }
 
-            // --- Privileged Access Status (Shizuku or Root) ---
-            val isRooted = ShellManager.isDeviceRooted()
-            val shizukuInstalled = try {
-                context.packageManager.getPackageInfo("moe.shizuku.privileged.api", PackageManager.PackageInfoFlags.of(0))
-                true
-            } catch (_: Exception) {
-                false
+            // --- Privileged Access Status (Root / Shizuku) ---
+            // Root box: only on rooted devices. Yellow = available, red = denied, green = granted.
+            if (rootStatus != PermissionStatus.UNAVAILABLE) {
+                PermissionStatusCard(
+                    text = when (rootStatus) {
+                        PermissionStatus.GRANTED -> stringResource(R.string.root_authorized)
+                        PermissionStatus.DENIED -> stringResource(R.string.root_denied)
+                        else -> stringResource(R.string.root_available)
+                    },
+                    status = rootStatus,
+                    onClick = if (rootStatus != PermissionStatus.GRANTED) {
+                        { ShellManager.requestRoot() }
+                    } else null
+                )
             }
 
-            val shizukuAvailable = ShellManager.isShizukuAvailable()
-            val rootAvailable = ShellManager.isRootAvailable()
-
-            if (rootAvailable) {
-                // Root is available, show ONLY the green root box.
-                Card(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(vertical = 4.dp),
-                    colors = CardDefaults.cardColors(containerColor = Color(0xFFE8F5E9)),
-                    border = BorderStroke(1.dp, Color(0xFF2E7D32))
-                ) {
-                    Column(modifier = Modifier.padding(12.dp)) {
-                        Text(
-                            text = stringResource(R.string.root_authorized),
-                            color = Color(0xFF2E7D32),
-                            style = MaterialTheme.typography.bodyMedium
-                        )
-                    }
-                }
-            } else if (isRooted || shizukuInstalled) {
-                // Root box (red) if rooted
-                if (isRooted) {
-                    Card(
-                        onClick = {
-                            Thread { ShellManager.isRootAvailable() }.start()
-                        },
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(vertical = 4.dp),
-                        colors = CardDefaults.cardColors(containerColor = Color(0xFFFFEBEE)),
-                        border = BorderStroke(1.dp, Color(0xFFC62828))
-                    ) {
-                        Column(modifier = Modifier.padding(12.dp)) {
-                            Text(
-                                text = stringResource(R.string.root_unauthorized),
-                                color = Color(0xFFC62828),
-                                style = MaterialTheme.typography.bodyMedium
-                            )
-                        }
-                    }
-                }
-
-                // Shizuku box
-                Card(
-                    onClick = {
-                        if (shizukuInstalled) {
-                            if (!shizukuAvailable) {
-                                val intent = context.packageManager.getLaunchIntentForPackage("moe.shizuku.privileged.api")
-                                if (intent != null) context.startActivity(intent)
-                            } else {
-                                try {
-                                    Shizuku.requestPermission(0)
-                                } catch (e: Exception) {
-                                    Log.e("TogglesContainer", "Shizuku request error", e)
-                                }
-                            }
-                        } else {
-                            try {
-                                context.startActivity(Intent(Intent.ACTION_VIEW, "market://details?id=moe.shizuku.privileged.api".toUri()))
-                            } catch (_: Exception) {
-                                context.startActivity(Intent(Intent.ACTION_VIEW, "https://play.google.com/store/apps/details?id=moe.shizuku.privileged.api".toUri()))
-                            }
-                        }
+            // Shizuku box: hidden as soon as root is granted.
+            if (rootStatus != PermissionStatus.GRANTED) {
+                PermissionStatusCard(
+                    text = when {
+                        !shizukuInstalled -> stringResource(R.string.shizuku_not_installed)
+                        shizukuStatus == PermissionStatus.GRANTED -> stringResource(R.string.shizuku_authorized)
+                        shizukuStatus == PermissionStatus.DENIED -> stringResource(R.string.shizuku_denied)
+                        shizukuStatus == PermissionStatus.AVAILABLE -> stringResource(R.string.shizuku_available)
+                        else -> stringResource(R.string.shizuku_not_running)
                     },
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(vertical = 4.dp),
-                    colors = CardDefaults.cardColors(
-                        containerColor = if (shizukuAvailable) Color(0xFFE8F5E9) else Color(0xFFFFEBEE)
-                    ),
-                    border = BorderStroke(
-                        1.dp, if (shizukuAvailable) Color(0xFF2E7D32) else Color(0xFFC62828)
-                    )
-                ) {
-                    Column(modifier = Modifier.padding(12.dp)) {
-                        val statusText = when {
-                            shizukuAvailable -> stringResource(R.string.shizuku_authorized)
-                            shizukuInstalled -> stringResource(R.string.shizuku_unauthorized)
-                            else -> stringResource(R.string.shizuku_not_installed)
+                    status = if (!shizukuInstalled) PermissionStatus.UNAVAILABLE else shizukuStatus,
+                    onClick = when {
+                        !shizukuInstalled -> {
+                            { openShizukuStorePage(context) }
                         }
-                        Text(
-                            text = statusText,
-                            color = if (shizukuAvailable) Color(0xFF2E7D32) else Color(0xFFC62828),
-                            style = MaterialTheme.typography.bodyMedium
-                        )
+                        shizukuStatus != PermissionStatus.GRANTED -> {
+                            { ShellManager.requestShizuku(context) }
+                        }
+                        else -> null
                     }
-                }
+                )
             }
 
             // --- Battery Optimization Status ---
@@ -326,18 +336,18 @@ fun TogglesContainer(
                     modifier = Modifier
                         .fillMaxWidth()
                         .padding(vertical = 4.dp),
-                    colors = CardDefaults.cardColors(containerColor = Color(0xFFFFEBEE)),
-                    border = BorderStroke(1.dp, Color(0xFFC62828))
+                    colors = CardDefaults.cardColors(containerColor = RedContainer),
+                    border = BorderStroke(1.dp, RedContent)
                 ) {
                     Column(modifier = Modifier.padding(12.dp)) {
                         Text(
                             text = stringResource(R.string.battery_opt_on),
-                            color = Color(0xFFC62828),
+                            color = RedContent,
                             style = MaterialTheme.typography.bodyMedium
                         )
                         Text(
                             text = stringResource(R.string.battery_opt_desc),
-                            color = Color(0xFFC62828).copy(alpha = 0.7f),
+                            color = RedContent.copy(alpha = 0.7f),
                             style = MaterialTheme.typography.labelSmall
                         )
                     }
@@ -354,13 +364,13 @@ fun TogglesContainer(
                     modifier = Modifier
                         .fillMaxWidth()
                         .padding(vertical = 4.dp),
-                    colors = CardDefaults.cardColors(containerColor = Color(0xFFFFEBEE)),
-                    border = BorderStroke(1.dp, Color(0xFFC62828))
+                    colors = CardDefaults.cardColors(containerColor = RedContainer),
+                    border = BorderStroke(1.dp, RedContent)
                 ) {
                     Column(modifier = Modifier.padding(12.dp)) {
                         Text(
                             text = stringResource(R.string.media_control_inactive),
-                            color = Color(0xFFC62828),
+                            color = RedContent,
                             style = MaterialTheme.typography.bodyMedium
                         )
                     }
@@ -378,13 +388,13 @@ fun TogglesContainer(
                     modifier = Modifier
                         .fillMaxWidth()
                         .padding(vertical = 4.dp),
-                    colors = CardDefaults.cardColors(containerColor = Color(0xFFFFEBEE)),
-                    border = BorderStroke(1.dp, Color(0xFFC62828))
+                    colors = CardDefaults.cardColors(containerColor = RedContainer),
+                    border = BorderStroke(1.dp, RedContent)
                 ) {
                     Column(modifier = Modifier.padding(12.dp)) {
                         Text(
                             text = stringResource(R.string.system_settings_denied),
-                            color = Color(0xFFC62828),
+                            color = RedContent,
                             style = MaterialTheme.typography.bodyMedium
                         )
                     }
@@ -402,13 +412,13 @@ fun TogglesContainer(
                     modifier = Modifier
                         .fillMaxWidth()
                         .padding(vertical = 4.dp),
-                    colors = CardDefaults.cardColors(containerColor = Color(0xFFFFEBEE)),
-                    border = BorderStroke(1.dp, Color(0xFFC62828))
+                    colors = CardDefaults.cardColors(containerColor = RedContainer),
+                    border = BorderStroke(1.dp, RedContent)
                 ) {
                     Column(modifier = Modifier.padding(12.dp)) {
                         Text(
                             text = stringResource(R.string.dnd_access_denied),
-                            color = Color(0xFFC62828),
+                            color = RedContent,
                             style = MaterialTheme.typography.bodyMedium
                         )
                     }
@@ -426,13 +436,13 @@ fun TogglesContainer(
                     modifier = Modifier
                         .fillMaxWidth()
                         .padding(vertical = 4.dp),
-                    colors = CardDefaults.cardColors(containerColor = Color(0xFFFFEBEE)),
-                    border = BorderStroke(1.dp, Color(0xFFC62828))
+                    colors = CardDefaults.cardColors(containerColor = RedContainer),
+                    border = BorderStroke(1.dp, RedContent)
                 ) {
                     Column(modifier = Modifier.padding(12.dp)) {
                         Text(
                             text = stringResource(R.string.notifications_denied),
-                            color = Color(0xFFC62828),
+                            color = RedContent,
                             style = MaterialTheme.typography.bodyMedium
                         )
                     }
@@ -539,7 +549,7 @@ fun TogglesContainer(
                 })
             }
 
-            if (!ShellManager.isAvailable()) {
+            if (!shellGranted) {
                 Row(
                     verticalAlignment = Alignment.CenterVertically,
                     modifier = Modifier
