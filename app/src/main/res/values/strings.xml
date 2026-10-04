@@ -185,9 +185,9 @@
     <string name="action_aspect_ratio_full_4_3_16_9">Aspect Ratio: Full, 4:3 &amp; 16:9</string>
     <string name="action_aspect_ratio_up">Aspect Ratio: Cycle Up</string>
     <string name="action_aspect_ratio_down">Aspect Ratio: Cycle Down</string>
-    <string name="action_size_full">Set Size: Full (1080x1240)</string>
-    <string name="action_size_4_3">Set Size: 4:3 (1080x1440)</string>
-    <string name="action_size_16_9">Set Size: 16:9 (1080x1920)</string>
+    <string name="action_size_full">Set Size: Full (Reset)</string>
+    <string name="action_size_4_3">Set Size: 4:3</string>
+    <string name="action_size_16_9">Set Size: 16:9</string>
     <string name="action_density_300_400">Screen Density: 300 &amp; 400</string>
     <string name="action_density_300_200">Screen Density: 300 &amp; 200</string>
     <string name="action_density_cycle">Screen Density: Cycle (200, 300, 400)</string>
@@ -200,11 +200,11 @@
     <string name="action_custom_density_toggle">Custom Density (Toggle)</string>
     <string name="custom_size_title">Configure Custom Size</string>
     <string name="custom_density_title">Configure Custom Density</string>
-    <string name="width_hint">Width (720 – 2000)</string>
-    <string name="height_hint">Height (720 – 2000)</string>
+    <string name="width_hint">Width (650 – 2000)</string>
+    <string name="height_hint">Height (650 – 2000)</string>
     <string name="density_hint">Density (150 – 600)</string>
     <string name="aspect_ratio_label">Calculated Aspect Ratio: %1$s</string>
-    <string name="invalid_size_error">Width and Height must be between 720 and 2000.</string>
+    <string name="invalid_size_error">Width and Height must be between 650 and 2000.</string>
     <string name="invalid_density_error">Density must be between 150 and 600.</string>
     <string name="section_screen_size">Screen Size &amp; Scale</string>
     <string name="section_screen_density">Screen Density</string>

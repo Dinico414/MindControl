@@ -618,7 +618,7 @@ fun DisplayTab(
     if (showCustomSizeDialog) {
         val wVal = widthInput.toIntOrNull()
         val hVal = heightInput.toIntOrNull()
-        val isValid = wVal != null && hVal != null && wVal in 720..2000 && hVal in 720..2000
+        val isValid = wVal != null && hVal != null && wVal in 650..2000 && hVal in 650..2000
         val ratioText = if (wVal != null && hVal != null && wVal > 0 && hVal > 0) {
             calculateAspectRatio(wVal, hVal)
         } else null

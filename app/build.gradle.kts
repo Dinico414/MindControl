@@ -11,8 +11,8 @@ android {
         applicationId = "com.xenonware.mindcontrol"
         minSdk = 35
         targetSdk = 37
-        versionCode = 4
-        versionName = "2.0"
+        versionCode = 5
+        versionName = "2.1"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         buildConfigField("String", "FEATURE_DROP", "\"${libs.versions.featureDrop.get()}\"")

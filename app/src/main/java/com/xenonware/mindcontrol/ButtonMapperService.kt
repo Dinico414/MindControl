@@ -644,35 +644,35 @@ class ButtonMapperService : AccessibilityService() {
             SettingsManager.ACTION_NFC_TOGGLE -> { toggleNfc(); true }
             SettingsManager.ACTION_LOCATION_TOGGLE -> { toggleLocation(); true }
             SettingsManager.ACTION_ASPECT_RATIO_FULL_4_3 -> {
-                toggleAspectRatio(listOf("1080x1240", "1080x1440"), direction = 1)
+                toggleAspectRatio(listOf("RESET", "4:3"), direction = 1)
                 true
             }
             SettingsManager.ACTION_ASPECT_RATIO_FULL_16_9 -> {
-                toggleAspectRatio(listOf("1080x1240", "1080x1920"), direction = 1)
+                toggleAspectRatio(listOf("RESET", "16:9"), direction = 1)
                 true
             }
             SettingsManager.ACTION_ASPECT_RATIO_CYCLE, SettingsManager.ACTION_ASPECT_RATIO_FULL_4_3_16_9 -> {
-                toggleAspectRatio(listOf("1080x1240", "1080x1440", "1080x1920"), direction = 1)
+                toggleAspectRatio(listOf("RESET", "4:3", "16:9"), direction = 1)
                 true
             }
             SettingsManager.ACTION_ASPECT_RATIO_UP -> {
-                toggleAspectRatio(listOf("1080x1240", "1080x1440", "1080x1920"), direction = 1)
+                toggleAspectRatio(listOf("RESET", "4:3", "16:9"), direction = 1)
                 true
             }
             SettingsManager.ACTION_ASPECT_RATIO_DOWN -> {
-                toggleAspectRatio(listOf("1080x1240", "1080x1440", "1080x1920"), direction = -1)
+                toggleAspectRatio(listOf("RESET", "4:3", "16:9"), direction = -1)
                 true
             }
             SettingsManager.ACTION_SIZE_FULL -> {
-                ShellManager.runShellCommand("wm size 1080x1240")
+                setScreenSize("RESET")
                 true
             }
             SettingsManager.ACTION_SIZE_4_3 -> {
-                ShellManager.runShellCommand("wm size 1080x1440")
+                setScreenSize("4:3")
                 true
             }
             SettingsManager.ACTION_SIZE_16_9 -> {
-                ShellManager.runShellCommand("wm size 1080x1920")
+                setScreenSize("16:9")
                 true
             }
             SettingsManager.ACTION_DENSITY_CYCLE -> {
@@ -712,7 +712,7 @@ class ButtonMapperService : AccessibilityService() {
                     true
                 } else if (finalAction.startsWith(SettingsManager.PREFIX_CUSTOM_SIZE)) {
                     val customSize = finalAction.removePrefix(SettingsManager.PREFIX_CUSTOM_SIZE)
-                    toggleAspectRatio(listOf("1080x1240", customSize), direction = 1)
+                    toggleAspectRatio(listOf("RESET", customSize), direction = 1)
                     true
                 } else if (finalAction.startsWith(SettingsManager.PREFIX_CUSTOM_DENSITY)) {
                     val customDensity = finalAction.removePrefix(SettingsManager.PREFIX_CUSTOM_DENSITY)
@@ -1314,23 +1314,120 @@ class ButtonMapperService : AccessibilityService() {
         }
     }
 
-    private fun toggleAspectRatio(sizes: List<String>, direction: Int = 1) {
+    private fun calculateHeight43(width: Int): Int {
+        val h = kotlin.math.round(width * 4.0 / 3.0).toInt()
+        return if (h % 2 != 0) h + 1 else h
+    }
+
+    private fun calculateHeight169(width: Int): Int {
+        val h = kotlin.math.round(width * 16.0 / 9.0).toInt()
+        return if (h % 2 != 0) h + 1 else h
+    }
+
+    private fun extractPhysicalDimensions(output: String): Pair<Int, Int> {
+        val match = Regex("""Physical size:\s*(\d+)x(\d+)""", RegexOption.IGNORE_CASE).find(output)
+        val w = match?.groupValues?.get(1)?.toIntOrNull()
+        val h = match?.groupValues?.get(2)?.toIntOrNull()
+        if (w != null && h != null) {
+            return Pair(w, h)
+        }
+        return try {
+            val dm = resources.displayMetrics
+            Pair(dm.widthPixels, dm.heightPixels)
+        } catch (_: Exception) {
+            Pair(1080, 1920)
+        }
+    }
+
+    private fun getPhysicalDimensions(): Pair<Int, Int> {
+        return try {
+            if (ShellManager.isAvailable()) {
+                val output = ShellManager.runShellCommandBlocking("wm size")
+                extractPhysicalDimensions(output)
+            } else {
+                val dm = resources.displayMetrics
+                Pair(dm.widthPixels, dm.heightPixels)
+            }
+        } catch (_: Exception) {
+            Pair(1080, 1920)
+        }
+    }
+
+    private fun setScreenSize(target: String) {
+        try {
+            if (ShellManager.isAvailable()) {
+                when (target.uppercase()) {
+                    "RESET", "FULL" -> {
+                        ShellManager.runShellCommand("wm size reset")
+                        Log.d(tag, "Screen size set to full (wm size reset)")
+                    }
+                    "4:3" -> {
+                        val (width, _) = getPhysicalDimensions()
+                        val height = calculateHeight43(width)
+                        ShellManager.runShellCommand("wm size ${width}x$height")
+                        Log.d(tag, "Screen size set to 4:3 (${width}x$height)")
+                    }
+                    "16:9" -> {
+                        val (width, _) = getPhysicalDimensions()
+                        val height = calculateHeight169(width)
+                        ShellManager.runShellCommand("wm size ${width}x$height")
+                        Log.d(tag, "Screen size set to 16:9 (${width}x$height)")
+                    }
+                    else -> {
+                        ShellManager.runShellCommand("wm size $target")
+                        Log.d(tag, "Screen size set to $target")
+                    }
+                }
+            } else {
+                Log.e(tag, "Setting screen size requires Shell access (Shizuku or Root)")
+            }
+        } catch (e: Exception) {
+            Log.e(tag, "Set screen size error", e)
+        }
+    }
+
+    private fun toggleAspectRatio(targets: List<String>, direction: Int = 1) {
         try {
             if (ShellManager.isAvailable()) {
                 val output = ShellManager.runShellCommandBlocking("wm size")
-                val lines = output.lines()
-                val overrideLine = lines.find { it.contains("Override size:", ignoreCase = true) }
-                val activeLine = overrideLine ?: lines.find { it.contains("Physical size:", ignoreCase = true) } ?: output
+                val (physicalWidth, physicalHeight) = extractPhysicalDimensions(output)
+                val physicalSizeString = "${physicalWidth}x${physicalHeight}"
+                val target43 = "${physicalWidth}x${calculateHeight43(physicalWidth)}"
+                val target169 = "${physicalWidth}x${calculateHeight169(physicalWidth)}"
 
-                val currentIndex = sizes.indexOfFirst { activeLine.contains(it) }
-                val nextIndex = if (currentIndex != -1) {
-                    (currentIndex + direction + sizes.size) % sizes.size
-                } else {
-                    0
+                val resolvedSizes = targets.map { target ->
+                    when (target.uppercase()) {
+                        "RESET", "FULL", "1080X1240" -> "RESET"
+                        "4:3" -> target43
+                        "16:9" -> target169
+                        else -> target
+                    }
                 }
-                val nextSize = sizes[nextIndex]
-                ShellManager.runShellCommand("wm size $nextSize")
-                Log.d(tag, "Aspect Ratio Toggle: $currentIndex -> $nextIndex ($nextSize)")
+
+                val overrideMatch = Regex("""Override size:\s*(\d+)x(\d+)""", RegexOption.IGNORE_CASE).find(output)
+                val currentOverride = overrideMatch?.let { "${it.groupValues[1]}x${it.groupValues[2]}" }
+
+                val currentIndex = if (currentOverride == null || currentOverride.equals(physicalSizeString, ignoreCase = true)) {
+                    val resetIdx = resolvedSizes.indexOf("RESET")
+                    if (resetIdx != -1) resetIdx else resolvedSizes.indexOf(physicalSizeString)
+                } else {
+                    resolvedSizes.indexOf(currentOverride)
+                }
+
+                val nextIndex = if (currentIndex != -1) {
+                    (currentIndex + direction + resolvedSizes.size) % resolvedSizes.size
+                } else {
+                    if (direction >= 0) 0 else resolvedSizes.lastIndex
+                }
+
+                val nextSize = resolvedSizes[nextIndex]
+                if (nextSize == "RESET") {
+                    ShellManager.runShellCommand("wm size reset")
+                    Log.d(tag, "Aspect Ratio Toggle: $currentIndex -> $nextIndex (wm size reset)")
+                } else {
+                    ShellManager.runShellCommand("wm size $nextSize")
+                    Log.d(tag, "Aspect Ratio Toggle: $currentIndex -> $nextIndex ($nextSize)")
+                }
             } else {
                 Log.e(tag, "Aspect Ratio toggle requires Shell access (Shizuku or Root)")
             }
