@@ -70,7 +70,10 @@ class ButtonMapperService : AccessibilityService() {
     )
 
     private fun hasCustomMapping(keyCode: Int, state: String): Boolean {
-        val types = listOf("SINGLE_PRESS", "DOUBLE_PRESS", "TRIPLE_PRESS", "HOLD", "PRESS_AND_HOLD")
+        val types = listOf(
+            "SINGLE_PRESS", "DOUBLE_PRESS", "TRIPLE_PRESS", "QUADRUPLE_PRESS", "QUINTUPLE_PRESS",
+            "HOLD", "PRESS_AND_HOLD", "DOUBLE_TAP_AND_HOLD"
+        )
         return types.any {
             SettingsManager.getAction(this, keyCode, state, it) != SettingsManager.ACTION_DEFAULT
         }
@@ -212,6 +215,7 @@ class ButtonMapperService : AccessibilityService() {
 
     private val handler = Handler(Looper.getMainLooper())
     private val longPressRunnables = mutableMapOf<Int, Runnable>()
+    private val downClickCounts = mutableMapOf<Int, Int>()
     private val keyClearTasks = mutableMapOf<Int, Runnable>()
     private var pendingMultiClick: Runnable? = null
 
@@ -238,7 +242,11 @@ class ButtonMapperService : AccessibilityService() {
         val isVolumeKey = keyCode == 24 || keyCode == 25
         val isVolumeSkipActive = state == "OFF" && isVolumeKey && SettingsManager.isVolumeLongPressSkipEnabled(this)
 
+        Log.d(tag, "processKeyEvent: keyCode=$keyCode, isDown=$isDown, state=$state, clickCount=$clickCount")
+
         if (isDown) {
+            if (longPressRunnables.containsKey(keyCode)) return
+
             isLongPress[keyCode] = false
             if (keyCode != lastKeyCode) {
                 clickCount = 0
@@ -252,11 +260,20 @@ class ButtonMapperService : AccessibilityService() {
 
             if (keyCode == 132 || keyCode == 133) return
 
-            val capturedClickCount = clickCount
+            downClickCounts[keyCode] = clickCount
+
             val longPressRunnable = Runnable {
                 isLongPress[keyCode] = true
-                val type = if (capturedClickCount == 0) "HOLD" else "PRESS_AND_HOLD"
-                Log.d(tag, "Long Press triggered: $type for $keyCode (state=$state)")
+                val clickCountAtDown = downClickCounts[keyCode] ?: 0
+                clickCount = 0
+                pendingMultiClick?.let { handler.removeCallbacks(it); pendingMultiClick = null }
+
+                val type = when {
+                    clickCountAtDown == 2 -> "DOUBLE_TAP_AND_HOLD"
+                    clickCountAtDown > 0 -> "PRESS_AND_HOLD"
+                    else -> "HOLD"
+                }
+                Log.d(tag, "LONG PRESS FIRED: type=$type for keyCode=$keyCode (state=$state, clickCountAtDown=$clickCountAtDown)")
                 performAction(keyCode, state, type)
                 if (!isVolumeSkipActive) {
                     startContinuousAction(keyCode, state, type)
@@ -268,8 +285,10 @@ class ButtonMapperService : AccessibilityService() {
             longPressRunnables.remove(keyCode)?.let { handler.removeCallbacks(it) }
 
             val wasLongPress = isLongPress.remove(keyCode) ?: false
+            Log.d(tag, "processKeyEvent UP: keyCode=$keyCode, wasLongPress=$wasLongPress, clickCountBeforeIncrement=$clickCount")
             if (wasLongPress) {
                 clickCount = 0
+                downClickCounts.remove(keyCode)
                 stopContinuousAction(keyCode)
                 return
             }
@@ -288,12 +307,20 @@ class ButtonMapperService : AccessibilityService() {
             }
 
             clickCount++
+            Log.d(tag, "clickCount incremented to: $clickCount for keyCode=$keyCode")
+
+            pendingMultiClick?.let { handler.removeCallbacks(it) }
 
             val multiClickRunnable = Runnable {
                 val type = when (clickCount) {
-                    1 -> "SINGLE_PRESS"; 2 -> "DOUBLE_PRESS"; 3 -> "TRIPLE_PRESS"; else -> "MULTI"
+                    1 -> "SINGLE_PRESS"
+                    2 -> "DOUBLE_PRESS"
+                    3 -> "TRIPLE_PRESS"
+                    4 -> "QUADRUPLE_PRESS"
+                    5 -> "QUINTUPLE_PRESS"
+                    else -> "MULTI"
                 }
-                Log.d(tag, "Multi-click triggered: $type for $keyCode (state=$state)")
+                Log.d(tag, "MULTI-CLICK FIRED: type=$type for keyCode=$keyCode (clickCount=$clickCount)")
                 performAction(keyCode, state, type)
                 clickCount = 0
                 pendingMultiClick = null
@@ -514,7 +541,8 @@ class ButtonMapperService : AccessibilityService() {
                 action == "TAP_SCROLL_UP_SMOOTH" ||
                 action == "TAP_SCROLL_DOWN_SMOOTH" ||
                 action == SettingsManager.ACTION_BRIGHTNESS_UP ||
-                action == SettingsManager.ACTION_BRIGHTNESS_DOWN
+                action == SettingsManager.ACTION_BRIGHTNESS_DOWN ||
+                (action != SettingsManager.ACTION_DEFAULT && action != SettingsManager.ACTION_NONE)
 
         val actualIsContinuous = if (SettingsManager.isDefaultWhenVolumeVisible(this) && isVolumePanelVisibleState && (keyCode == 24 || keyCode == 25)) {
             true
@@ -530,7 +558,14 @@ class ButtonMapperService : AccessibilityService() {
                 action == SettingsManager.ACTION_SCROLL_DOWN_SMOOTH_FAST ||
                 action == "TAP_SCROLL_UP_SMOOTH" ||
                 action == "TAP_SCROLL_DOWN_SMOOTH"
-        val delay = if (isScroll) 250L else 150L
+        val isVolume = action == SettingsManager.ACTION_VOLUME_UP ||
+                action == SettingsManager.ACTION_VOLUME_DOWN ||
+                (action == SettingsManager.ACTION_DEFAULT && (keyCode == 24 || keyCode == 25))
+        val delay = when {
+            isScroll -> 250L
+            isVolume -> 150L
+            else -> 600L
+        }
 
         val task = object : Runnable {
             override fun run() {

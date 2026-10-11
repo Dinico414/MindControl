@@ -200,8 +200,11 @@ fun getTypeDisplayName(type: String): String {
         "SINGLE_PRESS" -> R.string.press_single
         "DOUBLE_PRESS" -> R.string.press_double
         "TRIPLE_PRESS" -> R.string.press_triple
+        "QUADRUPLE_PRESS" -> R.string.press_quadruple
+        "QUINTUPLE_PRESS" -> R.string.press_quintuple
         "HOLD" -> R.string.press_hold
         "PRESS_AND_HOLD" -> R.string.press_and_hold
+        "DOUBLE_TAP_AND_HOLD" -> R.string.press_double_tap_and_hold
         else -> null
     }
     return if (resId != null) stringResource(resId) else type.split("_").joinToString(" ") { word ->

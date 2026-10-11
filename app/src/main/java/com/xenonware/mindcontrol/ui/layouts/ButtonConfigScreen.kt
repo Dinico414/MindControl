@@ -147,9 +147,9 @@ fun ButtonConfigScreen(
             content = { paddingValues ->
                 val stateStr = if (isScreenOff) "OFF" else "ON"
                 val pressTypes = if (keyCode == 132 || keyCode == 133) listOf("SINGLE_PRESS")
-                else listOf("SINGLE_PRESS", "DOUBLE_PRESS", "TRIPLE_PRESS")
+                else listOf("SINGLE_PRESS", "DOUBLE_PRESS", "TRIPLE_PRESS", "QUADRUPLE_PRESS", "QUINTUPLE_PRESS")
                 val holdTypes = if (keyCode == 132 || keyCode == 133) emptyList()
-                else listOf("HOLD", "PRESS_AND_HOLD")
+                else listOf("HOLD", "PRESS_AND_HOLD", "DOUBLE_TAP_AND_HOLD")
 
                 var isButtonOverride by rememberSaveable { 
                     mutableStateOf(SettingsManager.isButtonOverrideEnabled(context, keyCode)) 

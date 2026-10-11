@@ -268,7 +268,11 @@ object SettingsManager {
             return prefs.getBoolean(key, false)
         }
         val states = listOf("ON", "OFF")
-        val types = listOf("SINGLE_PRESS", "DOUBLE_PRESS", "TRIPLE_PRESS", "HOLD", "PRESS_AND_HOLD", "SINGLE", "DOUBLE", "TRIPLE", "LONG")
+        val types = listOf(
+            "SINGLE_PRESS", "DOUBLE_PRESS", "TRIPLE_PRESS", "QUADRUPLE_PRESS", "QUINTUPLE_PRESS",
+            "HOLD", "PRESS_AND_HOLD", "DOUBLE_TAP_AND_HOLD",
+            "SINGLE", "DOUBLE", "TRIPLE", "LONG"
+        )
         for (state in states) {
             for (type in types) {
                 val action = prefs.getString("btn_${keyCode}_${state}_${type}", ACTION_DEFAULT)

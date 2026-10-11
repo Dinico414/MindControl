@@ -72,8 +72,11 @@
     <string name="press_single">Single Press</string>
     <string name="press_double">Double Press</string>
     <string name="press_triple">Triple Press</string>
+    <string name="press_quadruple">Four Presses</string>
+    <string name="press_quintuple">Five Presses</string>
     <string name="press_hold">Hold</string>
-    <string name="press_and_hold">Press and Hold</string>
+    <string name="press_and_hold">Press &amp; Hold</string>
+    <string name="press_double_tap_and_hold">2x Press &amp; Hold</string>
 
     <!-- Action Selection -->
     <string name="select_action_title">Select Action for %1$s</string>
@@ -85,7 +88,7 @@
     <string name="tab_display">Display</string>
     <string name="no_shortcuts_found">No shortcut-capable apps found</string>
     <string name="wake_screen_apps_msg">Launching apps requires waking the screen, which is disabled in Screen Off mode.</string>
-    <string name="wake_screen_shortcuts_msg">Shortcuts launch activities that wake the screen and are disabled in Screen Off mode.</string>
+    <string name="wake_screen_shortcuts_msg">Shortcuts launch activities that wake the screen.</string>
 
     <!-- AOD & Lift to Wake -->
     <string name="disable_lift_to_wake_title">Disable \"Lift to Wake\"</string>

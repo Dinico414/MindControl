@@ -72,8 +72,11 @@
     <string name="press_single">Einfach drücken</string>
     <string name="press_double">Zweifach drücken</string>
     <string name="press_triple">Dreifach drücken</string>
+    <string name="press_quadruple">Vierfach drücken</string>
+    <string name="press_quintuple">Fünffach drücken</string>
     <string name="press_hold">Gedrückt halten</string>
-    <string name="press_and_hold">Drücken und Halten</string>
+    <string name="press_and_hold">Drücken &amp; Halten</string>
+    <string name="press_double_tap_and_hold">2x Drücken &amp; Halten</string>
 
     <!-- Action Selection -->
     <string name="select_action_title">Aktion für %1$s auswählen</string>
@@ -85,7 +88,7 @@
     <string name="tab_display">Display</string>
     <string name="no_shortcuts_found">Keine Apps mit Verknüpfungsunterstützung gefunden</string>
     <string name="wake_screen_apps_msg">Das Starten von Apps erfordert das Aufwecken des Bildschirms, was im „Bildschirm aus“-Modus deaktiviert ist.</string>
-    <string name="wake_screen_shortcuts_msg">Verknüpfungen starten Aktivitäten, die den Bildschirm aufwecken und im „Bildschirm aus“-Modus deaktiviert sind.</string>
+    <string name="wake_screen_shortcuts_msg">Verknüpfungen starten Aktivitäten, die den Bildschirm aufwecken.</string>
 
     <!-- AOD & Lift to Wake -->
     <string name="disable_lift_to_wake_title">„Zum Aktivieren anheben“ deaktivieren</string>

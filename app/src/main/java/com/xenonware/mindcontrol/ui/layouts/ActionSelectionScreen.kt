@@ -449,9 +449,7 @@ fun ShortcutsTab(
                     else -> RoundedCornerShape(4.dp)
                 }
                 Surface(
-                    color = if (isScreenOff)
-                        MaterialTheme.colorScheme.surfaceContainerHighest.copy(alpha = 0.4f)
-                    else MaterialTheme.colorScheme.surfaceContainerHighest,
+                    color = MaterialTheme.colorScheme.surfaceContainerHighest,
                     shape = shape,
                     modifier = Modifier.fillMaxWidth()
                 ) {
@@ -459,17 +457,13 @@ fun ShortcutsTab(
                         headlineContent = {
                             Text(
                                 item.name,
-                                color = if (isScreenOff)
-                                    MaterialTheme.colorScheme.onSurface.copy(alpha = 0.38f)
-                                else MaterialTheme.colorScheme.onSurface
+                                color = MaterialTheme.colorScheme.onSurface
                             )
                         },
                         supportingContent = {
                             Text(
                                 item.packageName,
-                                color = if (isScreenOff)
-                                    MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.38f)
-                                else MaterialTheme.colorScheme.onSurfaceVariant,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
                                 style = MaterialTheme.typography.bodySmall
                             )
                         },
@@ -478,13 +472,11 @@ fun ShortcutsTab(
                             Image(
                                 bitmap,
                                 contentDescription = null,
-                                modifier = Modifier
-                                    .size(40.dp)
-                                    .then(if (isScreenOff) Modifier.alpha(0.38f) else Modifier)
+                                modifier = Modifier.size(40.dp)
                             )
                         },
                         modifier = Modifier
-                            .clickable(enabled = !isScreenOff) {
+                            .clickable {
                                 val intent = Intent(Intent.ACTION_CREATE_SHORTCUT).apply {
                                     component = ComponentName(item.packageName, item.className)
                                     addCategory(Intent.CATEGORY_DEFAULT)
