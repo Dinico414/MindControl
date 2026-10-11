@@ -6,7 +6,7 @@ junitVersion = "1.3.0"
 espressoCore = "3.7.0"
 lifecycleRuntimeKtx = "2.11.0"
 activityCompose = "1.13.0"
-kotlin = "2.4.20"
+kotlin = "2.4.21"
 composeBom = "2026.09.00"
 shizuku = "13.1.5"
 foundationLayout = "1.12.1"
@@ -14,7 +14,7 @@ foundation = "1.12.1"
 zxing = "3.5.4"
 
 #XenonCommons
-xenonCommons = "3.1.2"
+xenonCommons = "3.1.3"
 
 #noinspection UnusedVersionCatalogEntry
 featureDrop ="1"

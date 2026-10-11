@@ -49,6 +49,8 @@
     <string name="volume_skip_screen_off">Volume Skip (Screen Off)</string>
     <string name="device_color">Device color</string>
     <string name="keyboard_color">Keyboard color</string>
+    <string name="button_override">Button Override</string>
+    <string name="button_override_desc">Enable custom actions and remapping for this button</string>
 
     <!-- Dialogs -->
     <string name="notice">Notice</string>

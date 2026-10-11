@@ -49,6 +49,8 @@
     <string name="volume_skip_screen_off">Lautstärke-Sprung (Bildschirm aus)</string>
     <string name="device_color">Gerätefarbe</string>
     <string name="keyboard_color">Tastaturfarbe</string>
+    <string name="button_override">Tasten-Überschreibung</string>
+    <string name="button_override_desc">Benutzerdefinierte Aktionen und Neubelegung für diese Taste aktivieren</string>
 
     <!-- Dialogs -->
     <string name="notice">Hinweis</string>

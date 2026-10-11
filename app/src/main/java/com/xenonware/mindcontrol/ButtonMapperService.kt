@@ -334,6 +334,23 @@ class ButtonMapperService : AccessibilityService() {
         val isInteractive = powerManager.isInteractive
         val state = if (isInteractive && !isLocked) "ON" else "OFF"
 
+        val updateButtonState = {
+            if (keyCode == 132 || keyCode == 133) {
+                keyClearTasks[keyCode]?.let { handler.removeCallbacks(it) }
+                ButtonState.setKeyPressed(keyCode, true)
+                val task = Runnable { ButtonState.setKeyPressed(keyCode, false) }
+                keyClearTasks[keyCode] = task
+                handler.postDelayed(task, 500L)
+            } else {
+                ButtonState.setKeyPressed(keyCode, isDown)
+            }
+        }
+
+        if (!SettingsManager.isButtonOverrideEnabled(this, keyCode)) {
+            updateButtonState()
+            return false
+        }
+
         val isOverrideEnabled = SettingsManager.isOverrideScreenOffEnabled(this)
         val shizukuAvailable = if (fromShizuku) true else ShellManager.isAvailable()
         val isVolumeKey = keyCode == 24 || keyCode == 25
@@ -360,18 +377,6 @@ class ButtonMapperService : AccessibilityService() {
 
         val currentPackage = lastPackageName
         val isCameraApp = currentPackage?.contains("camera", ignoreCase = true) == true
-
-        val updateButtonState = {
-            if (keyCode == 132 || keyCode == 133) {
-                keyClearTasks[keyCode]?.let { handler.removeCallbacks(it) }
-                ButtonState.setKeyPressed(keyCode, true)
-                val task = Runnable { ButtonState.setKeyPressed(keyCode, false) }
-                keyClearTasks[keyCode] = task
-                handler.postDelayed(task, 500L)
-            } else {
-                ButtonState.setKeyPressed(keyCode, isDown)
-            }
-        }
 
 //        if (isDown) {
 //            showKeyToast(keyCode) // TOAST

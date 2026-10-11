@@ -260,4 +260,27 @@ object SettingsManager {
     fun setShowLiftToWakeWarning(context: Context, show: Boolean) {
         prefs(context).edit { putBoolean(KEY_SHOW_LIFT_TO_WAKE_WARNING, show) }
     }
+
+    fun isButtonOverrideEnabled(context: Context, keyCode: Int): Boolean {
+        val prefs = prefs(context)
+        val key = "btn_override_$keyCode"
+        if (prefs.contains(key)) {
+            return prefs.getBoolean(key, false)
+        }
+        val states = listOf("ON", "OFF")
+        val types = listOf("SINGLE_PRESS", "DOUBLE_PRESS", "TRIPLE_PRESS", "HOLD", "PRESS_AND_HOLD", "SINGLE", "DOUBLE", "TRIPLE", "LONG")
+        for (state in states) {
+            for (type in types) {
+                val action = prefs.getString("btn_${keyCode}_${state}_${type}", ACTION_DEFAULT)
+                if (action != null && action != ACTION_DEFAULT) {
+                    return true
+                }
+            }
+        }
+        return false
+    }
+
+    fun setButtonOverrideEnabled(context: Context, keyCode: Int, enabled: Boolean) {
+        prefs(context).edit { putBoolean("btn_override_$keyCode", enabled) }
+    }
 }

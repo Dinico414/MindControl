@@ -22,6 +22,7 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Surface
+import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -150,6 +151,10 @@ fun ButtonConfigScreen(
                 val holdTypes = if (keyCode == 132 || keyCode == 133) emptyList()
                 else listOf("HOLD", "PRESS_AND_HOLD")
 
+                var isButtonOverride by rememberSaveable { 
+                    mutableStateOf(SettingsManager.isButtonOverrideEnabled(context, keyCode)) 
+                }
+
                 Column(modifier = Modifier.fillMaxSize()) {
                     Spacer(modifier = Modifier.height(16.dp))
 
@@ -220,6 +225,45 @@ fun ButtonConfigScreen(
                         ),
                         verticalArrangement = Arrangement.spacedBy(2.dp)
                     ) {
+                        item {
+                            Surface(
+                                color = MaterialTheme.colorScheme.surfaceContainerHighest,
+                                shape = RoundedCornerShape(ExtraLargerCornerRadius),
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(bottom = 14.dp)
+                            ) {
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(horizontal = 16.dp, vertical = 12.dp),
+                                    horizontalArrangement = Arrangement.SpaceBetween
+                                ) {
+                                    Column(modifier = Modifier.weight(1f)) {
+                                        Text(
+                                            text = stringResource(R.string.button_override),
+                                            style = MaterialTheme.typography.bodyLarge,
+                                            color = MaterialTheme.colorScheme.onSurface
+                                        )
+                                        Text(
+                                            text = stringResource(R.string.button_override_desc),
+                                            style = MaterialTheme.typography.bodyMedium,
+                                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                                        )
+                                    }
+                                    Spacer(modifier = Modifier.width(8.dp))
+                                    Switch(
+                                        checked = isButtonOverride,
+                                        onCheckedChange = {
+                                            isButtonOverride = it
+                                            SettingsManager.setButtonOverrideEnabled(context, keyCode, it)
+                                        }
+                                    )
+                                }
+                            }
+                        }
+
                         items(pressTypes.size) { index ->
                             val type = pressTypes[index]
                             val shape = when {
