@@ -64,6 +64,7 @@ import com.xenonware.mindcontrol.ui.res.watchfaces.AnalogAodStyle
 import com.xenonware.mindcontrol.ui.res.watchfaces.BarsAodStyle
 import com.xenonware.mindcontrol.ui.res.watchfaces.BlocksAodStyle
 import com.xenonware.mindcontrol.ui.res.watchfaces.ConcentricAodStyle
+import com.xenonware.mindcontrol.ui.res.watchfaces.CubedAodStyle
 import com.xenonware.mindcontrol.ui.res.watchfaces.DigitalAbstractAodStyle
 import com.xenonware.mindcontrol.ui.res.watchfaces.InlineAodStyle
 import com.xenonware.mindcontrol.ui.res.watchfaces.InlineDigitalAodStyle
@@ -87,6 +88,9 @@ import kotlin.time.Duration.Companion.milliseconds
 
 @Suppress("DEPRECATION")
 class WatchActivity : ComponentActivity() {
+
+    private var keyguardListener: KeyguardManager.KeyguardLockedStateListener? = null
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
@@ -95,6 +99,20 @@ class WatchActivity : ComponentActivity() {
             finish()
             overridePendingTransition(0, 0)
             return
+        }
+
+        try {
+            val listener = KeyguardManager.KeyguardLockedStateListener { isLocked ->
+                if (!isLocked) {
+                    Log.d("WatchActivity", "Keyguard listener: device unlocked, finishing AOD")
+                    finish()
+                    overridePendingTransition(0, 0)
+                }
+            }
+            keyguardListener = listener
+            km.addKeyguardLockedStateListener(mainExecutor, listener)
+        } catch (e: Exception) {
+            Log.d("WatchActivity", "Could not register KeyguardLockedStateListener: ${e.message}")
         }
 
         setShowWhenLocked(true)
@@ -199,36 +217,62 @@ class WatchActivity : ComponentActivity() {
                 }
             }
 
-            DisposableEffect(context) {
-                val filter = IntentFilter().apply {
-                    addAction(Intent.ACTION_USER_PRESENT)
-                    addAction("com.xenonware.mindcontrol.ACTION_DISMISS_AOD")
+            var isActive by remember { mutableStateOf(true) }
+            var isFinishing by remember { mutableStateOf(false) }
+
+            LaunchedEffect(Unit) {
+                val km = context.getSystemService(Context.KEYGUARD_SERVICE) as KeyguardManager
+                while (isActive) {
+                    if (!km.isKeyguardLocked) {
+                        Log.d("WatchActivity", "Polling check: device unlocked, finishing AOD")
+                        finish()
+                        overridePendingTransition(0, 0)
+                        break
+                    }
+                    delay(200.milliseconds)
                 }
-                val receiver = object : BroadcastReceiver() {
+            }
+
+            DisposableEffect(context) {
+                val systemFilter = IntentFilter(Intent.ACTION_USER_PRESENT)
+                val systemReceiver = object : BroadcastReceiver() {
                     override fun onReceive(context: Context?, intent: Intent?) {
-                        val action = intent?.action
-                        if (action == Intent.ACTION_USER_PRESENT || action == "com.xenonware.mindcontrol.ACTION_DISMISS_AOD") {
-                            Log.d("WatchActivity", "AOD dismiss requested ($action), finishing AOD")
-                            finish()
-                        }
+                        Log.d("WatchActivity", "ACTION_USER_PRESENT received, finishing AOD")
+                        finish()
+                        overridePendingTransition(0, 0)
                     }
                 }
                 ContextCompat.registerReceiver(
                     context,
-                    receiver,
-                    filter,
+                    systemReceiver,
+                    systemFilter,
+                    ContextCompat.RECEIVER_EXPORTED
+                )
+
+                val appFilter = IntentFilter("com.xenonware.mindcontrol.ACTION_DISMISS_AOD")
+                val appReceiver = object : BroadcastReceiver() {
+                    override fun onReceive(context: Context?, intent: Intent?) {
+                        Log.d("WatchActivity", "ACTION_DISMISS_AOD received, finishing AOD")
+                        finish()
+                        overridePendingTransition(0, 0)
+                    }
+                }
+                ContextCompat.registerReceiver(
+                    context,
+                    appReceiver,
+                    appFilter,
                     ContextCompat.RECEIVER_NOT_EXPORTED
                 )
+
                 onDispose {
                     try {
-                        context.unregisterReceiver(receiver)
+                        context.unregisterReceiver(systemReceiver)
+                        context.unregisterReceiver(appReceiver)
                     } catch (_: Exception) {
                     }
                 }
             }
 
-            var isActive by remember { mutableStateOf(true) }
-            var isFinishing by remember { mutableStateOf(false) }
             var totalDragX by remember { mutableFloatStateOf(0f) }
             var totalDragY by remember { mutableFloatStateOf(0f) }
             val animOffsetX = remember { Animatable(0f) }
@@ -722,6 +766,19 @@ class WatchActivity : ComponentActivity() {
 
                             SettingsManager.AodStyle.DIGITAL_ABSTRACT -> {
                                 DigitalAbstractAodStyle(
+                                    isActive = isActive,
+                                    notifications = notifications,
+                                    mediaInfo = mediaInfo,
+                                    isCharging = isCharging,
+                                    batteryLevel = batteryLevel,
+                                    animatedTextAlpha = animatedTextAlpha,
+                                    offsetY = 0f,
+                                    isMediaEnabled = isMediaEnabled
+                                )
+                            }
+
+                            SettingsManager.AodStyle.CUBED -> {
+                                CubedAodStyle(
                                     isActive = isActive,
                                     notifications = notifications,
                                     mediaInfo = mediaInfo,

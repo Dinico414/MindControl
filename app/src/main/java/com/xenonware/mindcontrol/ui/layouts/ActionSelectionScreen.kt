@@ -919,6 +919,7 @@ fun ActionList(
     val styleBars = stringResource(R.string.style_bars)
     val styleTrack = stringResource(R.string.style_track)
     val styleDigitalAbstract = stringResource(R.string.style_digital_abstract)
+    val styleCubes = stringResource(R.string.style_cubes)
     val speedDialName = stringResource(R.string.speed_dial)
     val urlName = stringResource(R.string.url)
     val qrCodeName = stringResource(R.string.qr_code)
@@ -963,6 +964,7 @@ fun ActionList(
                     SettingsManager.AodStyle.BARS -> styleBars
                     SettingsManager.AodStyle.TRACK -> styleTrack
                     SettingsManager.AodStyle.DIGITAL_ABSTRACT -> styleDigitalAbstract
+                    SettingsManager.AodStyle.CUBED -> styleCubes
                 }
                 onActionSelected("$aodActionName: $styleName")
                 showAodStyleDialog = false

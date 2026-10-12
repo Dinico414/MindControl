@@ -234,4 +234,5 @@
     <string name="buy_me_a_coffee_description">Support the developer of MindControl</string>
     <string name="style_track">Track</string>
     <string name="style_digital_abstract">Digital Abstract</string>
+    <string name="style_cubes">Cube</string>
 </resources>

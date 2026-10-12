@@ -55,6 +55,7 @@ import com.xenonware.mindcontrol.ui.res.watchfaces.AnalogAodStyle
 import com.xenonware.mindcontrol.ui.res.watchfaces.BarsAodStyle
 import com.xenonware.mindcontrol.ui.res.watchfaces.BlocksAodStyle
 import com.xenonware.mindcontrol.ui.res.watchfaces.ConcentricAodStyle
+import com.xenonware.mindcontrol.ui.res.watchfaces.CubedAodStyle
 import com.xenonware.mindcontrol.ui.res.watchfaces.DigitalAbstractAodStyle
 import com.xenonware.mindcontrol.ui.res.watchfaces.InlineAodStyle
 import com.xenonware.mindcontrol.ui.res.watchfaces.InlineDigitalAodStyle
@@ -218,6 +219,7 @@ fun AodStylePickerDialog(
                         SettingsManager.AodStyle.BARS -> stringResource(R.string.style_bars)
                         SettingsManager.AodStyle.TRACK -> stringResource(R.string.style_track)
                         SettingsManager.AodStyle.DIGITAL_ABSTRACT -> stringResource(R.string.style_digital_abstract)
+                        SettingsManager.AodStyle.CUBED -> stringResource(R.string.style_cubes)
                     }
 
                     AodStyleOption(
@@ -447,6 +449,17 @@ fun AodStyleOption(
                     }
                     SettingsManager.AodStyle.DIGITAL_ABSTRACT -> {
                         DigitalAbstractAodStyle(
+                            isActive = true,
+                            notifications = emptyList(),
+                            mediaInfo = null,
+                            isCharging = false,
+                            batteryLevel = 80,
+                            animatedTextAlpha = 0f,
+                            offsetY = 0f
+                        )
+                    }
+                    SettingsManager.AodStyle.CUBED -> {
+                        CubedAodStyle(
                             isActive = true,
                             notifications = emptyList(),
                             mediaInfo = null,
