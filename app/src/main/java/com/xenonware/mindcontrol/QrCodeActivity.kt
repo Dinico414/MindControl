@@ -646,8 +646,8 @@ private fun partitionRun(totalLen: Int, posKey: Int): List<Segment> {
 
     val result = mutableListOf<Segment>()
     for (i in lengths.indices) {
-        val hasFlatBefore = if (i == 0) false else flatAfter[i - 1]
-        val hasFlatAfter = if (i == lengths.size - 1) false else flatAfter[i]
+        val hasFlatBefore = i != 0 && flatAfter[i - 1]
+        val hasFlatAfter = i != lengths.size - 1 && flatAfter[i]
         result.add(Segment(lengths[i], hasFlatBefore, hasFlatAfter))
     }
     return result

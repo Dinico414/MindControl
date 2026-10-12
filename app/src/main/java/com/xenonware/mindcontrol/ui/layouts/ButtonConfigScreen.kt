@@ -298,19 +298,18 @@ fun ButtonConfigScreen(
                             }
                             items(holdTypes.size) { index ->
                                 val type = holdTypes[index]
-                                val shape = when {
-                                    holdTypes.size == 1 -> RoundedCornerShape(ExtraLargerCornerRadius )
-                                    index == 0 -> RoundedCornerShape(
+                                val shape = when (index) {
+                                    0 -> RoundedCornerShape(
                                         topStart = ExtraLargerCornerRadius ,
                                         topEnd = ExtraLargerCornerRadius ,
                                         bottomStart = SmallestCornerRadius,
                                         bottomEnd = SmallestCornerRadius
                                     )
-                                    index == holdTypes.size - 1 -> RoundedCornerShape(
+                                    holdTypes.size - 1 -> RoundedCornerShape(
                                         topStart = SmallestCornerRadius,
                                         topEnd = SmallestCornerRadius,
                                         bottomStart = ExtraLargerCornerRadius ,
-                                        bottomEnd = ExtraLargerCornerRadius 
+                                        bottomEnd = ExtraLargerCornerRadius
                                     )
                                     else -> RoundedCornerShape(SmallestCornerRadius)
                                 }

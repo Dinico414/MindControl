@@ -89,6 +89,7 @@
     <string name="no_shortcuts_found">Keine Apps mit Verknüpfungsunterstützung gefunden</string>
     <string name="wake_screen_apps_msg">Das Starten von Apps erfordert das Aufwecken des Bildschirms, was im „Bildschirm aus“-Modus deaktiviert ist.</string>
     <string name="wake_screen_shortcuts_msg">Verknüpfungen starten Aktivitäten, die den Bildschirm aufwecken.</string>
+    <string name="screen_off_shortcut_overlay">Schwarzer Bildschirm für Bildschirm-aus-Verknüpfungen</string>
 
     <!-- AOD & Lift to Wake -->
     <string name="disable_lift_to_wake_title">„Zum Aktivieren anheben“ deaktivieren</string>
@@ -231,4 +232,5 @@
 
     <string name="buy_me_a_coffee">Kauf mir einen Kaffee</string>
     <string name="buy_me_a_coffee_description">Unterstütze den Entwickler von MindControl</string>
+    <string name="style_track">Track</string>
 </resources>

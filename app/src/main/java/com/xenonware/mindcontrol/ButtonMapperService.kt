@@ -3,12 +3,10 @@ package com.xenonware.mindcontrol
 import android.accessibilityservice.AccessibilityService
 import android.accessibilityservice.GestureDescription
 import android.annotation.SuppressLint
-import android.app.ActivityOptions
 import android.app.KeyguardManager
 import android.app.Notification
 import android.app.NotificationChannel
 import android.app.NotificationManager
-import android.app.PendingIntent
 import android.content.ComponentName
 import android.content.Intent
 import android.content.pm.PackageManager
@@ -18,7 +16,6 @@ import android.hardware.camera2.CameraManager
 import android.location.LocationManager
 import android.media.AudioManager
 import android.media.session.MediaSessionManager
-import android.os.Build
 import android.os.Handler
 import android.os.Looper
 import android.os.PowerManager
@@ -233,9 +230,7 @@ class ButtonMapperService : AccessibilityService() {
 
         val isSpecialKey = keyCode in setOf(134, 27, 25, 24, 131, 132, 133, 111)
         val isKeyboardKey = keyCode in keyboardKeyCodes
-        if (!isSpecialKey && !isKeyboardKey) return false
-
-        return handleKeyEvent(keyCode, isDown, fromShizuku = false)
+        return !(!isSpecialKey && !isKeyboardKey) && handleKeyEvent(keyCode, isDown, fromShizuku = false)
     }
 
     private fun processKeyEvent(keyCode: Int, isDown: Boolean, state: String) {
@@ -379,7 +374,7 @@ class ButtonMapperService : AccessibilityService() {
         }
 
         val isOverrideEnabled = SettingsManager.isOverrideScreenOffEnabled(this)
-        val shizukuAvailable = if (fromShizuku) true else ShellManager.isAvailable()
+        val shizukuAvailable = fromShizuku || ShellManager.isAvailable()
         val isVolumeKey = keyCode == 24 || keyCode == 25
 
         if (state == "OFF") {
@@ -544,11 +539,7 @@ class ButtonMapperService : AccessibilityService() {
                 action == SettingsManager.ACTION_BRIGHTNESS_DOWN ||
                 (action != SettingsManager.ACTION_DEFAULT && action != SettingsManager.ACTION_NONE)
 
-        val actualIsContinuous = if (SettingsManager.isDefaultWhenVolumeVisible(this) && isVolumePanelVisibleState && (keyCode == 24 || keyCode == 25)) {
-            true
-        } else {
-            isContinuous
-        }
+        val actualIsContinuous = SettingsManager.isDefaultWhenVolumeVisible(this) && isVolumePanelVisibleState && (keyCode == 24 || keyCode == 25) || isContinuous
 
         if (!actualIsContinuous) return
 
@@ -560,7 +551,7 @@ class ButtonMapperService : AccessibilityService() {
                 action == "TAP_SCROLL_DOWN_SMOOTH"
         val isVolume = action == SettingsManager.ACTION_VOLUME_UP ||
                 action == SettingsManager.ACTION_VOLUME_DOWN ||
-                (action == SettingsManager.ACTION_DEFAULT && (keyCode == 24 || keyCode == 25))
+                (action == SettingsManager.ACTION_DEFAULT)
         val delay = when {
             isScroll -> 250L
             isVolume -> 150L
@@ -739,7 +730,10 @@ class ButtonMapperService : AccessibilityService() {
                 if (finalAction.startsWith(SettingsManager.PREFIX_APP)) {
                     launchApp(finalAction.removePrefix(SettingsManager.PREFIX_APP))
                 } else if (finalAction.startsWith(SettingsManager.PREFIX_SHORTCUT)) {
-                    launchShortcut(finalAction.removePrefix(SettingsManager.PREFIX_SHORTCUT))
+                    val shortcutData = finalAction.removePrefix(SettingsManager.PREFIX_SHORTCUT)
+                    wakeUpScreenAndDismissAod()
+                    val useOverlay = SettingsManager.isScreenOffShortcutOverlayEnabled(this)
+                    launchShortcutWithOverlay(shortcutData, useOverlay)
                     true
                 } else if (finalAction.startsWith(SettingsManager.PREFIX_SPEED_DIAL)) {
                     launchSpeedDial(finalAction.removePrefix(SettingsManager.PREFIX_SPEED_DIAL))
@@ -972,40 +966,39 @@ class ButtonMapperService : AccessibilityService() {
         return false
     }
 
-    private fun launchShortcut(shortcutData: String) {
+    private fun wakeUpScreenAndDismissAod() {
         try {
-            val parts = shortcutData.split("||")
-            val data = parts[0]
-            
-            if (data.startsWith("intent:")) {
-                Log.d(tag, "Launching shortcut via URI")
-                val intent = Intent.parseUri(data, 0)
-                intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            sendBroadcast(Intent("com.xenonware.mindcontrol.ACTION_DISMISS_AOD"))
 
-                val flags = PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT
-                val pendingIntent = PendingIntent.getActivity(this, 0, intent, flags)
-
-                val startMode = if (Build.VERSION.SDK_INT >= 36) {
-                    ActivityOptions.MODE_BACKGROUND_ACTIVITY_START_ALLOW_ALWAYS
-                } else {
-                    @Suppress("DEPRECATION")
-                    ActivityOptions.MODE_BACKGROUND_ACTIVITY_START_ALLOWED
-                }
-                val bundle = ActivityOptions.makeBasic()
-                    .setPendingIntentBackgroundActivityStartMode(startMode)
-                    .toBundle()
-                pendingIntent.send(bundle)
-            } else {
-                Log.d(tag, "Launching shortcut via package name: $data")
-                val intent = packageManager.getLaunchIntentForPackage(data)
-                if (intent != null) {
-                    intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-                    startActivity(intent)
-                }
-            }
+            @Suppress("DEPRECATION")
+            val screenWakeLock = powerManager.newWakeLock(
+                PowerManager.FULL_WAKE_LOCK or
+                        PowerManager.ACQUIRE_CAUSES_WAKEUP or
+                        PowerManager.ON_AFTER_RELEASE,
+                "MindControl:ShortcutWakeLock"
+            )
+            screenWakeLock.acquire(3000)
         } catch (e: Exception) {
-            Log.e(tag, "Shortcut launch error", e)
+            Log.e(tag, "Error waking up screen", e)
         }
+    }
+
+    private fun launchShortcutWithOverlay(shortcutData: String, useOverlay: Boolean = true) {
+        try {
+            val intent = Intent(this, ShortcutOverlayActivity::class.java).apply {
+                putExtra("SHORTCUT_DATA", shortcutData)
+                putExtra("USE_OVERLAY", useOverlay)
+                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP)
+            }
+            startActivity(intent)
+        } catch (e: Exception) {
+            Log.e(tag, "Error launching shortcut overlay", e)
+            launchShortcut(shortcutData)
+        }
+    }
+
+    private fun launchShortcut(shortcutData: String) {
+        ShortcutOverlayActivity.launchShortcut(this, shortcutData)
     }
 
     private fun launchSpeedDial(number: String) {

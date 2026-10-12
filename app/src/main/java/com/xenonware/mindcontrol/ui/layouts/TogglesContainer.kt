@@ -178,6 +178,13 @@ fun TogglesContainer(
             )
         )
     }
+    var screenOffShortcutOverlay by remember {
+        mutableStateOf(
+            SettingsManager.isScreenOffShortcutOverlayEnabled(
+                context
+            )
+        )
+    }
 
     var isNotificationListenerEnabled by remember { mutableStateOf(false) }
     val powerManager = remember { context.getSystemService(Context.POWER_SERVICE) as PowerManager }
@@ -550,6 +557,23 @@ fun TogglesContainer(
                 Switch(checked = overrideScreenOff, onCheckedChange = {
                     overrideScreenOff = it
                     SettingsManager.setOverrideScreenOffEnabled(context, it)
+                })
+            }
+
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 4.dp)
+            ) {
+                Text(
+                    stringResource(R.string.screen_off_shortcut_overlay),
+                    style = MaterialTheme.typography.bodySmall,
+                    modifier = Modifier.weight(1f)
+                )
+                Switch(checked = screenOffShortcutOverlay, onCheckedChange = {
+                    screenOffShortcutOverlay = it
+                    SettingsManager.setScreenOffShortcutOverlayEnabled(context, it)
                 })
             }
 

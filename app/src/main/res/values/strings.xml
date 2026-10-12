@@ -89,6 +89,7 @@
     <string name="no_shortcuts_found">No shortcut-capable apps found</string>
     <string name="wake_screen_apps_msg">Launching apps requires waking the screen, which is disabled in Screen Off mode.</string>
     <string name="wake_screen_shortcuts_msg">Shortcuts launch activities that wake the screen.</string>
+    <string name="screen_off_shortcut_overlay">Black screen overlay for screen-off shortcuts</string>
 
     <!-- AOD & Lift to Wake -->
     <string name="disable_lift_to_wake_title">Disable \"Lift to Wake\"</string>
@@ -231,4 +232,5 @@
 
     <string name="buy_me_a_coffee">Buy me a coffee</string>
     <string name="buy_me_a_coffee_description">Support the developer of MindControl</string>
+    <string name="style_track">Track</string>
 </resources>

@@ -16,6 +16,7 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -29,7 +30,6 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.rounded.KeyboardDoubleArrowRight
-import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.ListItem
 import androidx.compose.material3.ListItemDefaults
@@ -37,6 +37,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.PrimaryScrollableTabRow
 import androidx.compose.material3.Surface
+import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -86,7 +87,6 @@ val ActionConfigSaver = listSaver<ActionConfig?, Any>(
     restore = { if (it.isEmpty()) null else ActionConfig(it[0] as Int, it[1] as String, it[2] as String) }
 )
 
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ActionSelectionScreen(
     config: ActionConfig,
@@ -432,12 +432,35 @@ fun ShortcutsTab(
         ) {
             if (isScreenOff) {
                 item {
-                    Text(
-                        stringResource(R.string.wake_screen_shortcuts_msg),
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        style = MaterialTheme.typography.bodySmall,
-                        modifier = Modifier.padding(bottom = 8.dp)
-                    )
+                    Column(modifier = Modifier.padding(bottom = 8.dp)) {
+                        Text(
+                            stringResource(R.string.wake_screen_shortcuts_msg),
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            style = MaterialTheme.typography.bodySmall,
+                            modifier = Modifier.padding(bottom = 4.dp)
+                        )
+                        var overlayEnabled by remember {
+                            mutableStateOf(SettingsManager.isScreenOffShortcutOverlayEnabled(context))
+                        }
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Text(
+                                stringResource(R.string.screen_off_shortcut_overlay),
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurface,
+                                modifier = Modifier.weight(1f)
+                            )
+                            Switch(
+                                checked = overlayEnabled,
+                                onCheckedChange = {
+                                    overlayEnabled = it
+                                    SettingsManager.setScreenOffShortcutOverlayEnabled(context, it)
+                                }
+                            )
+                        }
+                    }
                 }
             }
             items(shortcutItems.size) { index ->
@@ -729,10 +752,9 @@ fun DisplayTab(
             val disabled = isActionDisabled(action, shellReady)
             val disabledReasonRes = disabledReasonFor(action, shellReady)
             val displayName = getActionDisplayName(action)
-            val shape = when {
-                sizeActions.size == 1 -> RoundedCornerShape(30.dp)
-                index == 0 -> RoundedCornerShape(topStart = 30.dp, topEnd = 30.dp, bottomStart = 4.dp, bottomEnd = 4.dp)
-                index == sizeActions.size - 1 -> RoundedCornerShape(topStart = 4.dp, topEnd = 4.dp, bottomStart = 30.dp, bottomEnd = 30.dp)
+            val shape = when (index) {
+                0 -> RoundedCornerShape(topStart = 30.dp, topEnd = 30.dp, bottomStart = 4.dp, bottomEnd = 4.dp)
+                sizeActions.size - 1 -> RoundedCornerShape(topStart = 4.dp, topEnd = 4.dp, bottomStart = 30.dp, bottomEnd = 30.dp)
                 else -> RoundedCornerShape(4.dp)
             }
             Surface(
@@ -803,10 +825,9 @@ fun DisplayTab(
             val disabled = isActionDisabled(action, shellReady)
             val disabledReasonRes = disabledReasonFor(action, shellReady)
             val displayName = getActionDisplayName(action)
-            val shape = when {
-                densityActions.size == 1 -> RoundedCornerShape(30.dp)
-                index == 0 -> RoundedCornerShape(topStart = 30.dp, topEnd = 30.dp, bottomStart = 4.dp, bottomEnd = 4.dp)
-                index == densityActions.size - 1 -> RoundedCornerShape(topStart = 4.dp, topEnd = 4.dp, bottomStart = 30.dp, bottomEnd = 30.dp)
+            val shape = when (index) {
+                0 -> RoundedCornerShape(topStart = 30.dp, topEnd = 30.dp, bottomStart = 4.dp, bottomEnd = 4.dp)
+                densityActions.size - 1 -> RoundedCornerShape(topStart = 4.dp, topEnd = 4.dp, bottomStart = 30.dp, bottomEnd = 30.dp)
                 else -> RoundedCornerShape(4.dp)
             }
             Surface(
@@ -848,10 +869,10 @@ fun DisplayTab(
                             if (action == SettingsManager.ACTION_CUSTOM_DENSITY_TOGGLE) {
                                 val currentSavedAction =
                                     SettingsManager.getAction(context, config.keyCode, config.state, config.type)
-                                if (currentSavedAction.startsWith(SettingsManager.PREFIX_CUSTOM_DENSITY)) {
-                                    densityInput = currentSavedAction.removePrefix(SettingsManager.PREFIX_CUSTOM_DENSITY)
+                                densityInput = if (currentSavedAction.startsWith(SettingsManager.PREFIX_CUSTOM_DENSITY)) {
+                                    currentSavedAction.removePrefix(SettingsManager.PREFIX_CUSTOM_DENSITY)
                                 } else {
-                                    densityInput = ""
+                                    ""
                                 }
                                 showCustomDensityDialog = true
                             } else {
@@ -896,6 +917,7 @@ fun ActionList(
     val stylePixelInline = stringResource(R.string.style_pixel_inline)
     val styleBlocks = stringResource(R.string.style_blocks)
     val styleBars = stringResource(R.string.style_bars)
+    val styleTrack = stringResource(R.string.style_track)
     val speedDialName = stringResource(R.string.speed_dial)
     val urlName = stringResource(R.string.url)
     val qrCodeName = stringResource(R.string.qr_code)
@@ -938,6 +960,7 @@ fun ActionList(
                     SettingsManager.AodStyle.PIXEL_INLINE -> stylePixelInline
                     SettingsManager.AodStyle.BLOCKS -> styleBlocks
                     SettingsManager.AodStyle.BARS -> styleBars
+                    SettingsManager.AodStyle.TRACK -> styleTrack
                 }
                 onActionSelected("$aodActionName: $styleName")
                 showAodStyleDialog = false

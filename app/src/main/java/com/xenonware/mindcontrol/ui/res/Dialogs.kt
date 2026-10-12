@@ -65,6 +65,7 @@ import com.xenonware.mindcontrol.ui.res.watchfaces.SpinnerAodStyle
 import com.xenonware.mindcontrol.ui.res.watchfaces.StackedAodStyle
 import com.xenonware.mindcontrol.ui.res.watchfaces.StackedDigitalAodStyle
 import com.xenonware.mindcontrol.ui.res.watchfaces.StackedDotAodStyle
+import com.xenonware.mindcontrol.ui.res.watchfaces.TrackAodStyle
 import kotlinx.coroutines.launch
 
 @Composable
@@ -214,6 +215,7 @@ fun AodStylePickerDialog(
                         SettingsManager.AodStyle.PIXEL_INLINE -> stringResource(R.string.style_pixel_inline)
                         SettingsManager.AodStyle.BLOCKS -> stringResource(R.string.style_blocks)
                         SettingsManager.AodStyle.BARS -> stringResource(R.string.style_bars)
+                        SettingsManager.AodStyle.TRACK -> stringResource(R.string.style_track)
                     }
 
                     AodStyleOption(
@@ -421,6 +423,17 @@ fun AodStyleOption(
                     }
                     SettingsManager.AodStyle.BARS -> {
                         BarsAodStyle(
+                            isActive = true,
+                            notifications = emptyList(),
+                            mediaInfo = null,
+                            isCharging = false,
+                            batteryLevel = 80,
+                            animatedTextAlpha = 0f,
+                            offsetY = 0f
+                        )
+                    }
+                    SettingsManager.AodStyle.TRACK -> {
+                        TrackAodStyle(
                             isActive = true,
                             notifications = emptyList(),
                             mediaInfo = null,

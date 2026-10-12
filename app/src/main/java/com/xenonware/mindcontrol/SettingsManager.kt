@@ -100,6 +100,7 @@ object SettingsManager {
     private const val KEY_DEFAULT_WHEN_VOLUME_VISIBLE = "default_when_volume_visible"
     private const val KEY_OVERRIDE_SCREEN_OFF = "override_screen_off"
     private const val KEY_VOLUME_LONG_PRESS_SKIP = "volume_long_press_skip"
+    private const val KEY_SCREEN_OFF_SHORTCUT_OVERLAY = "screen_off_shortcut_overlay"
     private const val KEY_DEVICE_PALETTE = "device_palette"
     private const val KEY_KEYBOARD_PALETTE = "keyboard_palette"
     private const val KEY_AOD_STYLE = "aod_style"
@@ -122,7 +123,8 @@ object SettingsManager {
         STACKED_DIGITAL,
         INLINE_DIGITAL,
         BLOCKS(1),
-        BARS(1)
+        BARS(1),
+        TRACK(2)
     }
 
     private fun prefs(context: Context): SharedPreferences {
@@ -184,6 +186,13 @@ object SettingsManager {
 
     fun setVolumeLongPressSkipEnabled(context: Context, enabled: Boolean) {
         prefs(context).edit { putBoolean(KEY_VOLUME_LONG_PRESS_SKIP, enabled) }
+    }
+
+    fun isScreenOffShortcutOverlayEnabled(context: Context): Boolean =
+        prefs(context).getBoolean(KEY_SCREEN_OFF_SHORTCUT_OVERLAY, true)
+
+    fun setScreenOffShortcutOverlayEnabled(context: Context, enabled: Boolean) {
+        prefs(context).edit { putBoolean(KEY_SCREEN_OFF_SHORTCUT_OVERLAY, enabled) }
     }
 
     fun getDevicePalette(context: Context): Palette =
