@@ -64,6 +64,7 @@ import com.xenonware.mindcontrol.ui.res.watchfaces.AnalogAodStyle
 import com.xenonware.mindcontrol.ui.res.watchfaces.BarsAodStyle
 import com.xenonware.mindcontrol.ui.res.watchfaces.BlocksAodStyle
 import com.xenonware.mindcontrol.ui.res.watchfaces.ConcentricAodStyle
+import com.xenonware.mindcontrol.ui.res.watchfaces.DigitalAbstractAodStyle
 import com.xenonware.mindcontrol.ui.res.watchfaces.InlineAodStyle
 import com.xenonware.mindcontrol.ui.res.watchfaces.InlineDigitalAodStyle
 import com.xenonware.mindcontrol.ui.res.watchfaces.InlineDotAodStyle
@@ -708,6 +709,19 @@ class WatchActivity : ComponentActivity() {
 
                             SettingsManager.AodStyle.TRACK -> {
                                 TrackAodStyle(
+                                    isActive = isActive,
+                                    notifications = notifications,
+                                    mediaInfo = mediaInfo,
+                                    isCharging = isCharging,
+                                    batteryLevel = batteryLevel,
+                                    animatedTextAlpha = animatedTextAlpha,
+                                    offsetY = 0f,
+                                    isMediaEnabled = isMediaEnabled
+                                )
+                            }
+
+                            SettingsManager.AodStyle.DIGITAL_ABSTRACT -> {
+                                DigitalAbstractAodStyle(
                                     isActive = isActive,
                                     notifications = notifications,
                                     mediaInfo = mediaInfo,

@@ -23,7 +23,6 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.PathFillType
 import androidx.compose.ui.graphics.StrokeCap
-import androidx.compose.ui.graphics.compositeOver
 import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.drawscope.rotate
@@ -83,17 +82,16 @@ fun TrackWatchFace(isActive: Boolean) {
     val localDensity = LocalDensity.current
     val dayFormat = remember { SimpleDateFormat("EEE", Locale.getDefault()) }
 
-    val scheme =
-        remember(context) { dynamicDarkColorScheme(context) }
+    // --- Material You colors: always the wallpaper-based DARK scheme (app is Android 15+) ---
+    val scheme = remember(context) { dynamicDarkColorScheme(context) }
+    // Primary (100%): seconds pill + border, seconds dots, hour ticks, minute hand, center ring
     val accent = scheme.primary
-    val handFill = scheme.primary.copy(alpha = 0.12f).compositeOver(Color.Black)
-    val pillFill = scheme.primaryContainer
-    val pillText = scheme.onPrimaryContainer
-    val pillBorder = scheme.primaryContainer.copy(alpha = 0.7f).compositeOver(Color.Black)
-    val dateFill = scheme.primary.copy(alpha = 0.05f).compositeOver(Color.Black)
-    val dateOutline = scheme.outlineVariant.copy(alpha = 0.5f).compositeOver(Color.Black)
-    val primaryText = scheme.onSurface
-    val secondaryText = scheme.onSurfaceVariant
+    val primary50 = scheme.primary.copy(alpha = 0.5f)   // half-hour dots, minute ticks
+    val primary25 = scheme.primary.copy(alpha = 0.25f)  // digi container + border, hand pivots
+    val onSurface = scheme.onSurface                     // minute + hour numbers, hour hand, triangle
+    val onSurface50 = scheme.onSurface.copy(alpha = 0.5f) // seconds numbers
+    val onSurface25 = scheme.onSurface.copy(alpha = 0.25f) // date border
+    val primary12 = scheme.primary.copy(alpha = 0.125f) // date background
 
     val animatedAlpha by animateFloatAsState(
         targetValue = if (isActive) 1f else 0.7f, animationSpec = tween(500), label = "alpha"
@@ -149,18 +147,17 @@ fun TrackWatchFace(isActive: Boolean) {
             fontFamily = QuicksandTitleVariable
         )
 
-        val secLabelStyle = style(r * 0.065f, secondaryText, FontWeight.Normal)
+        val secLabelStyle = style(r * 0.065f, onSurface50, FontWeight.Normal)
         val secPillStyle = style(r * 0.095f, accent, FontWeight.SemiBold)
         val minNumFontPx = r * 0.09f
-        val minNumStyle = style(minNumFontPx, primaryText, FontWeight.SemiBold)
-        val digitalStyle = style(r * 0.14f, pillText)
-        val subHourStyle = style(r * 0.13f, primaryText)
-        val dayStyle = style(r * 0.075f, primaryText)
+        val minNumStyle = style(minNumFontPx, onSurface, FontWeight.SemiBold)
+        val digitalStyle = style(r * 0.14f, onSurface)
+        val subHourStyle = style(r * 0.13f, onSurface)
+        val dayStyle = style(r * 0.075f, onSurface)
         val dateStyle = style(r * 0.13f, accent, FontWeight.SemiBold)
 
-        // Minute hand angle drives the whole cross layout.
-        // Seconds fraction is always included so nothing jumps backwards when entering AOD.
-        val minuteFloat = minute + (second + millis / 1000f) / 60f
+        // Minute hand angle drives the whole cross layout. It jumps from minute to minute.
+        val minuteFloat = minute.toFloat()
         val minuteAngle = minuteFloat * 6f
 
         // Hour subdial opposite the hand, date at +75° (2:30), digital clock at -75° (9:30)
@@ -189,10 +186,10 @@ fun TrackWatchFace(isActive: Boolean) {
                     drawCentered(layout, pos, fade)
                 } else {
                     drawCircle(
-                        color = secondaryText,
+                        color = accent,
                         radius = r * 0.007f,
                         center = pos,
-                        alpha = 0.6f * fade
+                        alpha = fade
                     )
                 }
             }
@@ -246,10 +243,10 @@ fun TrackWatchFace(isActive: Boolean) {
                 // Ticks 14 and 16 sit beside the seconds pill: dim them partially while it's visible
                 val tickAlpha = if (i == 14 || i == 16) 1f - 0.5f * secondsAlpha else 1f
                 drawLine(
-                    color = accent,
+                    color = primary50,
                     start = polar(center, rRingOuter - len, angle),
                     end = polar(center, rRingOuter, angle),
-                    strokeWidth = r * 0.014f,
+                    strokeWidth = r * 0.019f,
                     cap = StrokeCap.Round,
                     alpha = tickAlpha
                 )
@@ -281,9 +278,9 @@ fun TrackWatchFace(isActive: Boolean) {
             )
             fillType = PathFillType.EvenOdd
         }
-        drawPath(triangle, color = accent)
+        drawPath(triangle, color = onSurface)
         // Dot in the middle of the hole
-        drawCircle(color = accent, radius = r * 0.01f, center = triCenter)
+        drawCircle(color = onSurface, radius = r * 0.01f, center = triCenter)
 
         // ---------------------------------------------------------------
         // 3. Digital time pill (minute - 90°)
@@ -295,7 +292,7 @@ fun TrackWatchFace(isActive: Boolean) {
         val borderStroke = r * 0.012f
         val borderInset = borderGap + borderStroke / 2f
         drawRoundRect(
-            color = pillBorder,
+            color = primary12,
             topLeft = Offset(
                 digCenter.x - digW / 2f - borderInset,
                 digCenter.y - digH / 2f - borderInset
@@ -305,7 +302,7 @@ fun TrackWatchFace(isActive: Boolean) {
             style = Stroke(width = borderStroke)
         )
         drawRoundRect(
-            color = pillFill,
+            color = primary25,
             topLeft = Offset(digCenter.x - digW / 2f, digCenter.y - digH / 2f),
             size = Size(digW, digH),
             cornerRadius = CornerRadius(digH / 2f)
@@ -321,10 +318,10 @@ fun TrackWatchFace(isActive: Boolean) {
         // 4. Date complication (minute + 90°)
         // ---------------------------------------------------------------
         val dateRadius = r * 0.20f
-        drawCircle(color = dateFill, radius = dateRadius, center = dateCenter)
+        drawCircle(color = primary12, radius = dateRadius, center = dateCenter)
         // Separate, subtle outline ring with a gap (same spacing as the digital clock)
         drawCircle(
-            color = dateOutline,
+            color = onSurface25,
             radius = dateRadius + borderInset,
             center = dateCenter,
             style = Stroke(width = borderStroke)
@@ -347,30 +344,31 @@ fun TrackWatchFace(isActive: Boolean) {
             val isQuarter = i % 3 == 0
             drawLine(
                 color = accent,
-                start = polar(subCenter, rs * if (isQuarter) 0.78f else 0.84f, angle),
+                start = polar(subCenter, rs * if (isQuarter) 0.84f else 0.89f, angle),
                 end = polar(subCenter, rs, angle),
-                strokeWidth = r * if (isQuarter) 0.016f else 0.012f,
+                strokeWidth = r * if (isQuarter) 0.027f else 0.021f,
                 cap = StrokeCap.Round
             )
             // Half-hour dot between the hour ticks
             drawCircle(
-                color = accent,
-                radius = r * 0.008f,
+                color = primary50,
+                radius = r * 0.012f,
                 center = polar(subCenter, rs * 0.92f, angle + 15f)
             )
         }
-        val hourAngle = ((hour % 12) + minute / 60f) * 30f
+        // Hour hand jumps in half-hour steps (full hour, then :30)
+        val hourAngle = ((hour % 12) + if (minute >= 30) 0.5f else 0f) * 30f
         drawRadialCapsule(
             pivot = subCenter,
             angleDeg = hourAngle,
             inner = rs * 0.20f,
             outer = rs * 0.80f,
             thickness = r * 0.05f,
-            fill = Color.Black,
-            outline = primaryText,
-            outlineWidth = r * 0.01f
+            fill = Color.Transparent,
+            outline = onSurface,
+            outlineWidth = r * 0.016f
         )
-        drawCircle(color = accent, radius = r * 0.018f, center = subCenter)
+        drawCircle(color = primary25, radius = r * 0.018f, center = subCenter)
         drawCentered(
             textMeasurer.measure(displayHour.toString(), subHourStyle),
             polar(subCenter, rs * 0.48f, hourAngle + 180f)
@@ -385,12 +383,12 @@ fun TrackWatchFace(isActive: Boolean) {
             inner = r * 0.11f,
             outer = r * 0.73f,
             thickness = r * 0.065f,
-            fill = handFill,
+            fill = Color.Transparent,
             outline = accent,
-            outlineWidth = r * 0.014f
+            outlineWidth = r * 0.02f
         )
         drawCircle(
-            color = accent,
+            color = primary25,
             radius = r * 0.024f,
             center = center,
             style = Stroke(width = r * 0.01f)

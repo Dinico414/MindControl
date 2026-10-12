@@ -124,7 +124,8 @@ object SettingsManager {
         INLINE_DIGITAL,
         BLOCKS(1),
         BARS(1),
-        TRACK(2)
+        TRACK(2),
+        DIGITAL_ABSTRACT(2)
     }
 
     private fun prefs(context: Context): SharedPreferences {
