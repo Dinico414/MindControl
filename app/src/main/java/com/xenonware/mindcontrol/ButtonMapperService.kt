@@ -78,7 +78,7 @@ class ButtonMapperService : AccessibilityService() {
 
     private fun isTextFieldFocused(): Boolean {
         if (isTextFocusActive) return true
-        
+
         val now = System.currentTimeMillis()
         if (now - lastFocusCheckTime < 2000L) return false // Only check root once every 2s to avoid spamming
         lastFocusCheckTime = now
@@ -106,7 +106,7 @@ class ButtonMapperService : AccessibilityService() {
     @SuppressLint("WakelockTimeout")
     override fun onServiceConnected() {
         Log.d(tag, "Service Connected")
-        
+
         updateLauncherPackages()
 
         val info = serviceInfo
@@ -167,13 +167,13 @@ class ButtonMapperService : AccessibilityService() {
     @SuppressLint("SwitchIntDef")
     override fun onAccessibilityEvent(event: AccessibilityEvent?) {
         if (event == null) return
-        
+
         when (event.eventType) {
             AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED -> {
                 isTextFocusActive = false // Reset focus on window change to force re-check
                 val pkg = event.packageName?.toString()
                 val className = event.className?.toString()
-                
+
                 if (pkg != null && pkg != packageName && pkg != "com.android.systemui" && !launcherPackages.contains(pkg)) {
                     if (pkg != lastPackageName) {
                         previousPackageName = lastPackageName
@@ -379,7 +379,7 @@ class ButtonMapperService : AccessibilityService() {
 
         if (state == "OFF") {
             if (!isOverrideEnabled) return false
-            
+
             if (isVolumeKey) {
                 if (SettingsManager.isVolumeLongPressSkipEnabled(this)) {
                     // We need to handle this key to implement Long Press Skip
@@ -403,13 +403,13 @@ class ButtonMapperService : AccessibilityService() {
 //        if (isDown) {
 //            showKeyToast(keyCode) // TOAST
 //        }
-        
+
         // ── Camera app pass-through ────────────────────────────────────────────
         if ((isCameraApp || isCameraInUse) && SettingsManager.isDisableInCamera(this)) {
             updateButtonState()
             return false
         }
-        
+
         // ── Volume panel pass-through ──────────────────────────────────────────
         if (isVolumeKey && SettingsManager.isDefaultWhenVolumeVisible(this) && isVolumePanelVisibleState
         ) {
@@ -524,7 +524,7 @@ class ButtonMapperService : AccessibilityService() {
 
     private fun startContinuousAction(keyCode: Int, state: String, type: String) {
         stopContinuousAction(keyCode)
-        
+
         val action = SettingsManager.getAction(this, keyCode, state, type)
         val isContinuous = (action == SettingsManager.ACTION_DEFAULT && (keyCode == 24 || keyCode == 25)) ||
                 action == SettingsManager.ACTION_VOLUME_UP ||
@@ -561,7 +561,7 @@ class ButtonMapperService : AccessibilityService() {
         val task = object : Runnable {
             override fun run() {
                 if (continuousActionTask[keyCode] != this) return
-                
+
                 // Ensure the key is still physically pressed.
                 // This is a failsafe against "zombie" repetition if the UP event was missed or ignored.
                 if (!ButtonState.pressedKeys.value.contains(keyCode)) {
@@ -974,6 +974,11 @@ class ButtonMapperService : AccessibilityService() {
         try {
             sendBroadcast(Intent("com.xenonware.mindcontrol.ACTION_DISMISS_AOD"))
 
+            // Extra wake path: ACQUIRE_CAUSES_WAKEUP may be ignored on newer Android versions.
+            if (!powerManager.isInteractive && ShellManager.isAvailable()) {
+                Thread { ShellManager.runShellCommand("input keyevent ${KeyEvent.KEYCODE_WAKEUP}") }.start()
+            }
+
             @Suppress("DEPRECATION")
             val screenWakeLock = powerManager.newWakeLock(
                 PowerManager.FULL_WAKE_LOCK or
@@ -989,15 +994,18 @@ class ButtonMapperService : AccessibilityService() {
 
     private fun launchShortcutWithOverlay(shortcutData: String, useOverlay: Boolean = true) {
         try {
+            // The activity itself waits for the real unlock before showing the overlay / launching.
             val intent = Intent(this, ShortcutOverlayActivity::class.java).apply {
-                putExtra("SHORTCUT_DATA", shortcutData)
-                putExtra("USE_OVERLAY", useOverlay)
+                putExtra(ShortcutOverlayActivity.EXTRA_SHORTCUT_DATA, shortcutData)
+                putExtra(ShortcutOverlayActivity.EXTRA_USE_OVERLAY, useOverlay)
                 addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP)
             }
             startActivity(intent)
         } catch (e: Exception) {
             Log.e(tag, "Error launching shortcut overlay", e)
-            launchShortcut(shortcutData)
+            // Never bypass the unlock gate: launch directly only if the device isn't locked.
+            val km = getSystemService(KEYGUARD_SERVICE) as KeyguardManager
+            if (!km.isKeyguardLocked) launchShortcut(shortcutData)
         }
     }
 
@@ -1075,7 +1083,7 @@ class ButtonMapperService : AccessibilityService() {
         } else {
             AudioManager.RINGER_MODE_NORMAL
         }
-        
+
         try {
             audioManager.ringerMode = nextMode
             Log.d(tag, "Vibrate/Ringer Toggle: $currentMode -> $nextMode")
@@ -1091,7 +1099,7 @@ class ButtonMapperService : AccessibilityService() {
 
         val nm = getSystemService(NOTIFICATION_SERVICE) as NotificationManager
         val currentMode = audioManager.ringerMode
-        
+
         // Target sequence: Silent (0) -> Vibrate (1) -> Normal (2) -> Silent (0)
         val nextMode = when (currentMode) {
             AudioManager.RINGER_MODE_SILENT -> 1 // To Vibrate
@@ -1099,9 +1107,9 @@ class ButtonMapperService : AccessibilityService() {
             AudioManager.RINGER_MODE_NORMAL -> 0 // To Silent
             else -> 0
         }
-        
+
         Log.d(tag, "Sound Mode Cycle: Current=$currentMode, NextModeTarget=$nextMode")
-        
+
         try {
             if (!nm.isNotificationPolicyAccessGranted) {
                 Log.w(tag, "cycleSoundMode: DND permission not granted")
@@ -1142,7 +1150,7 @@ class ButtonMapperService : AccessibilityService() {
 
             // Force the system UI to show the change
             audioManager.adjustVolume(AudioManager.ADJUST_SAME, AudioManager.FLAG_SHOW_UI)
-            
+
             Handler(Looper.getMainLooper()).postDelayed({
                 Log.d(tag, "Sound Mode Cycle Verify: Actual=${audioManager.ringerMode}")
             }, 200)
@@ -1188,14 +1196,14 @@ class ButtonMapperService : AccessibilityService() {
         try {
             // Force Auto-Rotate OFF
             Settings.System.putInt(contentResolver, Settings.System.ACCELEROMETER_ROTATION, 0)
-            
+
             val current = try {
                 Settings.System.getInt(contentResolver, Settings.System.USER_ROTATION)
             } catch (_: Exception) { 0 }
-            
+
             // Toggle specifically between Portrait (0) and Landscape (1)
             val next = if (current == 0) 1 else 0
-            
+
             Settings.System.putInt(contentResolver, Settings.System.USER_ROTATION, next)
             Log.d(tag, "Rotation Toggle: $current -> $next")
         } catch (e: Exception) {
@@ -1207,14 +1215,14 @@ class ButtonMapperService : AccessibilityService() {
         try {
             // Force Auto-Rotate OFF
             Settings.System.putInt(contentResolver, Settings.System.ACCELEROMETER_ROTATION, 0)
-            
+
             val current = try {
                 Settings.System.getInt(contentResolver, Settings.System.USER_ROTATION)
             } catch (_: Exception) { 0 }
-            
+
             // Cycle through all 4 orientations (0, 1, 2, 3)
             val next = (current + 1) % 4
-            
+
             Settings.System.putInt(contentResolver, Settings.System.USER_ROTATION, next)
             Log.d(tag, "Rotation 360 Toggle: $current -> $next")
         } catch (e: Exception) {
@@ -1227,7 +1235,7 @@ class ButtonMapperService : AccessibilityService() {
             val current = try {
                 Settings.System.getInt(contentResolver, Settings.System.ACCELEROMETER_ROTATION)
             } catch (_: Exception) { 0 }
-            
+
             val next = if (current == 1) 0 else 1
             Settings.System.putInt(contentResolver, Settings.System.ACCELEROMETER_ROTATION, next)
             Log.d(tag, "Auto-Rotate Toggle: $current -> $next")
@@ -1339,7 +1347,7 @@ class ButtonMapperService : AccessibilityService() {
             val lm = getSystemService(LOCATION_SERVICE) as LocationManager
             val isEnabled = lm.isLocationEnabled
             val nextMode = if (isEnabled) 0 else 3 // 0 = OFF, 3 = HIGH_ACCURACY
-            
+
             if (ShellManager.isAvailable()) {
                 ShellManager.runShellCommand("settings put secure location_mode $nextMode")
                 Log.d(tag, "Location Toggle: $isEnabled -> $nextMode")
@@ -1503,7 +1511,7 @@ class ButtonMapperService : AccessibilityService() {
             val msm = getSystemService(MEDIA_SESSION_SERVICE) as MediaSessionManager
             val sessions = msm.getActiveSessions(ComponentName(this, NotificationListener::class.java))
             val controller = sessions.firstOrNull()
-            
+
             if (controller?.playbackState != null) {
                 val delta = if (forward) 30000L else -30000L
                 val newPos = max(0, controller.playbackState!!.position + delta)
@@ -1524,7 +1532,7 @@ class ButtonMapperService : AccessibilityService() {
             val sessions = msm.getActiveSessions(ComponentName(this, NotificationListener::class.java))
             Log.d(tag, "Media Skip: Found ${sessions.size} active sessions")
             val controller = sessions.firstOrNull()
-            
+
             if (controller != null) {
                 Log.d(tag, "Media Skip: Controlling session ${controller.packageName}")
                 if (forward) controller.transportControls.skipToNext()
