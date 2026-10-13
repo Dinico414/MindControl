@@ -22,8 +22,11 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.drawText
+import androidx.compose.ui.text.font.FontFamily
+import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.rememberTextMeasurer
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.TextUnit
 import androidx.compose.ui.unit.sp
 import com.xenon.mylibrary.theme.QuicksandTitleVariable
@@ -59,7 +62,12 @@ fun StackedAodStyle(
 }
 
 @Composable
-fun StackedWatchFace(isActive: Boolean) {
+fun StackedWatchFace(
+    isActive: Boolean,
+    fontFamily: FontFamily = QuicksandTitleVariable,
+    fontWeight: FontWeight = FontWeight.Bold,
+    fontStyle: FontStyle = FontStyle.Normal
+) {
     val textMeasurer = rememberTextMeasurer()
     val context = LocalContext.current
     val is24Hour = DateFormat.is24HourFormat(context)
@@ -119,28 +127,22 @@ fun StackedWatchFace(isActive: Boolean) {
 
         val textStyle = TextStyle(
             color = Color.White,
-            fontSize = pxToSp(r * 0.705f),
-            fontWeight = FontWeight.Bold,
-            fontFamily = QuicksandTitleVariable
+            fontSize = pxToSp(r * 0.52f),
+            fontWeight = fontWeight,
+            fontFamily = fontFamily,
+            fontStyle = fontStyle,
+            textAlign = TextAlign.Center
         )
 
         val hourText = String.format(locale, "%02d", displayHour)
         val minuteText = String.format(locale, "%02d", minute)
+        val stackedText = "$hourText\n$minuteText"
 
-        val hourLayout = textMeasurer.measure(hourText, textStyle)
-        val minuteLayout = textMeasurer.measure(minuteText, textStyle)
-
-        val hourY = cy - hourLayout.size.height + hourLayout.size.height * 0.20f
-        val minuteY = cy - minuteLayout.size.height * 0.20f
+        val textLayout = textMeasurer.measure(stackedText, textStyle)
 
         drawText(
-            textLayoutResult = hourLayout,
-            topLeft = Offset(cx - hourLayout.size.width / 2f, hourY)
-        )
-        drawText(
-            textLayoutResult = minuteLayout,
-            topLeft = Offset(cx - minuteLayout.size.width / 2f, minuteY),
-            alpha = 1f
+            textLayoutResult = textLayout,
+            topLeft = Offset(cx - textLayout.size.width / 2f, cy - textLayout.size.height / 2f)
         )
     }
 }

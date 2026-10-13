@@ -15,6 +15,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.platform.LocalContext
@@ -22,6 +23,7 @@ import com.xenonware.mindcontrol.MediaInfo
 import com.xenonware.mindcontrol.ui.res.UnifiedAodStyle
 import kotlinx.coroutines.delay
 import java.util.Calendar
+import kotlin.math.min
 import kotlin.time.Duration.Companion.milliseconds
 
 @Composable
@@ -150,41 +152,50 @@ fun PixelInlineWatchFace(isActive: Boolean) {
     val minute = calendar.get(Calendar.MINUTE)
 
     Canvas(
-        modifier = Modifier.fillMaxWidth(0.6f).aspectRatio(2f).graphicsLayer(alpha = animatedAlpha)
+        modifier = Modifier.fillMaxWidth(0.6f).aspectRatio(17f / 5f).graphicsLayer(alpha = animatedAlpha)
     ) {
         val w = size.width
         val h = size.height
         val cx = w / 2f
         val cy = h / 2f
-        
-        val digitWidth = w * 0.18f
-        val digitHeight = h * 0.8f
-        val spacing = w * 0.02f
-        val colonWidth = w * 0.08f
+
+        val cellSize = min(w / 17f, h / 5f)
+        val digitWidth = cellSize * 3f
+        val digitHeight = cellSize * 5f
+
+        val startX = cx - (17f * cellSize) / 2f
+        val startY = cy - (5f * cellSize) / 2f
 
         val h1 = displayHour / 10
         val h2 = displayHour % 10
         val m1 = minute / 10
         val m2 = minute % 10
 
-        val totalWidth = digitWidth * 4 + spacing * 3 + colonWidth
-        val startX = cx - totalWidth / 2f
-        val y = cy - digitHeight / 2f
+        val padding = cellSize * 0.08f
+        val innerSize = cellSize - padding * 2f
 
-        var currentX = startX
-        drawPixelDigit(h1, Offset(currentX, y), digitWidth, digitHeight, Color.White, 1f)
-        currentX += digitWidth + spacing
-        drawPixelDigit(h2, Offset(currentX, y), digitWidth, digitHeight, Color.White, 1f)
-        currentX += digitWidth + spacing
-        
-        // Colon
-        val dotRadius = digitWidth * 0.12f
-        drawCircle(Color.White, dotRadius, Offset(currentX + colonWidth / 2f, cy - digitHeight * 0.15f), 1f)
-        drawCircle(Color.White, dotRadius, Offset(currentX + colonWidth / 2f, cy + digitHeight * 0.15f), 1f)
-        
-        currentX += colonWidth + spacing
-        drawPixelDigit(m1, Offset(currentX, y), digitWidth, digitHeight, Color.White, 1f)
-        currentX += digitWidth + spacing
-        drawPixelDigit(m2, Offset(currentX, y), digitWidth, digitHeight, Color.White, 1f)
+        // Digits
+        drawPixelDigit(h1, Offset(startX + 0f * cellSize, startY), digitWidth, digitHeight, Color.White, 1f)
+        drawPixelDigit(h2, Offset(startX + 4f * cellSize, startY), digitWidth, digitHeight, Color.White, 1f)
+        drawPixelDigit(m1, Offset(startX + 10f * cellSize, startY), digitWidth, digitHeight, Color.White, 1f)
+        drawPixelDigit(m2, Offset(startX + 14f * cellSize, startY), digitWidth, digitHeight, Color.White, 1f)
+
+        // Colon at Column 8, Rows 1 & 3 (1 pixel gap above, below, and between dots)
+        val colonX = startX + 8f * cellSize + padding
+        val topColonY = startY + 1f * cellSize + padding
+        val bottomColonY = startY + 3f * cellSize + padding
+
+        drawRect(
+            color = Color.White,
+            topLeft = Offset(colonX, topColonY),
+            size = Size(innerSize, innerSize),
+            alpha = 1f
+        )
+        drawRect(
+            color = Color.White,
+            topLeft = Offset(colonX, bottomColonY),
+            size = Size(innerSize, innerSize),
+            alpha = 1f
+        )
     }
 }

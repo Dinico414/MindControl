@@ -94,8 +94,12 @@ fun DigitalAbstractWatchFace(isActive: Boolean) {
 
     // Material You, always the dark scheme
     val scheme = remember(context) { dynamicDarkColorScheme(context) }
-    val fillColor = scheme.primaryContainer   // solid body
-    val borderColor = scheme.primary          // solid rim
+    // Hours: primary
+    val hourFill = scheme.primaryContainer
+    val hourBorder = scheme.primary
+    // Minutes: tertiary
+    val minuteFill = scheme.tertiaryContainer
+    val minuteBorder = scheme.tertiary
 
     val animatedAlpha by animateFloatAsState(
         targetValue = if (isActive) 1f else 0.7f, animationSpec = tween(500), label = "alpha"
@@ -145,6 +149,8 @@ fun DigitalAbstractWatchFace(isActive: Boolean) {
         digits.forEachIndexed { index, digit ->
             val col = index % 2
             val row = index / 2
+            val fillColor = if (row == 0) hourFill else minuteFill
+            val borderColor = if (row == 0) hourBorder else minuteBorder
             val cellOrigin = Offset(
                 originX + col * (unit + GAP_X * unit),
                 originY + row * (cellH + GAP_Y * unit)

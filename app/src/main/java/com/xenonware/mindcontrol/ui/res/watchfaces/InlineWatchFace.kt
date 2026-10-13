@@ -22,6 +22,8 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.drawText
+import androidx.compose.ui.text.font.FontFamily
+import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.rememberTextMeasurer
 import androidx.compose.ui.unit.TextUnit
@@ -59,7 +61,12 @@ fun InlineAodStyle(
 }
 
 @Composable
-fun InlineWatchFace(isActive: Boolean) {
+fun InlineWatchFace(
+    isActive: Boolean,
+    fontFamily: FontFamily = QuicksandTitleVariable,
+    fontWeight: FontWeight = FontWeight.Bold,
+    fontStyle: FontStyle = FontStyle.Normal
+) {
     val textMeasurer = rememberTextMeasurer()
     val context = LocalContext.current
     val is24Hour = DateFormat.is24HourFormat(context)
@@ -120,8 +127,9 @@ fun InlineWatchFace(isActive: Boolean) {
         val textStyle = TextStyle(
             color = Color.White,
             fontSize = pxToSp(r * 0.47f),
-            fontWeight = FontWeight.Bold,
-            fontFamily = QuicksandTitleVariable
+            fontWeight = fontWeight,
+            fontFamily = fontFamily,
+            fontStyle = fontStyle
         )
 
         val hourText = String.format(locale, "%02d", displayHour)

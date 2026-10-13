@@ -84,31 +84,31 @@ fun SpinnerWatchFace(isActive: Boolean) {
 
         val tickCount = 12
         val hourIndex = hour % 12
-        
+
         val minuteIndex = minute / 5
         val nextMinuteIndex = (minuteIndex + 1) % 12
         val minuteFraction = (minute % 5) / 5f
 
         // Ticks configuration
         // Scaled up lengths (aiming for ~1.5x where possible without crossing center)
-        val tickLenShort = r * 0.48f 
+        val tickLenShort = r * 0.48f
         val tickLenHour = r * 0.88f // Kept long, nearly reaching center
         val maxR = r * 0.96f // Furthest out point
-        
+
         val pillThickness = r * 0.08f // Slimmed down from 0.12r
         val borderThickness = r * 0.004f // Decreased from 0.007r
         val cornerRadius = CornerRadius(pillThickness / 2f)
 
         for (i in 0 until tickCount) {
             val angleDeg = i * 30f - 90f
-            
+
             val isHour = i == hourIndex
             val currentLen = if (isHour) tickLenHour else tickLenShort
-            
+
             // Minutes logic:
             // Every 5 minutes the "active" indicator moves to the next tick.
             // Transitions are linear: 100% -> 80% -> 60% -> 40% -> 20% -> 0%
-            var fillAlpha = 0f 
+            var fillAlpha = 0f
             if (i == minuteIndex) {
                 fillAlpha = 1f - minuteFraction
             } else if (i == nextMinuteIndex) {
@@ -123,7 +123,7 @@ fun SpinnerWatchFace(isActive: Boolean) {
                 // topLeft is calculated so the outer edge (top in local space) is always at maxR
                 val topLeft = Offset(cx - pillThickness / 2f, cy - maxR)
                 val size = Size(pillThickness, currentLen)
-                
+
                 // Filling: starts at 0% and reacts to the minute logic (0, 0.2, 0.4, 0.6, 0.8, 1.0)
                 if (fillAlpha > 0f) {
                     drawRoundRect(
@@ -133,7 +133,7 @@ fun SpinnerWatchFace(isActive: Boolean) {
                         cornerRadius = cornerRadius
                     )
                 }
-                
+
                 // Border: 100% white for all ticks
                 drawRoundRect(
                     color = Color.White.copy(alpha = borderAlpha),

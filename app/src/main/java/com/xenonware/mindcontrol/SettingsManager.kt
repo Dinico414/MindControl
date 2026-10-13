@@ -105,28 +105,58 @@ object SettingsManager {
     private const val KEY_KEYBOARD_PALETTE = "keyboard_palette"
     private const val KEY_AOD_STYLE = "aod_style"
     private const val KEY_AOD_MEDIA_ENABLED = "aod_media_enabled"
+    private const val KEY_AOD_LOCK_ENABLED = "aod_lock_enabled"
     private const val KEY_SHOW_LIFT_TO_WAKE_WARNING = "show_lift_to_wake_warning"
+
+    private const val KEY_TEXT_CLOCK_LAYOUT = "text_clock_layout"
+    private const val KEY_TEXT_CLOCK_SUBSTYLE = "text_clock_substyle"
+    private const val KEY_TEXT_CLOCK_FONT_FAMILY = "text_clock_font_family"
+    private const val KEY_TEXT_CLOCK_FONT_WEIGHT = "text_clock_font_weight"
+    private const val KEY_TEXT_CLOCK_FONT_ITALIC = "text_clock_font_italic"
+
+    private const val KEY_ANALOG_CLOCK_SUBSTYLE = "analog_clock_substyle"
+
+    enum class TextClockLayout {
+        INLINE,
+        STACKED
+    }
+
+    enum class TextClockSubstyle {
+        MODERN,
+        NOTHING,
+        DIGITAL,
+        PIXEL
+    }
+
+    enum class AnalogClockSubstyle {
+        CLASSIC,
+        PLANETS,
+        ABSTRACT
+    }
 
     private const val FD = BuildConfig.FEATURE_DROP
     private val fdInt = FD.toIntOrNull() ?: 0
     enum class AodStyle(val minFd: Int = 0) {
+        TEXT,
         CONCENTRIC,
         ANALOG,
         PLANETS(1),
         SPINNER(1),
-        PIXEL_STACKED(1),
-        PIXEL_INLINE(1),
+        BLOCKS(1),
+        BARS(1),
+        TRACK(2),
+        DIGITAL_ABSTRACT(2),
+        CUBED(2),
+
+        // Legacy values kept for backward compatibility/migration
         STACKED,
         INLINE,
         STACKED_DOT,
         INLINE_DOT,
         STACKED_DIGITAL,
         INLINE_DIGITAL,
-        BLOCKS(1),
-        BARS(1),
-        TRACK(2),
-        DIGITAL_ABSTRACT(2),
-        CUBED(2)
+        PIXEL_STACKED,
+        PIXEL_INLINE
     }
 
     private fun prefs(context: Context): SharedPreferences {
@@ -245,17 +275,132 @@ object SettingsManager {
         prefs(context).edit { putString(KEY_KEYBOARD_PALETTE, palette.name) }
     }
 
-    fun getAvailableAodStyles(): List<AodStyle> =
-        AodStyle.entries.filter { fdInt >= it.minFd }
+    fun getAvailableAodStyles(): List<AodStyle> {
+        val topLevelStyles = listOf(
+            AodStyle.TEXT,
+            AodStyle.ANALOG,
+            AodStyle.CONCENTRIC,
+            AodStyle.SPINNER,
+            AodStyle.BLOCKS,
+            AodStyle.BARS,
+            AodStyle.TRACK,
+            AodStyle.DIGITAL_ABSTRACT,
+            AodStyle.CUBED
+        )
+        return topLevelStyles.filter { fdInt >= it.minFd }
+    }
 
     fun getAodStyle(context: Context): AodStyle {
-        val styleName = prefs(context).getString(KEY_AOD_STYLE, AodStyle.CONCENTRIC.name) ?: ""
-        val style = AodStyle.entries.find { it.name == styleName } ?: AodStyle.CONCENTRIC
-        return if (fdInt >= style.minFd) style else AodStyle.CONCENTRIC
+        val styleName = prefs(context).getString(KEY_AOD_STYLE, AodStyle.TEXT.name) ?: ""
+        val style = AodStyle.entries.find { it.name == styleName } ?: AodStyle.TEXT
+        return when (style) {
+            AodStyle.STACKED -> {
+                setTextClockLayout(context, TextClockLayout.STACKED)
+                setTextClockSubstyle(context, TextClockSubstyle.MODERN)
+                setAodStyle(context, AodStyle.TEXT)
+                AodStyle.TEXT
+            }
+            AodStyle.INLINE -> {
+                setTextClockLayout(context, TextClockLayout.INLINE)
+                setTextClockSubstyle(context, TextClockSubstyle.MODERN)
+                setAodStyle(context, AodStyle.TEXT)
+                AodStyle.TEXT
+            }
+            AodStyle.STACKED_DOT -> {
+                setTextClockLayout(context, TextClockLayout.STACKED)
+                setTextClockSubstyle(context, TextClockSubstyle.NOTHING)
+                setAodStyle(context, AodStyle.TEXT)
+                AodStyle.TEXT
+            }
+            AodStyle.INLINE_DOT -> {
+                setTextClockLayout(context, TextClockLayout.INLINE)
+                setTextClockSubstyle(context, TextClockSubstyle.NOTHING)
+                setAodStyle(context, AodStyle.TEXT)
+                AodStyle.TEXT
+            }
+            AodStyle.STACKED_DIGITAL -> {
+                setTextClockLayout(context, TextClockLayout.STACKED)
+                setTextClockSubstyle(context, TextClockSubstyle.DIGITAL)
+                setAodStyle(context, AodStyle.TEXT)
+                AodStyle.TEXT
+            }
+            AodStyle.INLINE_DIGITAL -> {
+                setTextClockLayout(context, TextClockLayout.INLINE)
+                setTextClockSubstyle(context, TextClockSubstyle.DIGITAL)
+                setAodStyle(context, AodStyle.TEXT)
+                AodStyle.TEXT
+            }
+            AodStyle.PIXEL_STACKED -> {
+                setTextClockLayout(context, TextClockLayout.STACKED)
+                setTextClockSubstyle(context, TextClockSubstyle.PIXEL)
+                setAodStyle(context, AodStyle.TEXT)
+                AodStyle.TEXT
+            }
+            AodStyle.PIXEL_INLINE -> {
+                setTextClockLayout(context, TextClockLayout.INLINE)
+                setTextClockSubstyle(context, TextClockSubstyle.PIXEL)
+                setAodStyle(context, AodStyle.TEXT)
+                AodStyle.TEXT
+            }
+            AodStyle.PLANETS -> {
+                setAnalogClockSubstyle(context, AnalogClockSubstyle.PLANETS)
+                setAodStyle(context, AodStyle.ANALOG)
+                AodStyle.ANALOG
+            }
+            else -> if (fdInt >= style.minFd) style else AodStyle.TEXT
+        }
     }
 
     fun setAodStyle(context: Context, style: AodStyle) {
         prefs(context).edit { putString(KEY_AOD_STYLE, style.name) }
+    }
+
+    fun getAnalogClockSubstyle(context: Context): AnalogClockSubstyle {
+        val name = prefs(context).getString(KEY_ANALOG_CLOCK_SUBSTYLE, AnalogClockSubstyle.CLASSIC.name)
+        return AnalogClockSubstyle.entries.find { it.name == name } ?: AnalogClockSubstyle.CLASSIC
+    }
+
+    fun setAnalogClockSubstyle(context: Context, substyle: AnalogClockSubstyle) {
+        prefs(context).edit { putString(KEY_ANALOG_CLOCK_SUBSTYLE, substyle.name) }
+    }
+
+    fun getTextClockLayout(context: Context): TextClockLayout {
+        val name = prefs(context).getString(KEY_TEXT_CLOCK_LAYOUT, TextClockLayout.STACKED.name)
+        return TextClockLayout.entries.find { it.name == name } ?: TextClockLayout.STACKED
+    }
+
+    fun setTextClockLayout(context: Context, layout: TextClockLayout) {
+        prefs(context).edit { putString(KEY_TEXT_CLOCK_LAYOUT, layout.name) }
+    }
+
+    fun getTextClockSubstyle(context: Context): TextClockSubstyle {
+        val name = prefs(context).getString(KEY_TEXT_CLOCK_SUBSTYLE, TextClockSubstyle.MODERN.name)
+        return TextClockSubstyle.entries.find { it.name == name } ?: TextClockSubstyle.MODERN
+    }
+
+    fun setTextClockSubstyle(context: Context, substyle: TextClockSubstyle) {
+        prefs(context).edit { putString(KEY_TEXT_CLOCK_SUBSTYLE, substyle.name) }
+    }
+
+    fun getTextClockFontFamily(context: Context): String =
+        prefs(context).getString(KEY_TEXT_CLOCK_FONT_FAMILY, "QUICKSAND") ?: "QUICKSAND"
+
+    fun setTextClockFontFamily(context: Context, family: String) {
+        prefs(context).edit { putString(KEY_TEXT_CLOCK_FONT_FAMILY, family) }
+    }
+
+    fun getTextClockFontWeight(context: Context): Int =
+        prefs(context).getInt(KEY_TEXT_CLOCK_FONT_WEIGHT, 700)
+
+    fun setTextClockFontWeight(context: Context, weight: Int) {
+        prefs(context).edit { putInt(KEY_TEXT_CLOCK_FONT_WEIGHT, weight) }
+    }
+
+    fun isTextClockItalic(context: Context): Boolean =
+        prefs(context).getBoolean(KEY_TEXT_CLOCK_FONT_ITALIC, false)
+
+    fun setTextClockItalic(context: Context, italic: Boolean) {
+        prefs(context).edit { putBoolean(KEY_TEXT_CLOCK_FONT_ITALIC, italic) }
     }
 
     fun isAodMediaEnabled(context: Context): Boolean =
@@ -263,6 +408,13 @@ object SettingsManager {
 
     fun setAodMediaEnabled(context: Context, enabled: Boolean) {
         prefs(context).edit { putBoolean(KEY_AOD_MEDIA_ENABLED, enabled) }
+    }
+
+    fun isAodLockEnabled(context: Context): Boolean =
+        prefs(context).getBoolean(KEY_AOD_LOCK_ENABLED, true)
+
+    fun setAodLockEnabled(context: Context, enabled: Boolean) {
+        prefs(context).edit { putBoolean(KEY_AOD_LOCK_ENABLED, enabled) }
     }
 
     fun shouldShowLiftToWakeWarning(context: Context): Boolean =

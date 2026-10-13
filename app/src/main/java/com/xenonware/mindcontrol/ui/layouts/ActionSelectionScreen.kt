@@ -903,6 +903,7 @@ fun ActionList(
     var inputValue by rememberSaveable { mutableStateOf("") }
 
     val aodActionName = stringResource(R.string.action_aod)
+    val styleText = stringResource(R.string.style_text)
     val styleConcentric = stringResource(R.string.style_concentric)
     val styleStacked = stringResource(R.string.style_stacked)
     val styleInline = stringResource(R.string.style_inline)
@@ -948,6 +949,7 @@ fun ActionList(
                 SettingsManager.setAodMediaEnabled(context, mediaEnabled)
                 SettingsManager.setAction(context, config.keyCode, config.state, config.type, SettingsManager.ACTION_AOD)
                 val styleName = when (style) {
+                    SettingsManager.AodStyle.TEXT -> styleText
                     SettingsManager.AodStyle.CONCENTRIC -> styleConcentric
                     SettingsManager.AodStyle.STACKED -> styleStacked
                     SettingsManager.AodStyle.INLINE -> styleInline

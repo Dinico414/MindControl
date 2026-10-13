@@ -642,8 +642,12 @@ class ButtonMapperService : AccessibilityService() {
             SettingsManager.ACTION_AOD,
             SettingsManager.ACTION_LOCK_AOD,
             SettingsManager.ACTION_LOCK_MEDIA_AOD -> {
-                performGlobalAction(GLOBAL_ACTION_LOCK_SCREEN)
-                handler.postDelayed({ startWatchActivity() }, 500)
+                if (SettingsManager.isAodLockEnabled(this)) {
+                    performGlobalAction(GLOBAL_ACTION_LOCK_SCREEN)
+                    handler.postDelayed({ startWatchActivity() }, 500)
+                } else {
+                    startWatchActivity()
+                }
                 true
             }
             SettingsManager.ACTION_HOME -> performGlobalAction(GLOBAL_ACTION_HOME)

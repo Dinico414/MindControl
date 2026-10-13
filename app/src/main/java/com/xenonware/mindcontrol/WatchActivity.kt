@@ -7,11 +7,13 @@ import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
 import android.content.pm.PackageManager
+import android.media.AudioManager
 import android.os.BatteryManager
 import android.os.Bundle
 import android.provider.Settings
 import android.service.notification.NotificationListenerService
 import android.util.Log
+import android.view.KeyEvent
 import android.view.WindowManager
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
@@ -76,6 +78,7 @@ import com.xenonware.mindcontrol.ui.res.watchfaces.SpinnerAodStyle
 import com.xenonware.mindcontrol.ui.res.watchfaces.StackedAodStyle
 import com.xenonware.mindcontrol.ui.res.watchfaces.StackedDigitalAodStyle
 import com.xenonware.mindcontrol.ui.res.watchfaces.StackedDotAodStyle
+import com.xenonware.mindcontrol.ui.res.watchfaces.TextAodStyle
 import com.xenonware.mindcontrol.ui.res.watchfaces.TrackAodStyle
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.delay
@@ -94,25 +97,28 @@ class WatchActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
+        val isLockEnabled = SettingsManager.isAodLockEnabled(this)
         val km = getSystemService(KEYGUARD_SERVICE) as KeyguardManager
-        if (!km.isKeyguardLocked) {
+        if (isLockEnabled && !km.isKeyguardLocked) {
             finish()
             overridePendingTransition(0, 0)
             return
         }
 
-        try {
-            val listener = KeyguardManager.KeyguardLockedStateListener { isLocked ->
-                if (!isLocked) {
-                    Log.d("WatchActivity", "Keyguard listener: device unlocked, finishing AOD")
-                    finish()
-                    overridePendingTransition(0, 0)
+        if (isLockEnabled) {
+            try {
+                val listener = KeyguardManager.KeyguardLockedStateListener { isLocked ->
+                    if (!isLocked) {
+                        Log.d("WatchActivity", "Keyguard listener: device unlocked, finishing AOD")
+                        finish()
+                        overridePendingTransition(0, 0)
+                    }
                 }
+                keyguardListener = listener
+                km.addKeyguardLockedStateListener(mainExecutor, listener)
+            } catch (e: Exception) {
+                Log.d("WatchActivity", "Could not register KeyguardLockedStateListener: ${e.message}")
             }
-            keyguardListener = listener
-            km.addKeyguardLockedStateListener(mainExecutor, listener)
-        } catch (e: Exception) {
-            Log.d("WatchActivity", "Could not register KeyguardLockedStateListener: ${e.message}")
         }
 
         setShowWhenLocked(true)
@@ -221,9 +227,10 @@ class WatchActivity : ComponentActivity() {
             var isFinishing by remember { mutableStateOf(false) }
 
             LaunchedEffect(Unit) {
+                val isLockEnabled = SettingsManager.isAodLockEnabled(context)
                 val km = context.getSystemService(Context.KEYGUARD_SERVICE) as KeyguardManager
                 while (isActive) {
-                    if (!km.isKeyguardLocked) {
+                    if (isLockEnabled && !km.isKeyguardLocked) {
                         Log.d("WatchActivity", "Polling check: device unlocked, finishing AOD")
                         finish()
                         overridePendingTransition(0, 0)
@@ -373,29 +380,30 @@ class WatchActivity : ComponentActivity() {
                                             } else {
                                                 // Media control or canceled unlock - Bounce back to center
                                                 try {
-                                                    if (lockedDirection == "V" && totalDragY > mediaThreshold && mediaInfo != null) {
+                                                    if (lockedDirection == "V" && totalDragY > mediaThreshold) {
                                                         Log.d(
                                                             "WatchActivity",
                                                             "Triggering Play/Pause"
                                                         )
-                                                        if (mediaInfo.isPlaying) {
-                                                            mediaInfo.controller?.transportControls?.pause()
-                                                        } else {
-                                                            mediaInfo.controller?.transportControls?.play()
-                                                        }
-                                                    } else if (lockedDirection == "H" && mediaInfo != null) {
+                                                        val audioManager = context.getSystemService(Context.AUDIO_SERVICE) as AudioManager
+                                                        audioManager.dispatchMediaKeyEvent(KeyEvent(KeyEvent.ACTION_DOWN, KeyEvent.KEYCODE_MEDIA_PLAY_PAUSE))
+                                                        audioManager.dispatchMediaKeyEvent(KeyEvent(KeyEvent.ACTION_UP, KeyEvent.KEYCODE_MEDIA_PLAY_PAUSE))
+                                                    } else if (lockedDirection == "H") {
+                                                        val audioManager = context.getSystemService(Context.AUDIO_SERVICE) as AudioManager
                                                         if (totalDragX < -mediaThreshold) {
                                                             Log.d(
                                                                 "WatchActivity",
                                                                 "Triggering Skip Next"
                                                             )
-                                                            mediaInfo.controller?.transportControls?.skipToNext()
+                                                            audioManager.dispatchMediaKeyEvent(KeyEvent(KeyEvent.ACTION_DOWN, KeyEvent.KEYCODE_MEDIA_NEXT))
+                                                            audioManager.dispatchMediaKeyEvent(KeyEvent(KeyEvent.ACTION_UP, KeyEvent.KEYCODE_MEDIA_NEXT))
                                                         } else if (totalDragX > mediaThreshold) {
                                                             Log.d(
                                                                 "WatchActivity",
                                                                 "Triggering Skip Previous"
                                                             )
-                                                            mediaInfo.controller?.transportControls?.skipToPrevious()
+                                                            audioManager.dispatchMediaKeyEvent(KeyEvent(KeyEvent.ACTION_DOWN, KeyEvent.KEYCODE_MEDIA_PREVIOUS))
+                                                            audioManager.dispatchMediaKeyEvent(KeyEvent(KeyEvent.ACTION_UP, KeyEvent.KEYCODE_MEDIA_PREVIOUS))
                                                         }
                                                     } else {
                                                         Log.d(
@@ -569,6 +577,19 @@ class WatchActivity : ComponentActivity() {
                             }))
                     ) {
                         when (aodStyle) {
+                            SettingsManager.AodStyle.TEXT -> {
+                                TextAodStyle(
+                                    isActive = isActive,
+                                    notifications = notifications,
+                                    mediaInfo = mediaInfo,
+                                    isCharging = isCharging,
+                                    batteryLevel = batteryLevel,
+                                    animatedTextAlpha = animatedTextAlpha,
+                                    offsetY = 0f,
+                                    isMediaEnabled = isMediaEnabled
+                                )
+                            }
+
                             SettingsManager.AodStyle.CONCENTRIC -> {
                                 ConcentricAodStyle(
                                     isActive = isActive,

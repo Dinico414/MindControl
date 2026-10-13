@@ -102,7 +102,7 @@
     <string name="style_concentric">Concentric</string>
     <string name="style_stacked">Stacked (Modern)</string>
     <string name="style_inline">Inline (Modern)</string>
-    <string name="style_analog">Analog</string>
+    <string name="style_analog">Analog Clock</string>
     <string name="style_stacked_dot">Nothing Dot (Stacked)</string>
     <string name="style_stacked_digital">Digital (Stacked)</string>
     <string name="style_inline_dot">Nothing Dot (Inline)</string>
@@ -235,4 +235,34 @@
     <string name="style_track">Track</string>
     <string name="style_digital_abstract">Digital Abstract</string>
     <string name="style_cubes">Cube</string>
+    <string name="style_text">Text Clock</string>
+
+    <!-- Clock Options -->
+    <string name="clock_options">Clock Options</string>
+    <string name="layout">Layout</string>
+    <string name="layout_inline">Inline</string>
+    <string name="layout_stacked">Stacked</string>
+    <string name="clock_style">Clock Style</string>
+    <string name="substyle_modern">Modern</string>
+    <string name="substyle_nothing">Nothing (Dot)</string>
+    <string name="substyle_digital">Digital</string>
+    <string name="substyle_pixel">Pixel</string>
+    <string name="substyle_classic">Classic</string>
+    <string name="substyle_planets">Planets</string>
+    <string name="substyle_abstract">Abstract</string>
+    <string name="font_customization">Font Customization</string>
+    <string name="font_family">Font Family</string>
+    <string name="font_quicksand">Quicksand</string>
+    <string name="font_sans_serif">Sans-Serif</string>
+    <string name="font_serif">Serif</string>
+    <string name="font_monospace">Monospace</string>
+    <string name="font_cursive">Cursive</string>
+    <string name="font_weight">Font Weight</string>
+    <string name="weight_light">Light</string>
+    <string name="weight_normal">Normal</string>
+    <string name="weight_medium">Medium</string>
+    <string name="weight_bold">Bold</string>
+    <string name="weight_extra_bold">Extra Bold</string>
+    <string name="font_italic">Italic</string>
+    <string name="lock">Lock</string>
 </resources>

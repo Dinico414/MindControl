@@ -17,7 +17,9 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.platform.LocalContext
 import com.xenonware.mindcontrol.MediaInfo
+import com.xenonware.mindcontrol.SettingsManager
 import com.xenonware.mindcontrol.ui.res.UnifiedAodStyle
 import kotlinx.coroutines.delay
 import java.util.Calendar
@@ -34,7 +36,8 @@ fun AnalogAodStyle(
     batteryLevel: Int,
     animatedTextAlpha: Float,
     offsetY: Float,
-    isMediaEnabled: Boolean = true
+    isMediaEnabled: Boolean = true,
+    overrideSubstyle: SettingsManager.AnalogClockSubstyle? = null
 ) {
     UnifiedAodStyle(
         isActive = isActive,
@@ -45,8 +48,28 @@ fun AnalogAodStyle(
         animatedTextAlpha = animatedTextAlpha,
         offsetY = offsetY,
         isMediaEnabled = isMediaEnabled,
-        watchFace = { AnalogWatchFace(isActive = isActive) }
+        watchFace = {
+            AnalogGroupWatchFace(
+                isActive = isActive,
+                overrideSubstyle = overrideSubstyle
+            )
+        }
     )
+}
+
+@Composable
+fun AnalogGroupWatchFace(
+    isActive: Boolean,
+    overrideSubstyle: SettingsManager.AnalogClockSubstyle? = null
+) {
+    val context = LocalContext.current
+    val substyle = overrideSubstyle ?: SettingsManager.getAnalogClockSubstyle(context)
+
+    when (substyle) {
+        SettingsManager.AnalogClockSubstyle.CLASSIC -> AnalogWatchFace(isActive = isActive)
+        SettingsManager.AnalogClockSubstyle.PLANETS -> PlanetsWatchFace(isActive = isActive)
+        SettingsManager.AnalogClockSubstyle.ABSTRACT -> AnalogAbstractWatchFace(isActive = isActive)
+    }
 }
 
 @Composable
