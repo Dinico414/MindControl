@@ -534,7 +534,7 @@ object SettingsManager {
             (57..60).toSet() +                               // Alt, Shift
             (61..76).toSet() +                               // Tab, Space, Enter, Backspace, punctuation
             (92..93).toSet() +                               // Page Up, Page Down
-            (111..116).toSet() +                             // Escape, Delete, Ctrl, Caps/Scroll Lock
+            (111..118).toSet() +                             // Escape, Delete, Ctrl, Caps/Scroll Lock, Meta Left/Right
             (123..124).toSet() +                             // End, Insert
             (19..23).toSet() +                               // Arrow keys / Dpad
             (131..142).toSet()                               // F1-F12

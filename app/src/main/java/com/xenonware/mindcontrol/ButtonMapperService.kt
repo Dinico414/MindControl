@@ -63,7 +63,6 @@ class ButtonMapperService : AccessibilityService() {
     private var lastKeyCode: Int = -1
     private var lastKnownRingVolume: Int = -1
     private var isTextFocusActive = false
-    private var lastFocusCheckTime = 0L
 
     private var isShutterKeyPressed = false
     private var ignoreNextFocusUp = false
@@ -140,16 +139,12 @@ class ButtonMapperService : AccessibilityService() {
     private fun isTextFieldFocused(): Boolean {
         if (isTextFocusActive) return true
 
-        val now = System.currentTimeMillis()
-        if (now - lastFocusCheckTime < 2000L) return false // Only check root once every 2s to avoid spamming
-        lastFocusCheckTime = now
-
         try {
             val rootNode = rootInActiveWindow ?: return false
             val focusedNode = rootNode.findFocus(AccessibilityNodeInfo.FOCUS_INPUT) ?: return false
             val isEditable = focusedNode.isEditable
-            val isEditText = focusedNode.className?.toString()?.contains("EditText") == true
-            isTextFocusActive = isEditable || isEditText
+            val isEditText = focusedNode.className?.toString()?.contains("EditText", ignoreCase = true) == true
+            isTextFocusActive = isEditable || isEditText || focusedNode.isFocused
             return isTextFocusActive
         } catch (e: Exception) {
             Log.e(tag, "Error checking focused node", e)
@@ -331,6 +326,12 @@ class ButtonMapperService : AccessibilityService() {
 
         // Shift Hold / Shift Lock / held Shift applied to physical keyboard typing
         if (handleShiftedTyping(event)) return true
+
+        // Emoji softkeyboard physical shortcut: Ctrl + . or Alt + . or Cmd/Meta + .
+        if (keyCode == KeyEvent.KEYCODE_PERIOD && (event.isCtrlPressed || event.isAltPressed || event.isMetaPressed)) {
+            if (isDown) openEmojiKeyboard()
+            return true
+        }
 
         val isSpecialKey = keyCode in setOf(134, 27, 25, 24, 131, 132, 133, 111)
         val isKeyboardKey = keyCode in keyboardKeyCodes || event.isFromSource(android.view.InputDevice.SOURCE_KEYBOARD)
@@ -1114,26 +1115,42 @@ class ButtonMapperService : AccessibilityService() {
     // ── Keyboard: emoji ───────────────────────────────────────────────────
 
     /**
-     * Android has no public "open emoji panel" API. KEYCODE_PICT-SYMBOLS is the standard key meant
-     * for switching to emoji/symbol sets, and goes to the active keyboard first. Keyboards that
-     * don't react to it fall back to the keyboard switcher, so a dedicated emoji keyboard can be picked.
+     * Triggers the emoji soft keyboard across standard Android IMEs (Gboard, SwiftKey, Samsung Keyboard, etc.).
+     * Sends KEYCODE_EMOJI_PICKER (291), Meta+., Ctrl+., Alt+., and KEYCODE_PICTSYMBOLS (130),
+     * and toggles soft input so the soft keyboard and emoji picker pop up smoothly.
      */
     private fun openEmojiKeyboard() {
-        if (focusedEditableNode() == null) {
-            showToast("Tap a text field first")
-            return
-        }
+        Log.d(tag, "Executing openEmojiKeyboard...")
+
+        // 1. Direct Accessibility IME injection if active connection exists
+        injectViaAccessibilityIme(291, 0) || // KEYCODE_EMOJI_PICKER
+                injectViaAccessibilityIme(KeyEvent.KEYCODE_PERIOD, KeyEvent.META_META_ON) ||
+                injectViaAccessibilityIme(KeyEvent.KEYCODE_PERIOD, KeyEvent.META_CTRL_ON) ||
+                injectViaAccessibilityIme(KeyEvent.KEYCODE_PICTSYMBOLS, 0)
+
+        // 2. Shell injection if Shizuku / root is ready
         if (ShellManager.isAvailable()) {
-            markInjected(listOf(KeyEvent.KEYCODE_PICTSYMBOLS))
-            ShellManager.runShellCommand("input keyevent ${KeyEvent.KEYCODE_PICTSYMBOLS}")
-            return
+            markInjected(listOf(291, KeyEvent.KEYCODE_PERIOD, KeyEvent.KEYCODE_PICTSYMBOLS))
+            Thread {
+                try {
+                    ShellManager.runShellCommand("input keyevent 291 130")
+                    ShellManager.runShellCommand("input keycombination 117 56") // Meta + .
+                    ShellManager.runShellCommand("input keycombination 113 56") // Ctrl + .
+                    ShellManager.runShellCommand("input keycombination 57 56")  // Alt + .
+                } catch (e: Exception) {
+                    Log.e(tag, "Shell emoji injection error", e)
+                }
+            }.start()
         }
+
+        // 3. Toggle/show soft keyboard UI so the soft keyboard / emoji picker is visible
         try {
+            performGlobalAction(18) // GLOBAL_ACTION_TOGGLE_SOFT_INPUT
             val imm = getSystemService(INPUT_METHOD_SERVICE) as android.view.inputmethod.InputMethodManager
-            imm.showInputMethodPicker()
+            @Suppress("DEPRECATION")
+            imm.toggleSoftInput(android.view.inputmethod.InputMethodManager.SHOW_FORCED, 0)
         } catch (e: Exception) {
-            Log.e(tag, "Failed to show input method picker", e)
-            showToast("Emoji keyboard needs Shizuku or root")
+            Log.w(tag, "Failed to toggle soft keyboard", e)
         }
     }
 
