@@ -560,7 +560,9 @@ object SettingsManager {
             (111..118).toSet() +                             // Escape, Delete, Ctrl, Caps/Scroll Lock, Meta Left/Right
             (123..124).toSet() +                             // End, Insert
             (19..23).toSet() +                               // Arrow keys / Dpad
-            (131..142).toSet()                               // F1-F12
+            // F5-F12 only. F1-F4 (131-134) collide with the dedicated AI/Camera Up/Camera Down/Focus
+            // hardware buttons on some devices, so they must NOT be treated as keyboard keys.
+            (135..142).toSet()
 
     fun isKeyboardKey(keyCode: Int): Boolean = keyCode in keyboardKeyCodes
 

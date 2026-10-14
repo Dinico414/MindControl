@@ -781,21 +781,6 @@ class ButtonMapperService : AccessibilityService() {
             return false
         }
 
-        // Keyboard-key handling
-        if (keyCode in keyboardKeyCodes) {
-            ButtonState.setKeyPressed(keyCode, isDown)
-
-            if (!SettingsManager.isIgnoreKeyboardActive(this, keyCode) && isTextFieldFocused()) return false
-
-            val isOurApp = currentPackage == packageName
-            if (isOurApp) return true
-
-            if (!hasCustomMapping(keyCode, state)) return false
-
-            if (!dup) processKeyEvent(keyCode, isDown, state)
-            return true
-        }
-
         // Hardcoded behavior for Camera and Focus buttons when screen is OFF/Locked
         if (state == "OFF") {
             if (keyCode == 27) return false
@@ -820,6 +805,10 @@ class ButtonMapperService : AccessibilityService() {
         updateButtonState()
 
         // --- Hardware sequence logic for 134 (Focus) and 27 (Shutter) ---
+        // Must run BEFORE the generic keyboard-key handling below: on some devices the dedicated
+        // focus key (134) collides with KEYCODE_F3, and the camera button (27) emits a paired focus
+        // event that has to be suppressed here – otherwise it would fire the user's 134 mapping and
+        // break double-tap on the camera button.
         if (keyCode == 27) {
             if (isDown) {
                 isShutterKeyPressed = true
@@ -866,6 +855,22 @@ class ButtonMapperService : AccessibilityService() {
                 }
                 processKeyEvent(134, false, state)
             }
+            return true
+        }
+
+        // Keyboard-key handling
+        if (keyCode in keyboardKeyCodes) {
+            ButtonState.setKeyPressed(keyCode, isDown)
+
+            if (!SettingsManager.isIgnoreKeyboardActive(this, keyCode) && isTextFieldFocused()) return false
+
+            val isOurApp = currentPackage == packageName
+            if (isOurApp) return true
+
+            if (!hasCustomMapping(keyCode, state)) return false
+
+            // Reaching here means the event was already deduplicated above.
+            processKeyEvent(keyCode, isDown, state)
             return true
         }
 
