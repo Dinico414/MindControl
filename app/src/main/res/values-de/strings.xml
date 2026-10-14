@@ -56,15 +56,15 @@
     <string name="action_key_input">Tastendruck / Buchstabe</string>
     <string name="key_input_title">Tastendruck Aktion</string>
     <string name="enter_letter_hint">Buchstabe oder Taste</string>
-    <string name="modifier_shift">Shift</string>
+    <string name="modifier_shift">Umschalten</string>
     <string name="modifier_ctrl">Strg</string>
     <string name="modifier_alt">Alt</string>
     <string name="arrow_up">Oben ↑</string>
     <string name="arrow_down">Unten ↓</string>
     <string name="arrow_left">Links ←</string>
     <string name="arrow_right">Rechts →</string>
-    <string name="action_shift_hold">Shift Halten</string>
-    <string name="action_shift_lock">Shift Sperre</string>
+    <string name="action_shift_hold">Umschalten Halten</string>
+    <string name="action_shift_lock">Umschalt Sperre</string>
     <string name="action_open_emoji_keyboard">Emoji Tastatur</string>
 
     <!-- Dialogs -->
@@ -287,6 +287,8 @@
     <string name="action_arrow_right">Pfeil rechts</string>
     <string name="key_input_invalid">Unbekannte Taste</string>
     <string name="better_shift">Better Shift</string>
-    <string name="better_shift_on_desc">Tap for Shift, hold for Shift Lock. Reacts instantly and always overrides the keyboard. Other press types are blocked.</string>
-    <string name="better_shift_off_desc">Shift works like any other button, with all press types and settings.</string>
+    <string name="better_shift_on_desc">Tippe für Umschalten und halte für Umschalt-Sperre. Reagiert sofort und überschreibt immer die Tastatur. Andere Tipp- oder Haltemuster sind deaktiviert</string>
+    <string name="better_shift_off_desc">Umschalten funktioniert wie alle anderen Tasten, mit allen Mustern aktive.</string>
+    <string name="zero_latency_remapping">Zero-Latency Belegung</string>
+    <string name="zero_latency_remapping_desc">Einfaches Drücken wird sofort beim Loslassen ausgelöst. Doppel-, Dreifach- und Drücken-und-Halten-Muster sind für diese Taste deaktiviert.</string>
 </resources>

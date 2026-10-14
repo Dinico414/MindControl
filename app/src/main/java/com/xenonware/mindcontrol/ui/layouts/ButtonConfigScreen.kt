@@ -154,14 +154,23 @@ fun ButtonConfigScreen(
                     mutableStateOf(isShiftKey && SettingsManager.isBetterShiftEnabled(context))
                 }
 
+                // Zero-latency remapping (every button except Shift): Single press fires on release,
+                // multi-press patterns are hidden. Actions and Button Override stay fully configurable.
+                val supportsZeroLatency = SettingsManager.supportsZeroLatency(keyCode)
+                var zeroLatency by rememberSaveable {
+                    mutableStateOf(SettingsManager.isZeroLatencyEnabled(context, keyCode))
+                }
+
                 val pressTypes = when {
                     betterShift -> listOf("SINGLE_PRESS")
                     keyCode == 132 || keyCode == 133 -> listOf("SINGLE_PRESS")
+                    zeroLatency -> listOf("SINGLE_PRESS")
                     else -> listOf("SINGLE_PRESS", "DOUBLE_PRESS", "TRIPLE_PRESS", "QUADRUPLE_PRESS", "QUINTUPLE_PRESS")
                 }
                 val holdTypes = when {
                     betterShift -> listOf("HOLD")
                     keyCode == 132 || keyCode == 133 || (isVolumeButton && isScreenOff) -> emptyList()
+                    zeroLatency -> listOf("HOLD")
                     else -> listOf("HOLD", "PRESS_AND_HOLD", "DOUBLE_TAP_AND_HOLD")
                 }
 
@@ -283,6 +292,47 @@ fun ButtonConfigScreen(
                                                 // the two override switches follow the new mode
                                                 isButtonOverride = SettingsManager.isButtonOverrideEnabled(context, keyCode)
                                                 isIgnoreKeyboardActive = SettingsManager.isIgnoreKeyboardActive(context, keyCode)
+                                            }
+                                        )
+                                    }
+                                }
+                            }
+                        }
+
+                        if (supportsZeroLatency) {
+                            item {
+                                Surface(
+                                    color = MaterialTheme.colorScheme.surfaceContainerHighest,
+                                    shape = RoundedCornerShape(ExtraLargerCornerRadius),
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(bottom = 14.dp)
+                                ) {
+                                    Row(
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .padding(horizontal = 16.dp, vertical = 12.dp),
+                                        horizontalArrangement = Arrangement.SpaceBetween
+                                    ) {
+                                        Column(modifier = Modifier.weight(1f)) {
+                                            Text(
+                                                text = stringResource(R.string.zero_latency_remapping),
+                                                style = MaterialTheme.typography.bodyLarge,
+                                                color = MaterialTheme.colorScheme.onSurface
+                                            )
+                                            Text(
+                                                text = stringResource(R.string.zero_latency_remapping_desc),
+                                                style = MaterialTheme.typography.bodyMedium,
+                                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                                            )
+                                        }
+                                        Spacer(modifier = Modifier.width(8.dp))
+                                        Switch(
+                                            checked = zeroLatency,
+                                            onCheckedChange = {
+                                                zeroLatency = it
+                                                SettingsManager.setZeroLatencyEnabled(context, keyCode, it)
                                             }
                                         )
                                     }

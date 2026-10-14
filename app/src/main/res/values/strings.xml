@@ -289,4 +289,6 @@
     <string name="better_shift">Better Shift</string>
     <string name="better_shift_on_desc">Tap for Shift, hold for Shift Lock. Reacts instantly and always overrides the keyboard. Other press types are blocked.</string>
     <string name="better_shift_off_desc">Shift works like any other button, with all press types and settings.</string>
+    <string name="zero_latency_remapping">Zero-latency remapping</string>
+    <string name="zero_latency_remapping_desc">Single press fires the moment you release the button. Double, triple and press-and-hold patterns are turned off for this button.</string>
 </resources>

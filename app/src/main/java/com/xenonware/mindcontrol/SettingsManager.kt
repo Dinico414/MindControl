@@ -232,6 +232,29 @@ object SettingsManager {
     /** For the button screen: with Better Shift on, the Shift press types are shown but can't be changed. */
     fun isPressTypeLocked(context: Context, keyCode: Int): Boolean = isBetterShiftKey(context, keyCode)
 
+    // ── Zero-latency remapping ────────────────────────────────────────────
+    private const val KEY_ZERO_LATENCY_PREFIX = "zero_latency_"
+
+    /** Press types that can still be detected while zero-latency is on (no multi-press wait). */
+    val ZERO_LATENCY_PRESS_TYPES = listOf("SINGLE_PRESS", "HOLD")
+
+    /** Shift uses Better Shift instead; Camera Up/Down (132/133) already fire instantly. */
+    fun supportsZeroLatency(keyCode: Int): Boolean =
+        !isShiftKey(keyCode) && keyCode != 132 && keyCode != 133
+
+    /**
+     * Off by default. When on, Single press fires the moment the key is released, without waiting
+     * for further presses. Actions stay user-configurable; stored multi-press actions are kept and
+     * come back when this is turned off again.
+     */
+    fun isZeroLatencyEnabled(context: Context, keyCode: Int): Boolean =
+        supportsZeroLatency(keyCode) &&
+                prefs(context).getBoolean("$KEY_ZERO_LATENCY_PREFIX$keyCode", false)
+
+    fun setZeroLatencyEnabled(context: Context, keyCode: Int, enabled: Boolean) {
+        prefs(context).edit { putBoolean("$KEY_ZERO_LATENCY_PREFIX$keyCode", enabled) }
+    }
+
     /**
      * The action that actually runs. Better Shift keys are fixed: Single press = Shift, Hold = Shift Lock,
      * every other press type is blocked. Anything stored for Shift only applies when Better Shift is off.

@@ -42,7 +42,7 @@ class ButtonMapperService : AccessibilityService() {
 
     companion object {
         /** Easily enable or disable key toasts from within the code. Set too false to disable toasts. */
-        private const val SHOW_KEY_TOASTS = true
+        private const val SHOW_KEY_TOASTS = false
 
         /** Vibration when holding Shift triggers Shift Lock (Better Shift). */
         private const val SHIFT_LOCK_VIBRATION_MS = 80L
@@ -105,12 +105,44 @@ class ButtonMapperService : AccessibilityService() {
 
     private val keyboardKeyCodes = SettingsManager.keyboardKeyCodes
 
-    /** New keyboard toggles: fire once per hold, never repeat (a repeating toggle would flip on/off). */
-    private val oneShotKeyboardActions = setOf(
-        SettingsManager.ACTION_SHIFT_HOLD,
-        SettingsManager.ACTION_SHIFT_LOCK,
-        SettingsManager.ACTION_OPEN_EMOJI_KEYBOARD,
+    /**
+     * The only actions that repeat while a button is held. Everything else fires once per hold:
+     * toggles would flip on/off, Paste would spam, emoji would open and close again, etc.
+     */
+    private val repeatableActions = setOf(
+        SettingsManager.ACTION_VOLUME_UP,
+        SettingsManager.ACTION_VOLUME_DOWN,
+        SettingsManager.ACTION_BRIGHTNESS_UP,
+        SettingsManager.ACTION_BRIGHTNESS_DOWN,
+        SettingsManager.ACTION_SCROLL_UP,
+        SettingsManager.ACTION_SCROLL_DOWN,
+        "TAP_SCROLL_UP",
+        "TAP_SCROLL_DOWN",
+        SettingsManager.ACTION_SCROLL_UP_SMOOTH,
+        SettingsManager.ACTION_SCROLL_DOWN_SMOOTH,
+        SettingsManager.ACTION_SCROLL_UP_SMOOTH_FAST,
+        SettingsManager.ACTION_SCROLL_DOWN_SMOOTH_FAST,
+        "TAP_SCROLL_UP_SMOOTH",
+        "TAP_SCROLL_DOWN_SMOOTH",
+        SettingsManager.ACTION_ARROW_UP,
+        SettingsManager.ACTION_ARROW_DOWN,
+        SettingsManager.ACTION_ARROW_LEFT,
+        SettingsManager.ACTION_ARROW_RIGHT,
+        SettingsManager.ACTION_FAST_FORWARD,
+        SettingsManager.ACTION_REWIND,
+        SettingsManager.ACTION_STEP_FORWARD,
+        SettingsManager.ACTION_STEP_BACKWARD,
     )
+
+    private fun isRepeatableAction(keyCode: Int, action: String): Boolean = when {
+        // DEFAULT repeats only for volume keys; for keyboard keys it is re-sent once
+        action == SettingsManager.ACTION_DEFAULT -> keyCode == 24 || keyCode == 25
+        action in repeatableActions -> true
+        // Plain keys (letters, arrows, Backspace …) auto-repeat; shortcuts like Ctrl+V fire once
+        action.startsWith(SettingsManager.PREFIX_KEY_INPUT) ->
+            KeyInput.decode(action)?.let { !it.ctrl && !it.alt } ?: false
+        else -> false
+    }
 
     private val smoothScrollActions = setOf(
         SettingsManager.ACTION_SCROLL_UP_SMOOTH,
@@ -121,11 +153,18 @@ class ButtonMapperService : AccessibilityService() {
         "TAP_SCROLL_DOWN_SMOOTH",
     )
 
+    private val allPressTypes = listOf(
+        "SINGLE_PRESS", "DOUBLE_PRESS", "TRIPLE_PRESS", "QUADRUPLE_PRESS", "QUINTUPLE_PRESS",
+        "HOLD", "PRESS_AND_HOLD", "DOUBLE_TAP_AND_HOLD"
+    )
+
     private fun hasCustomMapping(keyCode: Int, state: String): Boolean {
-        val types = listOf(
-            "SINGLE_PRESS", "DOUBLE_PRESS", "TRIPLE_PRESS", "QUADRUPLE_PRESS", "QUINTUPLE_PRESS",
-            "HOLD", "PRESS_AND_HOLD", "DOUBLE_TAP_AND_HOLD"
-        )
+        // Zero-latency: multi-press types can never fire, so they must not make the key "mapped"
+        val types = if (SettingsManager.isZeroLatencyEnabled(this, keyCode)) {
+            SettingsManager.ZERO_LATENCY_PRESS_TYPES
+        } else {
+            allPressTypes
+        }
         return types.any {
             SettingsManager.getAction(this, keyCode, state, it) != SettingsManager.ACTION_DEFAULT
         }
@@ -328,7 +367,10 @@ class ButtonMapperService : AccessibilityService() {
         if (handleShiftedTyping(event)) return true
 
         // Emoji softkeyboard physical shortcut: Ctrl + . or Alt + . or Cmd/Meta + .
-        if (keyCode == KeyEvent.KEYCODE_PERIOD && (event.isCtrlPressed || event.isAltPressed || event.isMetaPressed)) {
+        // (only real keyboards – our own injected events must never re-trigger it)
+        if (keyCode == KeyEvent.KEYCODE_PERIOD && event.deviceId != KeyCharacterMap.VIRTUAL_KEYBOARD &&
+            (event.isCtrlPressed || event.isAltPressed || event.isMetaPressed)
+        ) {
             if (isDown) openEmojiKeyboard()
             return true
         }
@@ -568,6 +610,17 @@ class ButtonMapperService : AccessibilityService() {
             }
 
             if (isVolumeSkipActive) {
+                performAction(keyCode, state, "SINGLE_PRESS")
+                return
+            }
+
+            // Zero-latency: fire Single press right away, skip the 350 ms multi-click window.
+            // clickCount stays 0, so a following hold is always detected as plain HOLD.
+            if (SettingsManager.isZeroLatencyEnabled(this, keyCode)) {
+                pendingMultiClick?.let { handler.removeCallbacks(it) }
+                pendingMultiClick = null
+                clickCount = 0
+                Log.d(tag, "ZERO-LATENCY single press for keyCode=$keyCode (state=$state)")
                 performAction(keyCode, state, "SINGLE_PRESS")
                 return
             }
@@ -825,19 +878,14 @@ class ButtonMapperService : AccessibilityService() {
 
         val action = SettingsManager.getEffectiveAction(this, keyCode, state, type)
 
-        // Original rule: everything except DEFAULT/NONE repeats while held (DEFAULT only for volume keys).
-        // New keyboard toggles are the only exception – they must fire once per hold.
-        val isContinuous = (action == SettingsManager.ACTION_DEFAULT && (keyCode == 24 || keyCode == 25)) ||
-                (action != SettingsManager.ACTION_DEFAULT &&
-                        action != SettingsManager.ACTION_NONE &&
-                        action !in oneShotKeyboardActions)
+        // Only actions where repeating makes sense repeat while held; everything else
+        // (toggles, clipboard, emoji, app launches, screenshots …) fires exactly once per hold.
+        val volumePanelDefault = SettingsManager.isDefaultWhenVolumeVisible(this) &&
+                isVolumePanelVisibleState && (keyCode == 24 || keyCode == 25)
+        if (!volumePanelDefault && !isRepeatableAction(keyCode, action)) return
 
-        val actualIsContinuous = SettingsManager.isDefaultWhenVolumeVisible(this) &&
-                isVolumePanelVisibleState && (keyCode == 24 || keyCode == 25) || isContinuous
-
-        if (!actualIsContinuous) return
-
-        val isKeyRepeat = action.startsWith(SettingsManager.PREFIX_KEY_INPUT) || action in SettingsManager.ARROW_ACTIONS
+        val isKeyRepeat = action.startsWith(SettingsManager.PREFIX_KEY_INPUT) ||
+                action in SettingsManager.ARROW_ACTIONS
         val isScroll = action in smoothScrollActions
         val isVolume = action == SettingsManager.ACTION_VOLUME_UP ||
                 action == SettingsManager.ACTION_VOLUME_DOWN ||
@@ -1114,44 +1162,43 @@ class ButtonMapperService : AccessibilityService() {
 
     // ── Keyboard: emoji ───────────────────────────────────────────────────
 
+    /** Last time the emoji picker was triggered – every trigger TOGGLES it, so never fire twice. */
+    private var lastEmojiTriggerTime = 0L
+
     /**
-     * Triggers the emoji soft keyboard across standard Android IMEs (Gboard, SwiftKey, Samsung Keyboard, etc.).
-     * Sends KEYCODE_EMOJI_PICKER (291), Meta+., Ctrl+., Alt+., and KEYCODE_PICTSYMBOLS (130),
-     * and toggles soft input so the soft keyboard and emoji picker pop up smoothly.
+     * Opens the emoji picker with exactly ONE signal: KEYCODE_EMOJI_PICKER (317) through the shell,
+     * so it passes the normal input pipeline and reaches the keyboard app.
+     *
+     * Previously several signals were sent (317, Meta+., Ctrl+., Alt+., toggleSoftInput). Each one
+     * toggles the picker, and the injected Ctrl+. came back through onKeyEvent and re-triggered this
+     * function – so the picker opened and closed again depending on timing.
+     * Also: never call performGlobalAction(18) – that is GLOBAL_ACTION_DPAD_LEFT (cursor jump).
      */
     private fun openEmojiKeyboard() {
-        Log.d(tag, "Executing openEmojiKeyboard...")
-
-        // 1. Direct Accessibility IME injection if active connection exists
-        injectViaAccessibilityIme(291, 0) || // KEYCODE_EMOJI_PICKER
-                injectViaAccessibilityIme(KeyEvent.KEYCODE_PERIOD, KeyEvent.META_META_ON) ||
-                injectViaAccessibilityIme(KeyEvent.KEYCODE_PERIOD, KeyEvent.META_CTRL_ON) ||
-                injectViaAccessibilityIme(KeyEvent.KEYCODE_PICTSYMBOLS, 0)
-
-        // 2. Shell injection if Shizuku / root is ready
-        if (ShellManager.isAvailable()) {
-            markInjected(listOf(291, KeyEvent.KEYCODE_PERIOD, KeyEvent.KEYCODE_PICTSYMBOLS))
-            Thread {
-                try {
-                    ShellManager.runShellCommand("input keyevent 291 130")
-                    ShellManager.runShellCommand("input keycombination 117 56") // Meta + .
-                    ShellManager.runShellCommand("input keycombination 113 56") // Ctrl + .
-                    ShellManager.runShellCommand("input keycombination 57 56")  // Alt + .
-                } catch (e: Exception) {
-                    Log.e(tag, "Shell emoji injection error", e)
-                }
-            }.start()
+        val now = SystemClock.uptimeMillis()
+        if (now - lastEmojiTriggerTime < 1000L) {
+            Log.d(tag, "openEmojiKeyboard ignored (already triggered ${now - lastEmojiTriggerTime} ms ago)")
+            return
         }
+        lastEmojiTriggerTime = now
 
-        // 3. Toggle/show soft keyboard UI so the soft keyboard / emoji picker is visible
-        try {
-            performGlobalAction(18) // GLOBAL_ACTION_TOGGLE_SOFT_INPUT
-            val imm = getSystemService(INPUT_METHOD_SERVICE) as android.view.inputmethod.InputMethodManager
-            @Suppress("DEPRECATION")
-            imm.toggleSoftInput(android.view.inputmethod.InputMethodManager.SHOW_FORCED, 0)
-        } catch (e: Exception) {
-            Log.w(tag, "Failed to toggle soft keyboard", e)
+        val keycodeEmojiPicker = 317 // KeyEvent.KEYCODE_EMOJI_PICKER (API 34+)
+        if (!ShellManager.isAvailable()) {
+            // Keys sent through the accessibility input connection go to the app, not to the keyboard
+            // app, so they can't open its emoji picker – the shell is the only route that works.
+            Log.w(tag, "openEmojiKeyboard needs Shizuku/root")
+            showToast("Emoji keyboard needs Shizuku")
+            return
         }
+        Log.d(tag, "openEmojiKeyboard: sending keyevent $keycodeEmojiPicker")
+        markInjected(listOf(keycodeEmojiPicker))
+        Thread {
+            try {
+                ShellManager.runShellCommand("input keyevent $keycodeEmojiPicker")
+            } catch (e: Exception) {
+                Log.e(tag, "Shell emoji injection error", e)
+            }
+        }.start()
     }
 
     // ── Keyboard: key input / arrows ──────────────────────────────────────
@@ -1191,12 +1238,19 @@ class ButtonMapperService : AccessibilityService() {
      */
     private fun injectKey(keyCode: Int, shift: Boolean, ctrl: Boolean, alt: Boolean, typing: Boolean = false) {
         val meta = metaStateFor(shift, ctrl, alt)
-        if (injectViaAccessibilityIme(keyCode, meta)) return
+        if (injectViaAccessibilityIme(keyCode, meta)) {
+            Log.d(tag, "injectKey $keyCode -> accessibility IME connection")
+            return
+        }
 
         val shellReady = ShellManager.isAvailable()
-        if ((typing || !shellReady) && injectViaNodeActions(keyCode, meta)) return
+        if ((typing || !shellReady) && injectViaNodeActions(keyCode, meta)) {
+            Log.d(tag, "injectKey $keyCode -> node actions")
+            return
+        }
 
         if (shellReady) {
+            Log.d(tag, "injectKey $keyCode -> shell")
             injectViaShell(keyCode, shift, ctrl, alt)
             return
         }
@@ -1354,7 +1408,23 @@ class ButtonMapperService : AccessibilityService() {
             27 -> dispatchMediaKey(KeyEvent.KEYCODE_CAMERA)
             134 -> dispatchMediaKey(KeyEvent.KEYCODE_FOCUS)
             131 -> launchAssistant()
+            else -> if (keyCode in keyboardKeyCodes) injectDefaultKeyboardKey(keyCode)
         }
+    }
+
+    /**
+     * DEFAULT for a keyboard key: we consumed the real key (because another press type of it is
+     * mapped), so re-send it ourselves. Shift Hold / Shift Lock apply exactly like normal typing.
+     */
+    private fun injectDefaultKeyboardKey(keyCode: Int) {
+        val holdApplies = isShiftHoldActive && KeyInput.isShiftable(keyCode)
+        val lockApplies = isShiftLockActive && KeyInput.isLetter(keyCode)
+        if (holdApplies) {
+            isShiftHoldActive = false
+            updateModifierIndicator()
+        }
+        Log.d(tag, "DEFAULT keyboard key: re-injecting $keyCode (shift=${holdApplies || lockApplies})")
+        injectKey(keyCode, shift = holdApplies || lockApplies, ctrl = false, alt = false, typing = true)
     }
 
     private fun dispatchMediaKey(keyCode: Int) {
@@ -1394,15 +1464,14 @@ class ButtonMapperService : AccessibilityService() {
         try {
             startActivity(intent)
         } catch (_: Exception) {
-            Log.d(tag, "ACTION_VOICE_COMMAND failed, falling back to Assist")
-            if (!performGlobalAction(16)) { // GLOBAL_ACTION_ASSIST
-                val assistIntent = Intent(Intent.ACTION_ASSIST)
-                assistIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-                try {
-                    startActivity(assistIntent)
-                } catch (e2: Exception) {
-                    Log.e(tag, "Voice Assistant error", e2)
-                }
+            Log.d(tag, "ACTION_VOICE_COMMAND failed, falling back to ACTION_ASSIST")
+            // (performGlobalAction(16) was removed: 16 is GLOBAL_ACTION_DPAD_UP, not "assist")
+            val assistIntent = Intent(Intent.ACTION_ASSIST)
+            assistIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            try {
+                startActivity(assistIntent)
+            } catch (e2: Exception) {
+                Log.e(tag, "Voice Assistant error", e2)
             }
         }
     }
