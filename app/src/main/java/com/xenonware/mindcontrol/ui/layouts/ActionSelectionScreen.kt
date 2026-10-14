@@ -281,6 +281,8 @@ fun KeyboardTab(
         SettingsManager.ACTION_ARROW_RIGHT,
         SettingsManager.ACTION_SHIFT_HOLD,
         SettingsManager.ACTION_SHIFT_LOCK,
+        SettingsManager.ACTION_TAB,
+        SettingsManager.ACTION_REVERSE_TAB,
         SettingsManager.ACTION_OPEN_EMOJI_KEYBOARD,
     )
     ActionList(actions, config, onActionSelected, shellReady, contentPadding)

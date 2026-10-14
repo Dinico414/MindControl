@@ -13,6 +13,7 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.ArrowBack
+import androidx.compose.material.icons.automirrored.rounded.ArrowForward
 import androidx.compose.material.icons.automirrored.rounded.RotateRight
 import androidx.compose.material.icons.automirrored.rounded.Shortcut
 import androidx.compose.material.icons.automirrored.rounded.VolumeDown
@@ -124,7 +125,9 @@ val SHELL_REQUIRED_ACTIONS = setOf(
     SettingsManager.ACTION_DENSITY_300,
     SettingsManager.ACTION_DENSITY_400,
     SettingsManager.ACTION_CUSTOM_DENSITY_TOGGLE,
-)
+    SettingsManager.ACTION_TAB,
+    SettingsManager.ACTION_REVERSE_TAB,
+) + SettingsManager.ARROW_ACTIONS
 
 fun isActionDisabled(action: String, shellReady: Boolean): Boolean {
     return !shellReady && action in SHELL_REQUIRED_ACTIONS
@@ -156,6 +159,8 @@ fun getActionDisplayName(action: String): String {
         SettingsManager.ACTION_ARROW_RIGHT -> R.string.action_arrow_right
         SettingsManager.ACTION_SHIFT_HOLD -> R.string.action_shift_hold
         SettingsManager.ACTION_SHIFT_LOCK -> R.string.action_shift_lock
+        SettingsManager.ACTION_TAB -> R.string.action_tab
+        SettingsManager.ACTION_REVERSE_TAB -> R.string.action_reverse_tab
         SettingsManager.ACTION_OPEN_EMOJI_KEYBOARD -> R.string.action_open_emoji_keyboard
         SettingsManager.ACTION_PLAY_PAUSE -> R.string.action_play_pause
         SettingsManager.ACTION_NEXT -> R.string.action_next
@@ -362,6 +367,8 @@ fun ActionIcon(action: String, modifier: Modifier = Modifier, tint: Color = Loca
         action == SettingsManager.ACTION_ARROW_RIGHT -> Icons.Rounded.East
         action == SettingsManager.ACTION_SHIFT_HOLD -> Icons.Rounded.KeyboardCapslock
         action == SettingsManager.ACTION_SHIFT_LOCK -> Icons.Rounded.Lock
+        action == SettingsManager.ACTION_TAB -> Icons.AutoMirrored.Rounded.ArrowForward
+        action == SettingsManager.ACTION_REVERSE_TAB -> Icons.AutoMirrored.Rounded.ArrowBack
         action == SettingsManager.ACTION_OPEN_EMOJI_KEYBOARD -> Icons.Rounded.EmojiEmotions
         action == SettingsManager.ACTION_NONE -> Icons.Rounded.Block
         action == SettingsManager.ACTION_DEFAULT -> Icons.Rounded.SettingsBackupRestore

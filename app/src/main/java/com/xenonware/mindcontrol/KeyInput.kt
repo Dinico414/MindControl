@@ -44,6 +44,9 @@ object KeyInput {
         "delete" to KeyEvent.KEYCODE_FORWARD_DEL,
         "del" to KeyEvent.KEYCODE_FORWARD_DEL,
         "tab" to KeyEvent.KEYCODE_TAB,
+        "shift_tab" to KeyEvent.KEYCODE_TAB,
+        "reversetab" to KeyEvent.KEYCODE_TAB,
+        "reverse_tab" to KeyEvent.KEYCODE_TAB,
         "esc" to KeyEvent.KEYCODE_ESCAPE,
         "escape" to KeyEvent.KEYCODE_ESCAPE,
         // "Home"/"End" mean cursor movement here, not the system Home button

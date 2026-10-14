@@ -294,6 +294,7 @@ class ButtonMapperService : AccessibilityService() {
         when (event.eventType) {
             AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED -> {
                 isTextFocusActive = false // Reset focus on window change to force re-check
+                dpadFocusCursor = null // the focused node belongs to the old window
                 val pkg = event.packageName?.toString()
                 val className = event.className?.toString()
 
@@ -862,6 +863,8 @@ class ButtonMapperService : AccessibilityService() {
         if (keyCode in keyboardKeyCodes) {
             ButtonState.setKeyPressed(keyCode, isDown)
 
+            // Respect the "Ignore keyboard active" setting for every key, including arrow-mapped
+            // ones: without it, a key must not override typing / a focused text field.
             if (!SettingsManager.isIgnoreKeyboardActive(this, keyCode) && isTextFieldFocused()) return false
 
             val isOurApp = currentPackage == packageName
@@ -1076,6 +1079,14 @@ class ButtonMapperService : AccessibilityService() {
                 true
             }
             SettingsManager.ACTION_SHIFT_LOCK -> { toggleShiftLock(); true }
+            SettingsManager.ACTION_TAB -> {
+                executeKeyInputAction(KeyInput.Spec(shift = false, ctrl = false, alt = false, key = "Tab"))
+                true
+            }
+            SettingsManager.ACTION_REVERSE_TAB -> {
+                executeKeyInputAction(KeyInput.Spec(shift = true, ctrl = false, alt = false, key = "Tab"))
+                true
+            }
             SettingsManager.ACTION_OPEN_EMOJI_KEYBOARD -> { openEmojiKeyboard(); true }
 
             SettingsManager.ACTION_NONE -> { Log.d(tag, "Action is NONE, key blocked."); true }
@@ -1243,6 +1254,17 @@ class ButtonMapperService : AccessibilityService() {
      */
     private fun injectKey(keyCode: Int, shift: Boolean, ctrl: Boolean, alt: Boolean, typing: Boolean = false) {
         val meta = metaStateFor(shift, ctrl, alt)
+
+        // Arrow keys double as D-pad navigation. Inside a text field they move the caret; outside
+        // they move focus like a controller, which the IME connection can't do, so route those to
+        // the dedicated path instead of the generic IME-first flow below.
+        if (keyCode in KeyInput.arrowKeyCodes && !typing) {
+            if (injectViaDpadNavigation(keyCode, meta)) {
+                Log.d(tag, "injectKey $keyCode -> dpad navigation")
+                return
+            }
+        }
+
         if (injectViaAccessibilityIme(keyCode, meta)) {
             Log.d(tag, "injectKey $keyCode -> accessibility IME connection")
             return
@@ -1261,6 +1283,158 @@ class ButtonMapperService : AccessibilityService() {
         }
         Log.w(tag, "Key $keyCode not delivered: no focused text field and no Shizuku/root")
         showToast("Key input needs a focused text field or Shizuku")
+    }
+
+    /**
+     * D-pad navigation for arrow keys.
+     *
+     * If a text field is focused the caret moves (like a keyboard arrow). Otherwise the arrow acts
+     * as a controller D-pad: real system focus navigation via shell when available, then a
+     * best-effort scroll fallback so it still does something useful without Shizuku/root.
+     * Returns false only when nothing could be done, letting the generic flow try.
+     */
+    private fun injectViaDpadNavigation(keyCode: Int, meta: Int): Boolean {
+        val editable = focusedEditableNode()
+        if (editable != null) {
+            // Text field: move the caret at character/line granularity like a keyboard arrow.
+            if (injectViaNodeActions(keyCode, meta)) return true
+        }
+
+        // 1) Real system focus navigation via shell when available (exact, works everywhere).
+        if (ShellManager.isAvailable()) {
+            injectViaShell(keyCode, shift = false, ctrl = false, alt = false)
+            return true
+        }
+
+        // 2) No shell: hand the raw D-pad key to the focused app. Apps with their own D-pad/focus
+        //    handling (TV UIs, launchers, lists) move focus from this. This must happen BEFORE the
+        //    generic IME path so it isn't swallowed only when a text field is focused.
+        if (editable == null && injectViaAccessibilityIme(keyCode, meta)) {
+            return true
+        }
+
+        // 3) Focus-search fallback: move focus to the nearest focusable node in the arrow's direction.
+        if (moveFocusByDirection(keyCode)) return true
+
+        // 4) Last resort: scroll the nearest scrollable container in the arrow's direction.
+        return performDpadScroll(keyCode)
+    }
+
+    /**
+     * No-root D-pad navigation: finds the nearest focusable node in the arrow's direction (geometric
+     * search over the accessibility tree) and focuses it, imitating a controller D-pad.
+     *
+     * ACTION_FOCUS does not report back through findFocus(FOCUS_ACCESSIBILITY), so we keep our own
+     * cursor of the last node we focused. Otherwise the next press would recompute from a null/stale
+     * reference and keep re-selecting the same first item.
+     */
+    private var dpadFocusCursor: AccessibilityNodeInfo? = null
+
+    private fun moveFocusByDirection(keyCode: Int): Boolean {
+        return try {
+            val root = rootInActiveWindow ?: return false
+
+            val current = dpadFocusCursor
+                ?: root.findFocus(AccessibilityNodeInfo.FOCUS_ACCESSIBILITY)
+                ?: root.findFocus(AccessibilityNodeInfo.FOCUS_INPUT)
+
+            val currentRect = android.graphics.Rect()
+            current?.getBoundsInScreen(currentRect)
+            val cx = currentRect.exactCenterX()
+            val cy = currentRect.exactCenterY()
+            val hasCurrent = current != null && currentRect.width() > 0 && currentRect.height() > 0
+
+            var best: AccessibilityNodeInfo? = null
+            var bestScore = Float.MAX_VALUE
+            val candidateRect = android.graphics.Rect()
+
+            val all = ArrayList<AccessibilityNodeInfo>()
+            collectFocusableNodes(root, all)
+            for (candidate in all) {
+                // Skip the node we already focused (compare bounds, since node identity is not stable).
+                candidate.getBoundsInScreen(candidateRect)
+                val w = candidateRect.width()
+                val h = candidateRect.height()
+                if (w <= 0 || h <= 0) continue
+                if (hasCurrent && candidateRect.left == currentRect.left &&
+                    candidateRect.top == currentRect.top && candidateRect.right == currentRect.right &&
+                    candidateRect.bottom == currentRect.bottom
+                ) continue
+
+                val dx = candidateRect.exactCenterX() - cx
+                val dy = candidateRect.exactCenterY() - cy
+
+                val (primary, secondary) = when (keyCode) {
+                    KeyEvent.KEYCODE_DPAD_RIGHT -> dx to kotlin.math.abs(dy)
+                    KeyEvent.KEYCODE_DPAD_LEFT -> -dx to kotlin.math.abs(dy)
+                    KeyEvent.KEYCODE_DPAD_DOWN -> dy to kotlin.math.abs(dx)
+                    else -> -dy to kotlin.math.abs(dx) // DPAD_UP
+                }
+                // Require the candidate to be in the requested direction when we have a cursor.
+                if (hasCurrent && primary <= 0f) continue
+
+                // Prefer aligned, close nodes: primary distance dominates, cross-axis penalised.
+                val score = if (hasCurrent) primary + secondary * 2f else secondary
+                if (score < bestScore) {
+                    bestScore = score
+                    best = candidate
+                }
+            }
+
+            val target = best ?: return false
+            val focused = target.performAction(AccessibilityNodeInfo.ACTION_FOCUS)
+            if (focused) dpadFocusCursor = target
+            return focused
+        } catch (e: Exception) {
+            Log.w(tag, "D-pad focus search failed", e)
+            false
+        }
+    }
+
+    /** Collects every visible, focusable node in the tree (bounded depth to stay cheap). */
+    private fun collectFocusableNodes(
+        node: AccessibilityNodeInfo?,
+        out: MutableList<AccessibilityNodeInfo>,
+        depth: Int = 0
+    ) {
+        if (node == null || depth > 40) return
+        if (node.isFocusable && node.isVisibleToUser) out.add(node)
+        for (i in 0 until node.childCount) {
+            collectFocusableNodes(node.getChild(i), out, depth + 1)
+        }
+    }
+
+    /**
+     * Last-resort fallback for arrow keys when there is no shell and no focusable target.
+     * Moves the nearest scrollable ancestor the way a controller would.
+     */
+    private fun performDpadScroll(keyCode: Int): Boolean {
+        val forward = keyCode == KeyEvent.KEYCODE_DPAD_DOWN || keyCode == KeyEvent.KEYCODE_DPAD_RIGHT
+        return try {
+            val focused = rootInActiveWindow ?: return false
+            var node: AccessibilityNodeInfo? = focused.findFocus(AccessibilityNodeInfo.FOCUS_INPUT)
+                ?: focused.findFocus(AccessibilityNodeInfo.FOCUS_ACCESSIBILITY)
+            var scrollable: AccessibilityNodeInfo? = null
+            while (node != null) {
+                if (node.isScrollable) {
+                    scrollable = node
+                    break
+                }
+                node = node.parent
+            }
+            shellSafeScroll(scrollable, forward)
+        } catch (e: Exception) {
+            Log.w(tag, "D-pad scroll fallback failed", e)
+            false
+        }
+    }
+
+    private fun shellSafeScroll(node: AccessibilityNodeInfo?, forward: Boolean): Boolean {
+        if (node == null) return false
+        return node.performAction(
+            if (forward) AccessibilityNodeInfo.ACTION_SCROLL_FORWARD
+            else AccessibilityNodeInfo.ACTION_SCROLL_BACKWARD
+        )
     }
 
     private fun injectViaAccessibilityIme(keyCode: Int, meta: Int): Boolean {

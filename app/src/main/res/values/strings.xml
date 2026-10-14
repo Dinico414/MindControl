@@ -65,6 +65,8 @@
     <string name="arrow_right">Right →</string>
     <string name="action_shift_hold">Shift Hold</string>
     <string name="action_shift_lock">Shift Lock</string>
+    <string name="action_tab">Tab</string>
+    <string name="action_reverse_tab">Reverse Tab</string>
     <string name="action_open_emoji_keyboard">Emoji Keyboard</string>
 
     <!-- Dialogs -->

@@ -65,6 +65,8 @@
     <string name="arrow_right">Rechts →</string>
     <string name="action_shift_hold">Umschalten Halten</string>
     <string name="action_shift_lock">Umschalt Sperre</string>
+    <string name="action_tab">Tab</string>
+    <string name="action_reverse_tab">Tab rückwärts</string>
     <string name="action_open_emoji_keyboard">Emoji Tastatur</string>
 
     <!-- Dialogs -->

@@ -310,11 +310,15 @@ object ShellManager {
             val binder = Shizuku.getBinder()
             if (binder != null && binder.pingBinder()) {
                 val service = IShizukuService.Stub.asInterface(binder)
+                Log.d(TAG, "Shizuku exec: $command")
                 val remoteProcess = service.newProcess(arrayOf("sh", "-c", command), null, null)
                 val reader = BufferedReader(InputStreamReader(ParcelFileDescriptor.AutoCloseInputStream(remoteProcess.inputStream)))
                 val output = reader.use { it.readText() }
-                remoteProcess.waitFor()
+                val exit = remoteProcess.waitFor()
+                Log.d(TAG, "Shizuku exec done: exit=$exit out='${output.trim()}'")
                 return output.trim()
+            } else {
+                Log.w(TAG, "Shizuku binder unavailable for '$command'")
             }
         } catch (e: Exception) {
             Log.e(TAG, "Shizuku command error: $command", e)
