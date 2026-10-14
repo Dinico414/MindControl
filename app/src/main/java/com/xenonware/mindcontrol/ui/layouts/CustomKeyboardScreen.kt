@@ -46,7 +46,7 @@ private val letterKeyCodes: Map<Char, Int> = mapOf(
     'g' to 35, 'h' to 36, 'i' to 37, 'j' to 38, 'k' to 39, 'l' to 40,
     'm' to 41, 'n' to 42, 'o' to 43, 'p' to 44, 'q' to 45, 'r' to 46,
     's' to 47, 't' to 48, 'u' to 49, 'v' to 50, 'w' to 51, 'x' to 52,
-    'y' to 53, 'z' to 54, 'ö' to 74, '\'' to 75, 'ñ' to 120
+    'y' to 53, 'z' to 54, '[' to 71, 'ö' to 74, '\'' to 75, 'ñ' to 120
 )
 
 private fun letter(c: Char) = KeyInfo(c.toString(), keyCode = letterKeyCodes[c])
@@ -201,6 +201,8 @@ fun getRowsForLayout(layout: KeyboardLayout): List<List<KeyInfo>> {
     val space     = KeyInfo("Space", 3f, keyCode = 62)
     val enter     = KeyInfo("Enter", 1.5f, isPill = true,
         icon = Icons.AutoMirrored.Rounded.KeyboardReturn, keyCode = 66)
+    val leftBracket = KeyInfo("[", keyCode = 71)
+    val lan = KeyInfo("Lan", icon = Icons.Rounded.Language, keyCode = 113)
     val comma     = KeyInfo(",", keyCode = 55)
     val period    = KeyInfo(".", keyCode = 56)
 
@@ -211,35 +213,27 @@ fun getRowsForLayout(layout: KeyboardLayout): List<List<KeyInfo>> {
     return when (layout) {
         KeyboardLayout.QWERTY -> listOf(
             "qwertyuiop".map { letter(it) },
-            "asdfghjkl".map { letter(it) } + disabledKey("["),
+            "asdfghjkl".map { letter(it) } + listOf(leftBracket),
             listOf(shift) + "zxcvbnm".map { letter(it) } + listOf(backspace),
-            listOf(disabledKey("123", 1.5f, isPill = true), comma,
-                disabledKey("Lan", icon = Icons.Rounded.Language),
-                space, disabledKey("Fn"), period, enter)
+            listOf(disabledKey("123", 1.5f, isPill = true), comma, lan, space, disabledKey("Fn"), period, enter)
         )
         KeyboardLayout.QWERTY_ES -> listOf(
             "qwertyuiop".map { letter(it) },
             "asdfghjkl".map { letter(it) } + letter('ñ'),
             listOf(shift) + "zxcvbnm".map { letter(it) } + listOf(backspace),
-            listOf(disabledKey("123", 1.5f, isPill = true), comma,
-                disabledKey("Lan", icon = Icons.Rounded.Language),
-                space, disabledKey("Fn"), period, enter)
+            listOf(disabledKey("123", 1.5f, isPill = true), comma, lan, space, disabledKey("Fn"), period, enter)
         )
         KeyboardLayout.QWERTZ -> listOf(
             "qwertzuiop".map { letter(it) },
             "asdfghjklö".map { letter(it) },
             listOf(shift) + "yxcvbnm".map { letter(it) } + listOf(backspace),
-            listOf(disabledKey("123", 1.5f, isPill = true), comma,
-                disabledKey("Lan", icon = Icons.Rounded.Language),
-                space, disabledKey("Fn"), period, enter)
+            listOf(disabledKey("123", 1.5f, isPill = true), comma, lan, space, disabledKey("Fn"), period, enter)
         )
         KeyboardLayout.AZERTY -> listOf(
             "azertyuiop".map { letter(it) },
-            "qsdfghjklm".map { letter(it) } + disabledKey("["),
+            "qsdfghjklm".map { letter(it) } + listOf(leftBracket),
             listOf(shift) + "wxcvbn'".map { letter(it) } + listOf(backspace),
-            listOf(disabledKey("123", 1.5f, isPill = true), comma,
-                disabledKey("Lan", icon = Icons.Rounded.Language),
-                space, disabledKey("Fn"), period, enter)
+            listOf(disabledKey("123", 1.5f, isPill = true), comma, lan, space, disabledKey("Fn"), period, enter)
         )
     }
 }

@@ -1,6 +1,7 @@
 package com.xenonware.mindcontrol
 
 import android.accessibilityservice.AccessibilityService
+import android.accessibilityservice.AccessibilityServiceInfo
 import android.accessibilityservice.GestureDescription
 import android.annotation.SuppressLint
 import android.app.KeyguardManager
@@ -16,21 +17,36 @@ import android.hardware.camera2.CameraManager
 import android.location.LocationManager
 import android.media.AudioManager
 import android.media.session.MediaSessionManager
+import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
 import android.os.PowerManager
+import android.os.SystemClock
+import android.os.VibrationEffect
+import android.os.VibratorManager
 import android.provider.Settings
 import android.util.Log
+import android.view.KeyCharacterMap
 import android.view.KeyEvent
 import android.view.accessibility.AccessibilityEvent
 import android.view.accessibility.AccessibilityNodeInfo
+import android.widget.Toast
 import androidx.core.net.toUri
 import rikka.shizuku.Shizuku
 import kotlin.math.max
+import kotlin.math.min
 
 @Suppress("DEPRECATION")
 @SuppressLint("AccessibilityPolicy")
 class ButtonMapperService : AccessibilityService() {
+
+    companion object {
+        /** Easily enable or disable key toasts from within the code. Set too false to disable toasts. */
+        private const val SHOW_KEY_TOASTS = true
+
+        /** Vibration when holding Shift triggers Shift Lock (Better Shift). */
+        private const val SHIFT_LOCK_VIBRATION_MS = 80L
+    }
 
     private val tag = "ButtonMapper"
     private var clickCount = 0
@@ -54,16 +70,56 @@ class ButtonMapperService : AccessibilityService() {
     private var pendingFocusDown: Runnable? = null
     private var lastRingerToggleTime = 0L
 
+    // ── Keyboard modifier state ────────────────────────────────────────────
+    /** One-shot shift: the next typed character / key input is shifted, then it turns off. */
+    private var isShiftHoldActive = false
+    /** Caps-lock style: letters stay uppercase until toggled off. */
+    private var isShiftLockActive = false
+    /** Physical keys we swallowed and re-sent shifted (so their UP / repeats are swallowed too). */
+    private val shiftConsumedKeys = mutableSetOf<Int>()
+    /** Keys we injected through the shell; they come back through onKeyEvent and must not be remapped. */
+    private val recentlyInjected = mutableMapOf<Int, Long>()
+    private val injectedEchoWindow = 2000L
+
+    // Managed (locked) Shift key: tap = Shift Hold, hold = Shift Lock, held + key = real Shift chord
+    /** Which Shift key is physically held right now (null = none). */
+    private var shiftDownKeyCode: Int? = null
+    private val physicalShiftDown: Boolean get() = shiftDownKeyCode != null
+    private var shiftChordUsed = false
+    private var shiftLongPressFired = false
+    private var shiftLongPressRunnable: Runnable? = null
+
+    // TOAST: single reusable toast + de-dup between Shizuku and Accessibility sources
+    private var keyToast: Toast? = null
+    private var lastToastKeyCode: Int = -1
+    private var lastToastTime = 0L
+
+    // Phantom SPACE suppression after CTRL_LEFT (113)
+    private var ctrlLeftDownTime = 0L
+    private val swallowSpaceUp = mutableMapOf(false to false, true to false) // keyed by fromShizuku
+    private val phantomSpaceWindow = 150L // ms
+
     private lateinit var audioManager: AudioManager
     private lateinit var cameraManager: CameraManager
     private lateinit var powerManager: PowerManager
     private var wakeLock: PowerManager.WakeLock? = null
 
-    private val keyboardKeyCodes = setOf(
-        29, 30, 31, 32, 33, 34, 35, 36, 37, 38, 39, 40,             // a..l
-        41, 42, 43, 44, 45, 46, 47, 48, 49, 50, 51, 52, 53, 54,     // m..z
-        55, 56,                                                     // , .
-        59, 62, 66, 67                                              // shift, space, enter, backspace
+    private val keyboardKeyCodes = SettingsManager.keyboardKeyCodes
+
+    /** New keyboard toggles: fire once per hold, never repeat (a repeating toggle would flip on/off). */
+    private val oneShotKeyboardActions = setOf(
+        SettingsManager.ACTION_SHIFT_HOLD,
+        SettingsManager.ACTION_SHIFT_LOCK,
+        SettingsManager.ACTION_OPEN_EMOJI_KEYBOARD,
+    )
+
+    private val smoothScrollActions = setOf(
+        SettingsManager.ACTION_SCROLL_UP_SMOOTH,
+        SettingsManager.ACTION_SCROLL_DOWN_SMOOTH,
+        SettingsManager.ACTION_SCROLL_UP_SMOOTH_FAST,
+        SettingsManager.ACTION_SCROLL_DOWN_SMOOTH_FAST,
+        "TAP_SCROLL_UP_SMOOTH",
+        "TAP_SCROLL_DOWN_SMOOTH",
     )
 
     private fun hasCustomMapping(keyCode: Int, state: String): Boolean {
@@ -76,6 +132,11 @@ class ButtonMapperService : AccessibilityService() {
         }
     }
 
+    private fun currentState(): String {
+        val km = getSystemService(KEYGUARD_SERVICE) as KeyguardManager
+        return if (powerManager.isInteractive && !km.isKeyguardLocked) "ON" else "OFF"
+    }
+
     private fun isTextFieldFocused(): Boolean {
         if (isTextFocusActive) return true
 
@@ -85,9 +146,7 @@ class ButtonMapperService : AccessibilityService() {
 
         try {
             val rootNode = rootInActiveWindow ?: return false
-            // Find the node that currently has keyboard input focus
             val focusedNode = rootNode.findFocus(AccessibilityNodeInfo.FOCUS_INPUT) ?: return false
-            // Check if the node is marked as editable or is an EditText class
             val isEditable = focusedNode.isEditable
             val isEditText = focusedNode.className?.toString()?.contains("EditText") == true
             isTextFocusActive = isEditable || isEditText
@@ -96,6 +155,13 @@ class ButtonMapperService : AccessibilityService() {
             Log.e(tag, "Error checking focused node", e)
         }
         return false
+    }
+
+    /** Fresh (un-throttled) lookup of the focused editable field, or null. */
+    private fun focusedEditableNode(): AccessibilityNodeInfo? = try {
+        rootInActiveWindow?.findFocus(AccessibilityNodeInfo.FOCUS_INPUT)?.takeIf { it.isEditable }
+    } catch (_: Exception) {
+        null
     }
 
     private val cameraCallback = object : CameraManager.AvailabilityCallback() {
@@ -110,16 +176,17 @@ class ButtonMapperService : AccessibilityService() {
         updateLauncherPackages()
 
         val info = serviceInfo
-        info.flags = info.flags or 0x00000100 // FLAG_HANDLE_VOLUME_KEYS
+        // FLAG_HANDLE_VOLUME_KEYS + FLAG_INPUT_METHOD_EDITOR (type into the focused field directly,
+        // no Shizuku needed). Also declare flagInputMethodEditor in the accessibility service XML.
+        info.flags = info.flags or 0x00000100 or AccessibilityServiceInfo.FLAG_INPUT_METHOD_EDITOR
         serviceInfo = info
 
         createNotificationChannel()
-        val notification = Notification.Builder(this, "service_channel")
-            .setContentTitle(getString(R.string.notification_title))
-            .setContentText(getString(R.string.notification_text))
-            .setSmallIcon(android.R.drawable.ic_menu_preferences)
-            .build()
-        startForeground(1, notification, ServiceInfo.FOREGROUND_SERVICE_TYPE_SPECIAL_USE)
+        startForeground(
+            1,
+            buildServiceNotification(getString(R.string.notification_text)),
+            ServiceInfo.FOREGROUND_SERVICE_TYPE_SPECIAL_USE
+        )
 
         cameraManager = getSystemService(CAMERA_SERVICE) as CameraManager
         audioManager = getSystemService(AUDIO_SERVICE) as AudioManager
@@ -138,6 +205,28 @@ class ButtonMapperService : AccessibilityService() {
         val channel = NotificationChannel("service_channel", getString(R.string.channel_name), NotificationManager.IMPORTANCE_LOW)
         val manager = getSystemService(NOTIFICATION_SERVICE) as NotificationManager
         manager.createNotificationChannel(channel)
+    }
+
+    private fun buildServiceNotification(text: String): Notification =
+        Notification.Builder(this, "service_channel")
+            .setContentTitle(getString(R.string.notification_title))
+            .setContentText(text)
+            .setSmallIcon(android.R.drawable.ic_menu_preferences)
+            .setOnlyAlertOnce(true)
+            .build()
+
+    /** Shows the current Shift state in the persistent notification so it's never "invisible". */
+    private fun updateModifierIndicator() {
+        val text = when {
+            isShiftLockActive -> "⇪ Shift Lock on"
+            isShiftHoldActive -> "⇧ Shift – next key"
+            else -> getString(R.string.notification_text)
+        }
+        try {
+            (getSystemService(NOTIFICATION_SERVICE) as NotificationManager).notify(1, buildServiceNotification(text))
+        } catch (e: Exception) {
+            Log.w(tag, "Could not update modifier notification", e)
+        }
     }
 
     private val binderListener = Shizuku.OnBinderReceivedListener {
@@ -218,19 +307,200 @@ class ButtonMapperService : AccessibilityService() {
 
     private val continuousActionTask = mutableMapOf<Int, Runnable>()
 
-    private val lastEventTimes = mutableMapOf<Pair<Int, Boolean>, Long>()
-    private val lastEventSources = mutableMapOf<Pair<Int, Boolean>, Boolean>()
 
     override fun onKeyEvent(event: KeyEvent): Boolean {
-        if (event.repeatCount > 0) return true
         val keyCode = event.keyCode
         val isDown = event.action == KeyEvent.ACTION_DOWN
 
-        Log.v(tag, "ACCESSIBILITY RAW: keyCode=$keyCode action=${if (isDown) "DOWN" else "UP"}")
+        // Our own shell-injected keys echo back here: pass them through untouched (prevents loops).
+        if (isOwnInjectedKey(event)) return false
+
+        // Original behavior: auto-repeats are always swallowed (hold logic is handled by our own timers).
+        if (event.repeatCount > 0) return true
+
+        Log.v(tag, "ACCESSIBILITY RAW: keyCode=$keyCode action=${if (isDown) "DOWN" else "UP"} source=${event.source}")
+
+        // Block the SPACE that some hardware fires right after CTRL_LEFT
+        if (shouldSwallowPhantomSpace(keyCode, isDown, fromShizuku = false)) return true
+
+        // TOAST: show for EVERY key the service receives, before any filtering
+        if (isDown) showKeyToast(keyCode)
+
+        // Shift key itself (managed by default, reacts instantly – no multi-press wait)
+        if (handleManagedShiftKey(event)) return true
+
+        // Shift Hold / Shift Lock / held Shift applied to physical keyboard typing
+        if (handleShiftedTyping(event)) return true
 
         val isSpecialKey = keyCode in setOf(134, 27, 25, 24, 131, 132, 133, 111)
-        val isKeyboardKey = keyCode in keyboardKeyCodes
+        val isKeyboardKey = keyCode in keyboardKeyCodes || event.isFromSource(android.view.InputDevice.SOURCE_KEYBOARD)
         return !(!isSpecialKey && !isKeyboardKey) && handleKeyEvent(keyCode, isDown, fromShizuku = false)
+    }
+
+    // Per-key press state shared by both event sources (Shizuku + Accessibility)
+    private val logicalDownTime = mutableMapOf<Int, Long>()
+    private val lastUnpairedUpTime = mutableMapOf<Int, Long>()
+
+    /**
+     * true if this event is the second copy of a press we already counted.
+     * A DOWN while the key is already down, or a UP while it is already up, is a copy.
+     * Only affects counting – the caller still returns the same consume/pass-through value as before.
+     */
+    private class CountedEvent(val time: Long, val fromShizuku: Boolean, var copySeen: Boolean = false)
+    private val lastCountedEvent = mutableMapOf<Pair<Int, Boolean>, CountedEvent>()
+
+    private fun isDuplicatePressEvent(keyCode: Int, isDown: Boolean, fromShizuku: Boolean): Boolean {
+        val now = SystemClock.uptimeMillis()
+        // The other source's copy of an event we already counted (also catches a lagging copy that
+        // only arrives after the whole press is done). Each counted event absorbs in most ONE copy,
+        // so a real quick second tap is never swallowed.
+        val last = lastCountedEvent[keyCode to isDown]
+        if (last != null && !last.copySeen && last.fromShizuku != fromShizuku && now - last.time < 300L) {
+            last.copySeen = true
+            return true
+        }
+        val dup = isDuplicateByState(keyCode, isDown, now)
+        if (!dup) lastCountedEvent[keyCode to isDown] = CountedEvent(now, fromShizuku)
+        return dup
+    }
+
+    private fun isDuplicateByState(keyCode: Int, isDown: Boolean, now: Long): Boolean {
+        if (isDown) {
+            val since = logicalDownTime[keyCode]
+            // 3 s safety net in case a UP was ever lost, so a key can never get stuck
+            if (since != null && now - since < 3000L) return true
+            logicalDownTime[keyCode] = now
+            return false
+        }
+        if (logicalDownTime.remove(keyCode) != null) return false
+        // UP without a DOWN: camera up/down (132/133) may only report UPs – accept those once per 300 ms
+        if (keyCode == 132 || keyCode == 133) {
+            val last = lastUnpairedUpTime[keyCode] ?: 0L
+            if (now - last < 300L) return true
+            lastUnpairedUpTime[keyCode] = now
+            return false
+        }
+        return true
+    }
+
+    private fun isOwnInjectedKey(event: KeyEvent): Boolean {
+        // Shell-injected keys come from the virtual keyboard device. A real key (e.g. the physical
+        // Shift) is NEVER treated as ours – before, a real Shift pressed within 2 s of an injected
+        // Shift+key was passed through, which made Better Shift randomly stop working.
+        if (event.deviceId != KeyCharacterMap.VIRTUAL_KEYBOARD) return false
+        val keyCode = event.keyCode
+        val isDown = event.action == KeyEvent.ACTION_DOWN
+        val time = recentlyInjected[keyCode] ?: return false
+        if (SystemClock.uptimeMillis() - time > injectedEchoWindow) {
+            recentlyInjected.remove(keyCode)
+            return false
+        }
+        if (!isDown) recentlyInjected.remove(keyCode)
+        return true
+    }
+
+    private fun markInjected(keyCodes: Collection<Int>) {
+        val now = SystemClock.uptimeMillis()
+        keyCodes.forEach { recentlyInjected[it] = now }
+    }
+
+    /**
+     * Better Shift (on by default), applied everywhere incl. text fields:
+     *  - Single press → its action (default: Shift), fires the instant the key is released
+     *  - Hold 500 ms  → short vibration + its action (default: Shift Lock)
+     *  - Shift held + another key → normal Shift chord (Shift+A, Shift+arrows …), nothing else fires
+     * All other press types are blocked. With Better Shift off, Shift is mapped like any other button.
+     */
+    private fun handleManagedShiftKey(event: KeyEvent): Boolean {
+        val keyCode = event.keyCode
+        if (!SettingsManager.isBetterShiftKey(this, keyCode)) return false
+        if (!powerManager.isInteractive) return false
+        val state = currentState()
+
+        val isDown = event.action == KeyEvent.ACTION_DOWN
+        ButtonState.setKeyPressed(keyCode, isDown)
+
+        if (isDown) {
+            val held = shiftDownKeyCode
+            if (held != null && held != keyCode) return true // the other Shift key is already held
+            //  == keyCode means its UP got lost – start fresh instead of staying stuck
+            shiftDownKeyCode = keyCode
+            shiftChordUsed = false
+            shiftLongPressFired = false
+            shiftLongPressRunnable?.let { handler.removeCallbacks(it) }
+            val runnable = Runnable {
+                if (physicalShiftDown && !shiftChordUsed) {
+                    shiftLongPressFired = true
+                    vibrate(VibrationEffect.EFFECT_HEAVY_CLICK, SHIFT_LOCK_VIBRATION_MS)
+                    performAction(keyCode, state, "HOLD")
+                }
+            }
+            shiftLongPressRunnable = runnable
+            handler.postDelayed(runnable, 500L)
+        } else {
+            if (shiftDownKeyCode != keyCode) return true // UP of the ignored second Shift key
+            shiftDownKeyCode = null
+            shiftLongPressRunnable?.let { handler.removeCallbacks(it) }
+            shiftLongPressRunnable = null
+            if (!shiftLongPressFired && !shiftChordUsed) {
+                performAction(keyCode, state, "SINGLE_PRESS")
+            }
+        }
+        return true
+    }
+
+    /**
+     * Re-sends physical keyboard keys shifted when Shift Hold / Shift Lock is active, or when the
+     * managed Shift key is physically held (we consumed its DOWN, so the system doesn't know it's held).
+     */
+    private fun handleShiftedTyping(event: KeyEvent): Boolean {
+        val keyCode = event.keyCode
+        if (event.action == KeyEvent.ACTION_UP) {
+            if (shiftConsumedKeys.remove(keyCode)) {
+                ButtonState.setKeyPressed(keyCode, false)
+                return true
+            }
+            return false
+        }
+        if (event.action != KeyEvent.ACTION_DOWN) return false
+
+        val chord = physicalShiftDown
+        if (!chord && !isShiftHoldActive && !isShiftLockActive) return false
+        if (KeyEvent.isModifierKey(keyCode) || event.isMetaPressed) return false
+        // Real modifiers held without our managed Shift: user shortcut or already shifting – leave it alone.
+        if (!chord && (event.isShiftPressed || event.isCtrlPressed || event.isAltPressed)) return false
+
+        val applies = when {
+            chord -> true // Shift held: every key gets Shift (letters, arrows for selection, Tab …)
+            isShiftHoldActive -> KeyInput.isShiftable(keyCode)
+            else -> KeyInput.isLetter(keyCode)
+        }
+        if (!applies) return false
+
+        if (chord) {
+            // Need somewhere to deliver it: a text field, or the shell for everything else
+            if (focusedEditableNode() == null && !ShellManager.isAvailable()) return false
+            shiftChordUsed = true
+        } else {
+            if (rootInActiveWindow?.packageName == packageName) return false // don't interfere with our own remap UI
+            if (focusedEditableNode() == null) return false
+            // A user mapping only wins while typing if it is set to also work while the keyboard is
+            // active (same rule as handleKeyEvent). Mappings meant for "keyboard not in use" must not
+            // block Shift – otherwise this letter stays lowercase and the NEXT letter gets capitalised.
+            if (SettingsManager.isButtonOverrideEnabled(this, keyCode) &&
+                SettingsManager.isIgnoreKeyboardActive(this, keyCode) &&
+                hasCustomMapping(keyCode, currentState())
+            ) return false
+        }
+
+        shiftConsumedKeys += keyCode
+        ButtonState.setKeyPressed(keyCode, true)
+        if (isShiftHoldActive) {
+            isShiftHoldActive = false
+            updateModifierIndicator()
+        }
+        injectKey(keyCode, shift = true, ctrl = event.isCtrlPressed, alt = event.isAltPressed, typing = true)
+        return true
     }
 
     private fun processKeyEvent(keyCode: Int, isDown: Boolean, state: String) {
@@ -325,32 +595,80 @@ class ButtonMapperService : AccessibilityService() {
         }
     }
 
-//    // TOAST
-//    private fun showKeyToast(keyCode: Int) {
-//        val name = when (keyCode) {
-//            131 -> "AI Button"
-//            133 -> "Camera Up"
-//            132 -> "Camera Down"
-//            111 -> "Keyboard Button"
-//            24 -> "Volume Up"
-//            25 -> "Volume Down"
-//            27 -> "Camera Button"
-//            134 -> "Focus Button"
-//            else -> {
-//                val rawName = KeyEvent.keyCodeToString(keyCode)
-//                if (rawName.startsWith("KEYCODE_")) {
-//                    rawName.removePrefix("KEYCODE_")
-//                        .lowercase()
-//                        .replaceFirstChar { if (it.isLowerCase()) it.titlecase() else it.toString() }
-//                } else {
-//                    rawName
-//                }
-//            }
-//        }
-//        Toast.makeText(this, "$name, keycode: $keyCode", Toast.LENGTH_SHORT).show()
-//    }
+    // TOAST
+    private fun showKeyToast(keyCode: Int) {
+        if (!SHOW_KEY_TOASTS) return
+        val now = System.currentTimeMillis()
+        if (keyCode == lastToastKeyCode && now - lastToastTime < 300L) return
+        lastToastKeyCode = keyCode
+        lastToastTime = now
+
+        val name = when (keyCode) {
+            131 -> "AI Button"
+            133 -> "Camera Up"
+            132 -> "Camera Down"
+            111 -> "Keyboard Button"
+            24 -> "Volume Up"
+            25 -> "Volume Down"
+            27 -> "Camera Button"
+            134 -> "Focus Button"
+            else -> {
+                val rawName = KeyEvent.keyCodeToString(keyCode)
+                if (rawName.startsWith("KEYCODE_")) {
+                    rawName.removePrefix("KEYCODE_")
+                        .lowercase()
+                        .replaceFirstChar { if (it.isLowerCase()) it.titlecase() else it.toString() }
+                } else {
+                    rawName
+                }
+            }
+        }
+
+        handler.post {
+            keyToast?.cancel()
+            keyToast = Toast.makeText(applicationContext, "$name, keycode: $keyCode", Toast.LENGTH_SHORT).also { it.show() }
+        }
+    }
+
+    private fun shouldSwallowPhantomSpace(keyCode: Int, isDown: Boolean, fromShizuku: Boolean): Boolean {
+        val now = SystemClock.uptimeMillis()
+        when (keyCode) {
+            KeyEvent.KEYCODE_CTRL_LEFT if isDown -> {
+                ctrlLeftDownTime = now
+            }
+
+            KeyEvent.KEYCODE_SPACE if isDown &&
+                    now - ctrlLeftDownTime < phantomSpaceWindow -> {
+                swallowSpaceUp[fromShizuku] = true
+                Log.d(tag, "Blocked phantom SPACE after CTRL_LEFT (${now - ctrlLeftDownTime}ms, fromShizuku=$fromShizuku)")
+                return true
+            }
+
+            KeyEvent.KEYCODE_SPACE if !isDown && swallowSpaceUp[fromShizuku] == true -> {
+                swallowSpaceUp[fromShizuku] = false
+                return true
+            }
+        }
+        return false
+    }
 
     private fun handleKeyEvent(keyCode: Int, isDown: Boolean, fromShizuku: Boolean): Boolean {
+        // Shizuku path: ignore the phantom SPACE too (Shizuku only observes, so this just skips mapping)
+        if (fromShizuku && shouldSwallowPhantomSpace(keyCode, isDown, fromShizuku = true)) return true
+
+        // Key already handled by Shift Hold / Shift Lock typing on the accessibility path
+        if (fromShizuku && keyCode in shiftConsumedKeys) return true
+
+        // Managed Shift is handled entirely in onKeyEvent; don't let the Shizuku copy run the mapping too
+        if (fromShizuku && SettingsManager.isBetterShiftKey(this, keyCode)) return true
+
+        // TOAST: Shizuku events don't pass through onKeyEvent, so toast them here, before any early return
+        if (isDown && fromShizuku) showKeyToast(keyCode)
+
+        // Every press arrives twice (Shizuku + Accessibility). Track it per key so a press is only
+        // ever counted once – otherwise single press becomes double press, double becomes quadruple.
+        val dup = isDuplicatePressEvent(keyCode, isDown, fromShizuku)
+
         val km = getSystemService(KEYGUARD_SERVICE) as KeyguardManager
         val isLocked = km.isKeyguardLocked
         val isInteractive = powerManager.isInteractive
@@ -382,27 +700,19 @@ class ButtonMapperService : AccessibilityService() {
 
             if (isVolumeKey) {
                 if (SettingsManager.isVolumeLongPressSkipEnabled(this)) {
-                    // We need to handle this key to implement Long Press Skip
-                    processKeyEvent(keyCode, isDown, state)
+                    if (!dup) processKeyEvent(keyCode, isDown, state)
                     return true
                 }
-                // If Volume Skip is OFF, let the system handle volume buttons normally
                 return false
             }
 
             if (!shizukuAvailable && !isInteractive) {
-                // If the screen is truly black and Shizuku is missing, we usually shouldn't
-                // reach this via Accessibility, but if we do, we block non-volume keys.
                 return false
             }
         }
 
         val currentPackage = lastPackageName
         val isCameraApp = currentPackage?.contains("camera", ignoreCase = true) == true
-
-//        if (isDown) {
-//            showKeyToast(keyCode) // TOAST
-//        }
 
         // ── Camera app pass-through ────────────────────────────────────────────
         if ((isCameraApp || isCameraInUse) && SettingsManager.isDisableInCamera(this)) {
@@ -411,8 +721,7 @@ class ButtonMapperService : AccessibilityService() {
         }
 
         // ── Volume panel pass-through ──────────────────────────────────────────
-        if (isVolumeKey && SettingsManager.isDefaultWhenVolumeVisible(this) && isVolumePanelVisibleState
-        ) {
+        if (isVolumeKey && SettingsManager.isDefaultWhenVolumeVisible(this) && isVolumePanelVisibleState) {
             markVolumePanelVisible()
             updateButtonState()
             return false
@@ -422,14 +731,14 @@ class ButtonMapperService : AccessibilityService() {
         if (keyCode in keyboardKeyCodes) {
             ButtonState.setKeyPressed(keyCode, isDown)
 
-            if (isTextFieldFocused()) return false
+            if (!SettingsManager.isIgnoreKeyboardActive(this, keyCode) && isTextFieldFocused()) return false
 
             val isOurApp = currentPackage == packageName
             if (isOurApp) return true
 
             if (!hasCustomMapping(keyCode, state)) return false
 
-            processKeyEvent(keyCode, isDown, state)
+            if (!dup) processKeyEvent(keyCode, isDown, state)
             return true
         }
 
@@ -445,22 +754,10 @@ class ButtonMapperService : AccessibilityService() {
             Log.v(tag, "ACCESSIBILITY KEY: $keyCode ${if (isDown) "DOWN" else "UP"} [Locked=$isLocked, State=$state]")
         }
 
-        // Deduplicate events between Shizuku and AccessibilityService
-        val eventKey = Pair(keyCode, isDown)
-        val now = System.currentTimeMillis()
-        val lastTime = lastEventTimes[eventKey] ?: 0L
-        val lastSource = lastEventSources[eventKey]
-
-        var isDuplicate = false
-        if (now - lastTime < 300L && lastSource != null && lastSource != fromShizuku) {
-            isDuplicate = true
-            Log.v(tag, "Duplicate event detected and ignored: $keyCode ${if (isDown) "DOWN" else "UP"} fromShizuku=$fromShizuku")
-        } else {
-            lastEventTimes[eventKey] = now
-            lastEventSources[eventKey] = fromShizuku
-        }
-
+        // Deduplicate events between Shizuku and AccessibilityService (decided by isDuplicatePressEvent)
+        val isDuplicate = dup
         if (isDuplicate) {
+            Log.v(tag, "Duplicate event detected and ignored: $keyCode ${if (isDown) "DOWN" else "UP"} fromShizuku=$fromShizuku")
             updateButtonState()
             if (!isDown) stopContinuousAction(keyCode)
             return true
@@ -525,34 +822,28 @@ class ButtonMapperService : AccessibilityService() {
     private fun startContinuousAction(keyCode: Int, state: String, type: String) {
         stopContinuousAction(keyCode)
 
-        val action = SettingsManager.getAction(this, keyCode, state, type)
-        val isContinuous = (action == SettingsManager.ACTION_DEFAULT && (keyCode == 24 || keyCode == 25)) ||
-                action == SettingsManager.ACTION_VOLUME_UP ||
-                action == SettingsManager.ACTION_VOLUME_DOWN ||
-                action == SettingsManager.ACTION_SCROLL_UP_SMOOTH ||
-                action == SettingsManager.ACTION_SCROLL_DOWN_SMOOTH ||
-                action == SettingsManager.ACTION_SCROLL_UP_SMOOTH_FAST ||
-                action == SettingsManager.ACTION_SCROLL_DOWN_SMOOTH_FAST ||
-                action == "TAP_SCROLL_UP_SMOOTH" ||
-                action == "TAP_SCROLL_DOWN_SMOOTH" ||
-                action == SettingsManager.ACTION_BRIGHTNESS_UP ||
-                action == SettingsManager.ACTION_BRIGHTNESS_DOWN ||
-                (action != SettingsManager.ACTION_DEFAULT && action != SettingsManager.ACTION_NONE)
+        val action = SettingsManager.getEffectiveAction(this, keyCode, state, type)
 
-        val actualIsContinuous = SettingsManager.isDefaultWhenVolumeVisible(this) && isVolumePanelVisibleState && (keyCode == 24 || keyCode == 25) || isContinuous
+        // Original rule: everything except DEFAULT/NONE repeats while held (DEFAULT only for volume keys).
+        // New keyboard toggles are the only exception – they must fire once per hold.
+        val isContinuous = (action == SettingsManager.ACTION_DEFAULT && (keyCode == 24 || keyCode == 25)) ||
+                (action != SettingsManager.ACTION_DEFAULT &&
+                        action != SettingsManager.ACTION_NONE &&
+                        action !in oneShotKeyboardActions)
+
+        val actualIsContinuous = SettingsManager.isDefaultWhenVolumeVisible(this) &&
+                isVolumePanelVisibleState && (keyCode == 24 || keyCode == 25) || isContinuous
 
         if (!actualIsContinuous) return
 
-        val isScroll = action == SettingsManager.ACTION_SCROLL_UP_SMOOTH ||
-                action == SettingsManager.ACTION_SCROLL_DOWN_SMOOTH ||
-                action == SettingsManager.ACTION_SCROLL_UP_SMOOTH_FAST ||
-                action == SettingsManager.ACTION_SCROLL_DOWN_SMOOTH_FAST ||
-                action == "TAP_SCROLL_UP_SMOOTH" ||
-                action == "TAP_SCROLL_DOWN_SMOOTH"
+        val isKeyRepeat = action.startsWith(SettingsManager.PREFIX_KEY_INPUT) || action in SettingsManager.ARROW_ACTIONS
+        val isScroll = action in smoothScrollActions
         val isVolume = action == SettingsManager.ACTION_VOLUME_UP ||
                 action == SettingsManager.ACTION_VOLUME_DOWN ||
-                (action == SettingsManager.ACTION_DEFAULT)
+                action == SettingsManager.ACTION_DEFAULT
+
         val delay = when {
+            isKeyRepeat -> 100L // like a keyboard's auto-repeat
             isScroll -> 250L
             isVolume -> 150L
             else -> 600L
@@ -562,8 +853,7 @@ class ButtonMapperService : AccessibilityService() {
             override fun run() {
                 if (continuousActionTask[keyCode] != this) return
 
-                // Ensure the key is still physically pressed.
-                // This is a failsafe against "zombie" repetition if the UP event was missed or ignored.
+                // Failsafe against "zombie" repetition if the UP event was missed or ignored.
                 if (!ButtonState.pressedKeys.value.contains(keyCode)) {
                     Log.w(tag, "Continuous action for $keyCode self-terminated (key no longer pressed)")
                     stopContinuousAction(keyCode)
@@ -583,8 +873,8 @@ class ButtonMapperService : AccessibilityService() {
     }
 
     private fun performAction(keyCode: Int, state: String, type: String) {
-        val action = SettingsManager.getAction(this, keyCode, state, type)
-        Log.i(tag, ">>>> EXECUTING: $action [Key: $keyCode, State: $state, Type: $type, Locked: ${powerManager.isInteractive}] <<<<")
+        val action = SettingsManager.getEffectiveAction(this, keyCode, state, type)
+        Log.i(tag, ">>>> EXECUTING: $action [Key: $keyCode, State: $state, Type: $type, Interactive: ${powerManager.isInteractive}] <<<<")
 
         var finalAction = if (SettingsManager.isDefaultWhenVolumeVisible(this) &&
             isVolumePanelVisibleState &&
@@ -632,10 +922,7 @@ class ButtonMapperService : AccessibilityService() {
                 audioManager.adjustVolume(AudioManager.ADJUST_SAME, AudioManager.FLAG_SHOW_UI)
                 true
             }
-            SettingsManager.ACTION_MUTE_MIC_TOGGLE -> {
-                toggleMicPrivacy()
-                true
-            }
+            SettingsManager.ACTION_MUTE_MIC_TOGGLE -> { toggleMicPrivacy(); true }
             SettingsManager.ACTION_FLASHLIGHT -> { toggleFlashlight(); true }
             SettingsManager.ACTION_SCREENSHOT -> performGlobalAction(GLOBAL_ACTION_TAKE_SCREENSHOT)
             SettingsManager.ACTION_LOCK -> performGlobalAction(GLOBAL_ACTION_LOCK_SCREEN)
@@ -698,23 +985,13 @@ class ButtonMapperService : AccessibilityService() {
                 toggleAspectRatio(listOf("RESET", "4:3", "16:9"), direction = -1)
                 true
             }
-            SettingsManager.ACTION_SIZE_FULL -> {
-                setScreenSize("RESET")
-                true
-            }
-            SettingsManager.ACTION_SIZE_4_3 -> {
-                setScreenSize("4:3")
-                true
-            }
-            SettingsManager.ACTION_SIZE_16_9 -> {
-                setScreenSize("16:9")
-                true
-            }
+            SettingsManager.ACTION_SIZE_FULL -> { setScreenSize("RESET"); true }
+            SettingsManager.ACTION_SIZE_4_3 -> { setScreenSize("4:3"); true }
+            SettingsManager.ACTION_SIZE_16_9 -> { setScreenSize("16:9"); true }
             SettingsManager.ACTION_DENSITY_CYCLE -> {
                 toggleDensity(listOf("300", "400"), direction = 1)
                 true
             }
-
             SettingsManager.ACTION_DENSITY_300 -> {
                 ShellManager.runShellCommand("wm density 300")
                 true
@@ -729,6 +1006,24 @@ class ButtonMapperService : AccessibilityService() {
             SettingsManager.ACTION_SCROLL_DOWN_SMOOTH, "TAP_SCROLL_DOWN_SMOOTH" -> { performScroll(false); true }
             SettingsManager.ACTION_SCROLL_UP_SMOOTH_FAST -> { performScroll(true, multiplier = 2f); true }
             SettingsManager.ACTION_SCROLL_DOWN_SMOOTH_FAST -> { performScroll(false, multiplier = 2f); true }
+
+            // ── Keyboard ──────────────────────────────────────────────────
+            SettingsManager.ACTION_ARROW_UP,
+            SettingsManager.ACTION_ARROW_DOWN,
+            SettingsManager.ACTION_ARROW_LEFT,
+            SettingsManager.ACTION_ARROW_RIGHT -> {
+                val name = SettingsManager.arrowKeyName(finalAction)!!
+                executeKeyInputAction(KeyInput.Spec(shift = false, ctrl = false, alt = false, key = name))
+                true
+            }
+            SettingsManager.ACTION_SHIFT_HOLD -> {
+                // Like a phone keyboard: tapping Shift while Shift Lock is on turns the lock off.
+                if (isShiftLockActive) toggleShiftLock() else toggleShiftHold()
+                true
+            }
+            SettingsManager.ACTION_SHIFT_LOCK -> { toggleShiftLock(); true }
+            SettingsManager.ACTION_OPEN_EMOJI_KEYBOARD -> { openEmojiKeyboard(); true }
+
             SettingsManager.ACTION_NONE -> { Log.d(tag, "Action is NONE, key blocked."); true }
             else -> {
                 if (finalAction.startsWith(SettingsManager.PREFIX_APP)) {
@@ -756,6 +1051,9 @@ class ButtonMapperService : AccessibilityService() {
                     val customDensity = finalAction.removePrefix(SettingsManager.PREFIX_CUSTOM_DENSITY)
                     toggleDensity(listOf("300", customDensity), direction = 1)
                     true
+                } else if (finalAction.startsWith(SettingsManager.PREFIX_KEY_INPUT)) {
+                    KeyInput.decode(finalAction)?.let { executeKeyInputAction(it) }
+                    true
                 } else {
                     false
                 }
@@ -766,6 +1064,264 @@ class ButtonMapperService : AccessibilityService() {
             Log.e(tag, "FAILED to execute action: $finalAction (This often happens on Lock Screens for Home/Recents/Screenshot)")
         }
     }
+
+    private fun showToast(msg: String) {
+        if (!SHOW_KEY_TOASTS) return
+        handler.post {
+            keyToast?.cancel()
+            keyToast = Toast.makeText(applicationContext, msg, Toast.LENGTH_SHORT).also { it.show() }
+        }
+    }
+
+    // ── Keyboard: Shift Hold / Shift Lock ──────────────────────────────────
+
+    private fun vibrate(
+        effectType: Int = VibrationEffect.EFFECT_CLICK,
+        fallbackDurationMs: Long = 50L
+    ) {
+        try {
+            val vibrator = (getSystemService(VIBRATOR_MANAGER_SERVICE) as VibratorManager).defaultVibrator
+            if (vibrator.hasVibrator()) {
+                val effect = try {
+                    VibrationEffect.createPredefined(effectType)
+                } catch (_: Exception) {
+                    VibrationEffect.createOneShot(fallbackDurationMs, VibrationEffect.DEFAULT_AMPLITUDE)
+                }
+                vibrator.vibrate(effect)
+            }
+        } catch (e: Exception) {
+            Log.w(tag, "Vibration failed (VIBRATE permission in the manifest?)", e)
+        }
+    }
+
+    private fun toggleShiftHold() {
+        isShiftHoldActive = !isShiftHoldActive
+        vibrate(VibrationEffect.EFFECT_CLICK)
+        showToast(if (isShiftHoldActive) "Shift: next key" else "Shift off")
+        updateModifierIndicator()
+    }
+
+    private fun toggleShiftLock() {
+        isShiftLockActive = !isShiftLockActive
+        isShiftHoldActive = false
+        vibrate(VibrationEffect.EFFECT_HEAVY_CLICK)
+        // Note: we deliberately don't inject KEYCODE_CAPS_LOCK anymore – combined with our own
+        // shifting it double-applied and produced lowercase letters.
+        showToast(if (isShiftLockActive) "Shift Lock on" else "Shift Lock off")
+        updateModifierIndicator()
+    }
+
+    // ── Keyboard: emoji ───────────────────────────────────────────────────
+
+    /**
+     * Android has no public "open emoji panel" API. KEYCODE_PICT-SYMBOLS is the standard key meant
+     * for switching to emoji/symbol sets, and goes to the active keyboard first. Keyboards that
+     * don't react to it fall back to the keyboard switcher, so a dedicated emoji keyboard can be picked.
+     */
+    private fun openEmojiKeyboard() {
+        if (focusedEditableNode() == null) {
+            showToast("Tap a text field first")
+            return
+        }
+        if (ShellManager.isAvailable()) {
+            markInjected(listOf(KeyEvent.KEYCODE_PICTSYMBOLS))
+            ShellManager.runShellCommand("input keyevent ${KeyEvent.KEYCODE_PICTSYMBOLS}")
+            return
+        }
+        try {
+            val imm = getSystemService(INPUT_METHOD_SERVICE) as android.view.inputmethod.InputMethodManager
+            imm.showInputMethodPicker()
+        } catch (e: Exception) {
+            Log.e(tag, "Failed to show input method picker", e)
+            showToast("Emoji keyboard needs Shizuku or root")
+        }
+    }
+
+    // ── Keyboard: key input / arrows ──────────────────────────────────────
+
+    private fun executeKeyInputAction(spec: KeyInput.Spec) {
+        val keyCode = KeyInput.resolveKeyCode(spec.key)
+        if (keyCode == KeyEvent.KEYCODE_UNKNOWN) {
+            Log.w(tag, "Key input: unknown key '${spec.key}'")
+            return
+        }
+
+        // Shift Lock behaves like Caps Lock (letters only); Shift Hold shifts any next key once.
+        val lockApplies = isShiftLockActive && KeyInput.isLetter(keyCode)
+        val shift = spec.shift || isShiftHoldActive || lockApplies
+        if (isShiftHoldActive) {
+            isShiftHoldActive = false
+            updateModifierIndicator()
+        }
+
+        Log.d(tag, "Key input: key=${spec.key} ($keyCode) shift=$shift ctrl=${spec.ctrl} alt=${spec.alt}")
+        injectKey(keyCode, shift, spec.ctrl, spec.alt)
+    }
+
+    private fun metaStateFor(shift: Boolean, ctrl: Boolean, alt: Boolean): Int =
+        (if (shift) KeyEvent.META_SHIFT_ON or KeyEvent.META_SHIFT_LEFT_ON else 0) or
+                (if (ctrl) KeyEvent.META_CTRL_ON or KeyEvent.META_CTRL_LEFT_ON else 0) or
+                (if (alt) KeyEvent.META_ALT_ON or KeyEvent.META_ALT_LEFT_ON else 0)
+
+    /**
+     * Delivers a key with modifiers, trying the best available route:
+     * 1. Accessibility input connection (Android 13+) – instant, works in any focused text field, no Shizuku.
+     * 2. Shell (`input keycombination` / `input keyevent`) – works everywhere, but each call is slow.
+     * 3. Accessibility node actions – text fields only (type, delete, move cursor, select, copy/paste).
+     *
+     * [typing] = re-sending physical keyboard input; prefers the fast, ordered routes over the shell
+     * so fast typing doesn't arrive out of order.
+     */
+    private fun injectKey(keyCode: Int, shift: Boolean, ctrl: Boolean, alt: Boolean, typing: Boolean = false) {
+        val meta = metaStateFor(shift, ctrl, alt)
+        if (injectViaAccessibilityIme(keyCode, meta)) return
+
+        val shellReady = ShellManager.isAvailable()
+        if ((typing || !shellReady) && injectViaNodeActions(keyCode, meta)) return
+
+        if (shellReady) {
+            injectViaShell(keyCode, shift, ctrl, alt)
+            return
+        }
+        Log.w(tag, "Key $keyCode not delivered: no focused text field and no Shizuku/root")
+        showToast("Key input needs a focused text field or Shizuku")
+    }
+
+    private fun injectViaAccessibilityIme(keyCode: Int, meta: Int): Boolean {
+        return try {
+            val im = inputMethod ?: return false
+            if (!im.currentInputStarted) return false
+            val connection = im.currentInputConnection ?: return false
+            val flags = KeyEvent.FLAG_SOFT_KEYBOARD or KeyEvent.FLAG_KEEP_TOUCH_MODE
+            val down = SystemClock.uptimeMillis()
+            connection.sendKeyEvent(
+                KeyEvent(down, down, KeyEvent.ACTION_DOWN, keyCode, 0, meta, KeyCharacterMap.VIRTUAL_KEYBOARD, 0, flags)
+            )
+            connection.sendKeyEvent(
+                KeyEvent(down, SystemClock.uptimeMillis(), KeyEvent.ACTION_UP, keyCode, 0, meta, KeyCharacterMap.VIRTUAL_KEYBOARD, 0, flags)
+            )
+            true
+        } catch (e: Exception) {
+            Log.w(tag, "Accessibility input connection failed", e)
+            false
+        }
+    }
+
+    private fun injectViaShell(keyCode: Int, shift: Boolean, ctrl: Boolean, alt: Boolean) {
+        val modifiers = buildList {
+            if (ctrl) add(KeyEvent.KEYCODE_CTRL_LEFT)
+            if (alt) add(KeyEvent.KEYCODE_ALT_LEFT)
+            if (shift) add(KeyEvent.KEYCODE_SHIFT_LEFT)
+        }
+        markInjected(modifiers + keyCode)
+
+        // "input keyevent 59 29" presses Shift and A one after another, it does NOT hold Shift.
+        // keycombination actually holds the modifiers down.
+        val command = if (modifiers.isEmpty()) {
+            "input keyevent $keyCode"
+        } else {
+            "input keycombination ${(modifiers + keyCode).joinToString(" ")}"
+        }
+        ShellManager.runShellCommand(command)
+    }
+
+    private fun injectViaNodeActions(keyCode: Int, meta: Int): Boolean {
+        val node = focusedEditableNode() ?: return false
+        val shift = (meta and KeyEvent.META_SHIFT_ON) != 0
+        val ctrl = (meta and KeyEvent.META_CTRL_ON) != 0
+        val alt = (meta and KeyEvent.META_ALT_ON) != 0
+
+        if (ctrl) {
+            return when (keyCode) {
+                KeyEvent.KEYCODE_C -> node.performAction(AccessibilityNodeInfo.ACTION_COPY)
+                KeyEvent.KEYCODE_X -> node.performAction(AccessibilityNodeInfo.ACTION_CUT)
+                KeyEvent.KEYCODE_V -> node.performAction(AccessibilityNodeInfo.ACTION_PASTE)
+                KeyEvent.KEYCODE_A -> setSelection(node, 0, currentText(node).length)
+                else -> false
+            }
+        }
+        if (alt) return false
+
+        return when (keyCode) {
+            KeyEvent.KEYCODE_DPAD_LEFT, KeyEvent.KEYCODE_DPAD_RIGHT,
+            KeyEvent.KEYCODE_DPAD_UP, KeyEvent.KEYCODE_DPAD_DOWN -> {
+                val horizontal = keyCode == KeyEvent.KEYCODE_DPAD_LEFT || keyCode == KeyEvent.KEYCODE_DPAD_RIGHT
+                val forward = keyCode == KeyEvent.KEYCODE_DPAD_RIGHT || keyCode == KeyEvent.KEYCODE_DPAD_DOWN
+                val args = Bundle().apply {
+                    putInt(
+                        AccessibilityNodeInfo.ACTION_ARGUMENT_MOVEMENT_GRANULARITY_INT,
+                        if (horizontal) AccessibilityNodeInfo.MOVEMENT_GRANULARITY_CHARACTER
+                        else AccessibilityNodeInfo.MOVEMENT_GRANULARITY_LINE
+                    )
+                    putBoolean(AccessibilityNodeInfo.ACTION_ARGUMENT_EXTEND_SELECTION_BOOLEAN, shift)
+                }
+                node.performAction(
+                    if (forward) AccessibilityNodeInfo.ACTION_NEXT_AT_MOVEMENT_GRANULARITY
+                    else AccessibilityNodeInfo.ACTION_PREVIOUS_AT_MOVEMENT_GRANULARITY,
+                    args
+                )
+            }
+            KeyEvent.KEYCODE_MOVE_HOME -> setSelection(node, 0, 0)
+            KeyEvent.KEYCODE_MOVE_END -> currentText(node).length.let { setSelection(node, it, it) }
+            KeyEvent.KEYCODE_DEL -> replaceSelection(node, "", deleteBefore = 1)
+            KeyEvent.KEYCODE_FORWARD_DEL -> replaceSelection(node, "", deleteAfter = 1)
+            KeyEvent.KEYCODE_ENTER -> {
+                if (!node.isMultiLine) {
+                    node.performAction(AccessibilityNodeInfo.AccessibilityAction.ACTION_IME_ENTER.id)
+                } else {
+                    replaceSelection(node, "\n")
+                }
+            }
+            else -> {
+                val text = KeyInput.charFor(keyCode, if (shift) KeyEvent.META_SHIFT_ON else 0) ?: return false
+                replaceSelection(node, text)
+            }
+        }
+    }
+
+    private fun currentText(node: AccessibilityNodeInfo): String =
+        if (node.isShowingHintText) "" else node.text?.toString().orEmpty()
+
+    private fun setSelection(node: AccessibilityNodeInfo, start: Int, end: Int): Boolean {
+        val args = Bundle().apply {
+            putInt(AccessibilityNodeInfo.ACTION_ARGUMENT_SELECTION_START_INT, start)
+            putInt(AccessibilityNodeInfo.ACTION_ARGUMENT_SELECTION_END_INT, end)
+        }
+        return node.performAction(AccessibilityNodeInfo.ACTION_SET_SELECTION, args)
+    }
+
+    /** Replaces the selection (or deletes around the cursor) via SET_TEXT, keeping the cursor in place. */
+    private fun replaceSelection(
+        node: AccessibilityNodeInfo,
+        insert: String,
+        deleteBefore: Int = 0,
+        deleteAfter: Int = 0
+    ): Boolean {
+        val text = currentText(node)
+        var start = node.textSelectionStart
+        var end = node.textSelectionEnd
+        if (start < 0 || end < 0 || start > text.length || end > text.length) {
+            start = text.length
+            end = text.length
+        }
+        if (start > end) start = end.also { end = start }
+        if (start == end) {
+            start = max(0, start - deleteBefore)
+            end = min(text.length, end + deleteAfter)
+        }
+        if (insert.isEmpty() && start == end) return true // nothing to delete
+
+        val newText = text.substring(0, start) + insert + text.substring(end)
+        val args = Bundle().apply {
+            putCharSequence(AccessibilityNodeInfo.ACTION_ARGUMENT_SET_TEXT_CHARSEQUENCE, newText)
+        }
+        if (!node.performAction(AccessibilityNodeInfo.ACTION_SET_TEXT, args)) return false
+        val cursor = start + insert.length
+        setSelection(node, cursor, cursor)
+        return true
+    }
+
+    // ── Everything below is unchanged ─────────────────────────────────────
 
     private fun simulateDefaultBehavior(keyCode: Int) {
         Log.d(tag, "Simulating default for $keyCode")
@@ -822,7 +1378,6 @@ class ButtonMapperService : AccessibilityService() {
             startActivity(intent)
         } catch (_: Exception) {
             Log.d(tag, "ACTION_VOICE_COMMAND failed, falling back to Assist")
-            // Fallback to the standard assist overlay if the voice intent is not handled
             if (!performGlobalAction(16)) { // GLOBAL_ACTION_ASSIST
                 val assistIntent = Intent(Intent.ACTION_ASSIST)
                 assistIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
@@ -836,17 +1391,12 @@ class ButtonMapperService : AccessibilityService() {
     }
 
     private fun launchGoogleSearch() {
-        val intent = Intent(Intent.ACTION_MAIN)
-        intent.setPackage("com.google.android.googlequicksearchbox")
-        intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
         try {
-            // Try to launch the package's main activity (the search shortcut)
             val launchIntent = packageManager.getLaunchIntentForPackage("com.google.android.googlequicksearchbox")
             if (launchIntent != null) {
                 launchIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
                 startActivity(launchIntent)
             } else {
-                // Fallback to web search if package not found
                 val webIntent = Intent(Intent.ACTION_WEB_SEARCH)
                 webIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
                 startActivity(webIntent)
@@ -857,7 +1407,6 @@ class ButtonMapperService : AccessibilityService() {
     }
 
     private fun switchToLastApp() {
-        // Double-tap recents is the most reliable way to switch to the actual last app state
         performGlobalAction(GLOBAL_ACTION_RECENTS)
         handler.postDelayed({
             performGlobalAction(GLOBAL_ACTION_RECENTS)
@@ -868,16 +1417,13 @@ class ButtonMapperService : AccessibilityService() {
         try {
             if (ShellManager.isAvailable()) {
                 Thread {
-                    // Log help once to see what this device supports if we keep failing
                     ShellManager.runShellCommandBlocking("cmd sensor_privacy help")
 
-                    // Try to get state using different variations
                     var output = ShellManager.runShellCommandBlocking("cmd sensor_privacy get-state 0 1")
                     if (output.contains("Unknown", ignoreCase = true) || output.contains("Invalid", ignoreCase = true)) {
                         output = ShellManager.runShellCommandBlocking("cmd sensor_privacy get-state 0 microphone")
                     }
 
-                    // Determine current state (true = blocked/muted, false = available)
                     val isPrivacyEnabled = if (output.contains("Unknown", ignoreCase = true) || output.contains("Invalid", ignoreCase = true) || output.isEmpty()) {
                         audioManager.isMicrophoneMute
                     } else {
@@ -888,13 +1434,12 @@ class ButtonMapperService : AccessibilityService() {
                     val subCmd = if (nextState) "enable" else "disable"
                     val stateStr = if (nextState) "true" else "false"
 
-                    // Try to set state using different variations until one works
                     val commands = listOf(
                         "cmd sensor_privacy set-state 0 1 $stateStr",
                         "cmd sensor_privacy set-state 0 microphone $stateStr",
                         "cmd sensor_privacy $subCmd 0 1",
                         "cmd sensor_privacy $subCmd 0 microphone",
-                        "cmd sensor_privacy $subCmd microphone" // Some devices don't want user ID
+                        "cmd sensor_privacy $subCmd microphone"
                     )
 
                     var success = false
@@ -907,7 +1452,6 @@ class ButtonMapperService : AccessibilityService() {
                         }
                     }
 
-                    // Sync software mute
                     audioManager.isMicrophoneMute = nextState
                     Log.d(tag, "Mic Privacy Toggle: TargetState=$nextState, Success=$success")
                 }.start()
@@ -947,7 +1491,6 @@ class ButtonMapperService : AccessibilityService() {
     }
 
     private fun performClipboardAction(actionId: Int): Boolean {
-        // Try the input-focused node first, then fall back to the accessibility-focused node
         val node = rootInActiveWindow?.findFocus(AccessibilityNodeInfo.FOCUS_INPUT)
             ?: rootInActiveWindow?.findFocus(AccessibilityNodeInfo.FOCUS_ACCESSIBILITY)
             ?: return false
@@ -974,7 +1517,6 @@ class ButtonMapperService : AccessibilityService() {
         try {
             sendBroadcast(Intent("com.xenonware.mindcontrol.ACTION_DISMISS_AOD"))
 
-            // Extra wake path: ACQUIRE_CAUSES_WAKEUP may be ignored on newer Android versions.
             if (!powerManager.isInteractive && ShellManager.isAvailable()) {
                 Thread { ShellManager.runShellCommand("input keyevent ${KeyEvent.KEYCODE_WAKEUP}") }.start()
             }
@@ -994,7 +1536,6 @@ class ButtonMapperService : AccessibilityService() {
 
     private fun launchShortcutWithOverlay(shortcutData: String, useOverlay: Boolean = true) {
         try {
-            // The activity itself waits for the real unlock before showing the overlay / launching.
             val intent = Intent(this, ShortcutOverlayActivity::class.java).apply {
                 putExtra(ShortcutOverlayActivity.EXTRA_SHORTCUT_DATA, shortcutData)
                 putExtra(ShortcutOverlayActivity.EXTRA_USE_OVERLAY, useOverlay)
@@ -1003,7 +1544,6 @@ class ButtonMapperService : AccessibilityService() {
             startActivity(intent)
         } catch (e: Exception) {
             Log.e(tag, "Error launching shortcut overlay", e)
-            // Never bypass the unlock gate: launch directly only if the device isn't locked.
             val km = getSystemService(KEYGUARD_SERVICE) as KeyguardManager
             if (!km.isKeyguardLocked) launchShortcut(shortcutData)
         }
@@ -1021,7 +1561,6 @@ class ButtonMapperService : AccessibilityService() {
             startActivity(intent)
         } catch (e: Exception) {
             Log.e(tag, "Speed dial error", e)
-            // Fallback to dialer if CALL permission is not granted
             val dialIntent = Intent(Intent.ACTION_DIAL)
             dialIntent.data = "tel:$number".toUri()
             dialIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
@@ -1102,9 +1641,9 @@ class ButtonMapperService : AccessibilityService() {
 
         // Target sequence: Silent (0) -> Vibrate (1) -> Normal (2) -> Silent (0)
         val nextMode = when (currentMode) {
-            AudioManager.RINGER_MODE_SILENT -> 1 // To Vibrate
-            AudioManager.RINGER_MODE_VIBRATE -> 2 // To Normal
-            AudioManager.RINGER_MODE_NORMAL -> 0 // To Silent
+            AudioManager.RINGER_MODE_SILENT -> 1
+            AudioManager.RINGER_MODE_VIBRATE -> 2
+            AudioManager.RINGER_MODE_NORMAL -> 0
             else -> 0
         }
 
@@ -1117,28 +1656,25 @@ class ButtonMapperService : AccessibilityService() {
             }
 
             when (nextMode) {
-                0 -> { // Silent
+                0 -> {
                     val vol = audioManager.getStreamVolume(AudioManager.STREAM_RING)
                     if (vol > 0) lastKnownRingVolume = vol
-
-                    // FORCE BEHAVIOR: Jump to Normal first
                     if (audioManager.ringerMode != AudioManager.RINGER_MODE_NORMAL) {
                         audioManager.ringerMode = AudioManager.RINGER_MODE_NORMAL
                     }
                     audioManager.ringerMode = AudioManager.RINGER_MODE_SILENT
                 }
-                1 -> { // Vibrate
+                1 -> {
                     if (audioManager.ringerMode == AudioManager.RINGER_MODE_NORMAL) {
                         val vol = audioManager.getStreamVolume(AudioManager.STREAM_RING)
                         if (vol > 0) lastKnownRingVolume = vol
                     }
-                    // FORCE BEHAVIOR: Jump to Normal first
                     if (audioManager.ringerMode == AudioManager.RINGER_MODE_SILENT) {
                         audioManager.ringerMode = AudioManager.RINGER_MODE_NORMAL
                     }
                     audioManager.ringerMode = AudioManager.RINGER_MODE_VIBRATE
                 }
-                2 -> { // Normal
+                2 -> {
                     audioManager.ringerMode = AudioManager.RINGER_MODE_NORMAL
                     val maxVol = audioManager.getStreamMaxVolume(AudioManager.STREAM_RING)
                     val targetVol = if (lastKnownRingVolume > 0) lastKnownRingVolume
@@ -1148,7 +1684,6 @@ class ButtonMapperService : AccessibilityService() {
                 }
             }
 
-            // Force the system UI to show the change
             audioManager.adjustVolume(AudioManager.ADJUST_SAME, AudioManager.FLAG_SHOW_UI)
 
             Handler(Looper.getMainLooper()).postDelayed({
@@ -1167,7 +1702,6 @@ class ButtonMapperService : AccessibilityService() {
         val nm = getSystemService(NOTIFICATION_SERVICE) as NotificationManager
         if (nm.isNotificationPolicyAccessGranted) {
             val currentFilter = nm.currentInterruptionFilter
-            // EXACT OLD BEHAVIOR: Use FILTER_NONE for ON
             val newFilter = if (currentFilter == NotificationManager.INTERRUPTION_FILTER_ALL) {
                 NotificationManager.INTERRUPTION_FILTER_NONE
             } else {
@@ -1194,16 +1728,11 @@ class ButtonMapperService : AccessibilityService() {
 
     private fun toggleRotation() {
         try {
-            // Force Auto-Rotate OFF
             Settings.System.putInt(contentResolver, Settings.System.ACCELEROMETER_ROTATION, 0)
-
             val current = try {
                 Settings.System.getInt(contentResolver, Settings.System.USER_ROTATION)
             } catch (_: Exception) { 0 }
-
-            // Toggle specifically between Portrait (0) and Landscape (1)
             val next = if (current == 0) 1 else 0
-
             Settings.System.putInt(contentResolver, Settings.System.USER_ROTATION, next)
             Log.d(tag, "Rotation Toggle: $current -> $next")
         } catch (e: Exception) {
@@ -1213,16 +1742,11 @@ class ButtonMapperService : AccessibilityService() {
 
     private fun toggleRotation360() {
         try {
-            // Force Auto-Rotate OFF
             Settings.System.putInt(contentResolver, Settings.System.ACCELEROMETER_ROTATION, 0)
-
             val current = try {
                 Settings.System.getInt(contentResolver, Settings.System.USER_ROTATION)
             } catch (_: Exception) { 0 }
-
-            // Cycle through all 4 orientations (0, 1, 2, 3)
             val next = (current + 1) % 4
-
             Settings.System.putInt(contentResolver, Settings.System.USER_ROTATION, next)
             Log.d(tag, "Rotation 360 Toggle: $current -> $next")
         } catch (e: Exception) {
@@ -1235,7 +1759,6 @@ class ButtonMapperService : AccessibilityService() {
             val current = try {
                 Settings.System.getInt(contentResolver, Settings.System.ACCELEROMETER_ROTATION)
             } catch (_: Exception) { 0 }
-
             val next = if (current == 1) 0 else 1
             Settings.System.putInt(contentResolver, Settings.System.ACCELEROMETER_ROTATION, next)
             Log.d(tag, "Auto-Rotate Toggle: $current -> $next")
@@ -1346,7 +1869,7 @@ class ButtonMapperService : AccessibilityService() {
         try {
             val lm = getSystemService(LOCATION_SERVICE) as LocationManager
             val isEnabled = lm.isLocationEnabled
-            val nextMode = if (isEnabled) 0 else 3 // 0 = OFF, 3 = HIGH_ACCURACY
+            val nextMode = if (isEnabled) 0 else 3
 
             if (ShellManager.isAvailable()) {
                 ShellManager.runShellCommand("settings put secure location_mode $nextMode")
@@ -1558,7 +2081,6 @@ class ButtonMapperService : AccessibilityService() {
         val centerY = height / 2f
 
         val path = Path()
-        // Standard Smooth Scroll (Pixel-based as requested)
         val distance = 112.5f * multiplier
         if (up) {
             path.moveTo(centerX, (centerY - distance).coerceAtLeast(0f))
@@ -1576,6 +2098,7 @@ class ButtonMapperService : AccessibilityService() {
 
     override fun onDestroy() {
         super.onDestroy()
+        keyToast?.cancel()
         cameraManager.unregisterAvailabilityCallback(cameraCallback)
         wakeLock?.let { if (it.isHeld) it.release() }
         Shizuku.removeBinderReceivedListener(binderListener)

@@ -16,6 +16,7 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.rounded.Lock
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Icon
@@ -40,7 +41,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.DialogProperties
 import com.xenon.mylibrary.ActivityScreen
 import com.xenon.mylibrary.res.XenonDialog
-import com.xenon.mylibrary.values.ExtraLargerCornerRadius 
+import com.xenon.mylibrary.values.ExtraLargerCornerRadius
 import com.xenon.mylibrary.values.SmallestCornerRadius
 import com.xenonware.mindcontrol.R
 import com.xenonware.mindcontrol.SettingsManager
@@ -146,13 +147,30 @@ fun ButtonConfigScreen(
             contentModifier = Modifier.fillMaxSize(),
             content = { paddingValues ->
                 val stateStr = if (isScreenOff) "OFF" else "ON"
-                val pressTypes = if (keyCode == 132 || keyCode == 133) listOf("SINGLE_PRESS")
-                else listOf("SINGLE_PRESS", "DOUBLE_PRESS", "TRIPLE_PRESS", "QUADRUPLE_PRESS", "QUINTUPLE_PRESS")
-                val holdTypes = if (keyCode == 132 || keyCode == 133 || (isVolumeButton && isScreenOff)) emptyList()
-                else listOf("HOLD", "PRESS_AND_HOLD", "DOUBLE_TAP_AND_HOLD")
 
-                var isButtonOverride by rememberSaveable { 
-                    mutableStateOf(SettingsManager.isButtonOverrideEnabled(context, keyCode)) 
+                // Better Shift (Shift keys only): Single press + Hold, fixed, overrides locked on
+                val isShiftKey = SettingsManager.isShiftKey(keyCode)
+                var betterShift by rememberSaveable {
+                    mutableStateOf(isShiftKey && SettingsManager.isBetterShiftEnabled(context))
+                }
+
+                val pressTypes = when {
+                    betterShift -> listOf("SINGLE_PRESS")
+                    keyCode == 132 || keyCode == 133 -> listOf("SINGLE_PRESS")
+                    else -> listOf("SINGLE_PRESS", "DOUBLE_PRESS", "TRIPLE_PRESS", "QUADRUPLE_PRESS", "QUINTUPLE_PRESS")
+                }
+                val holdTypes = when {
+                    betterShift -> listOf("HOLD")
+                    keyCode == 132 || keyCode == 133 || (isVolumeButton && isScreenOff) -> emptyList()
+                    else -> listOf("HOLD", "PRESS_AND_HOLD", "DOUBLE_TAP_AND_HOLD")
+                }
+
+                var isButtonOverride by rememberSaveable {
+                    mutableStateOf(SettingsManager.isButtonOverrideEnabled(context, keyCode))
+                }
+                val isKeyboardKey = isFromKeyboard || SettingsManager.isKeyboardKey(keyCode)
+                var isIgnoreKeyboardActive by rememberSaveable {
+                    mutableStateOf(SettingsManager.isIgnoreKeyboardActive(context, keyCode))
                 }
 
                 Column(modifier = Modifier.fillMaxSize()) {
@@ -225,6 +243,53 @@ fun ButtonConfigScreen(
                         ),
                         verticalArrangement = Arrangement.spacedBy(2.dp)
                     ) {
+                        if (isShiftKey) {
+                            item {
+                                Surface(
+                                    color = MaterialTheme.colorScheme.surfaceContainerHighest,
+                                    shape = RoundedCornerShape(ExtraLargerCornerRadius),
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(bottom = 14.dp)
+                                ) {
+                                    Row(
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .padding(horizontal = 16.dp, vertical = 12.dp),
+                                        horizontalArrangement = Arrangement.SpaceBetween
+                                    ) {
+                                        Column(modifier = Modifier.weight(1f)) {
+                                            Text(
+                                                text = stringResource(R.string.better_shift),
+                                                style = MaterialTheme.typography.bodyLarge,
+                                                color = MaterialTheme.colorScheme.onSurface
+                                            )
+                                            Text(
+                                                text = stringResource(
+                                                    if (betterShift) R.string.better_shift_on_desc
+                                                    else R.string.better_shift_off_desc
+                                                ),
+                                                style = MaterialTheme.typography.bodyMedium,
+                                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                                            )
+                                        }
+                                        Spacer(modifier = Modifier.width(8.dp))
+                                        Switch(
+                                            checked = betterShift,
+                                            onCheckedChange = {
+                                                betterShift = it
+                                                SettingsManager.setBetterShiftEnabled(context, it)
+                                                // the two override switches follow the new mode
+                                                isButtonOverride = SettingsManager.isButtonOverrideEnabled(context, keyCode)
+                                                isIgnoreKeyboardActive = SettingsManager.isIgnoreKeyboardActive(context, keyCode)
+                                            }
+                                        )
+                                    }
+                                }
+                            }
+                        }
+
                         item {
                             Surface(
                                 color = MaterialTheme.colorScheme.surfaceContainerHighest,
@@ -254,12 +319,55 @@ fun ButtonConfigScreen(
                                     }
                                     Spacer(modifier = Modifier.width(8.dp))
                                     Switch(
-                                        checked = isButtonOverride,
+                                        checked = betterShift || isButtonOverride,
+                                        enabled = !betterShift,
                                         onCheckedChange = {
                                             isButtonOverride = it
                                             SettingsManager.setButtonOverrideEnabled(context, keyCode, it)
                                         }
                                     )
+                                }
+                            }
+                        }
+
+                        if (isKeyboardKey) {
+                            item {
+                                Surface(
+                                    color = MaterialTheme.colorScheme.surfaceContainerHighest,
+                                    shape = RoundedCornerShape(ExtraLargerCornerRadius),
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(bottom = 14.dp)
+                                ) {
+                                    Row(
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .padding(horizontal = 16.dp, vertical = 12.dp),
+                                        horizontalArrangement = Arrangement.SpaceBetween
+                                    ) {
+                                        Column(modifier = Modifier.weight(1f)) {
+                                            Text(
+                                                text = stringResource(R.string.ignore_keyboard_active),
+                                                style = MaterialTheme.typography.bodyLarge,
+                                                color = MaterialTheme.colorScheme.onSurface
+                                            )
+                                            Text(
+                                                text = stringResource(R.string.ignore_keyboard_active_desc),
+                                                style = MaterialTheme.typography.bodyMedium,
+                                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                                            )
+                                        }
+                                        Spacer(modifier = Modifier.width(8.dp))
+                                        Switch(
+                                            checked = betterShift || isIgnoreKeyboardActive,
+                                            enabled = !betterShift,
+                                            onCheckedChange = {
+                                                isIgnoreKeyboardActive = it
+                                                SettingsManager.setIgnoreKeyboardActive(context, keyCode, it)
+                                            }
+                                        )
+                                    }
                                 }
                             }
                         }
@@ -278,7 +386,7 @@ fun ButtonConfigScreen(
                                     topStart = SmallestCornerRadius,
                                     topEnd = SmallestCornerRadius,
                                     bottomStart = ExtraLargerCornerRadius ,
-                                    bottomEnd = ExtraLargerCornerRadius 
+                                    bottomEnd = ExtraLargerCornerRadius
                                 )
                                 else -> RoundedCornerShape(SmallestCornerRadius)
                             }
@@ -288,7 +396,7 @@ fun ButtonConfigScreen(
                                 shape = shape,
                                 modifier = Modifier.fillMaxWidth()
                             ) {
-                                MindControlActionSelector(keyCode, stateStr, type, onSelectAction)
+                                MindControlActionSelector(keyCode, stateStr, type, onSelectAction, locked = betterShift)
                             }
                         }
 
@@ -298,14 +406,15 @@ fun ButtonConfigScreen(
                             }
                             items(holdTypes.size) { index ->
                                 val type = holdTypes[index]
-                                val shape = when (index) {
-                                    0 -> RoundedCornerShape(
+                                val shape = when {
+                                    holdTypes.size == 1 -> RoundedCornerShape(ExtraLargerCornerRadius)
+                                    index == 0 -> RoundedCornerShape(
                                         topStart = ExtraLargerCornerRadius ,
                                         topEnd = ExtraLargerCornerRadius ,
                                         bottomStart = SmallestCornerRadius,
                                         bottomEnd = SmallestCornerRadius
                                     )
-                                    holdTypes.size - 1 -> RoundedCornerShape(
+                                    index == holdTypes.size - 1 -> RoundedCornerShape(
                                         topStart = SmallestCornerRadius,
                                         topEnd = SmallestCornerRadius,
                                         bottomStart = ExtraLargerCornerRadius ,
@@ -319,7 +428,7 @@ fun ButtonConfigScreen(
                                     shape = shape,
                                     modifier = Modifier.fillMaxWidth()
                                 ) {
-                                    MindControlActionSelector(keyCode, stateStr, type, onSelectAction)
+                                    MindControlActionSelector(keyCode, stateStr, type, onSelectAction, locked = betterShift)
                                 }
                             }
                         }
@@ -335,11 +444,14 @@ fun MindControlActionSelector(
     keyCode: Int,
     state: String,
     type: String,
-    onSelectAction: (Int, String, String) -> Unit
+    onSelectAction: (Int, String, String) -> Unit,
+    locked: Boolean = false
 ) {
     val context = LocalContext.current
-    val action = remember(keyCode, state, type) {
-        SettingsManager.getAction(context, keyCode, state, type)
+    // Locked (Better Shift): show the fixed action that really runs, not what's stored
+    val action = remember(keyCode, state, type, locked) {
+        if (locked) SettingsManager.getEffectiveAction(context, keyCode, state, type)
+        else SettingsManager.getAction(context, keyCode, state, type)
     }
 
     val shortcutLabel = stringResource(R.string.tab_shortcuts)
@@ -392,10 +504,16 @@ fun MindControlActionSelector(
         Spacer(modifier = Modifier.width(8.dp))
         OutlinedButton(
             onClick = { onSelectAction(keyCode, state, type) },
-            border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline),
+            enabled = !locked,
+            border = BorderStroke(
+                1.dp,
+                if (locked) MaterialTheme.colorScheme.outline.copy(alpha = 0.38f) else MaterialTheme.colorScheme.outline
+            ),
             colors = ButtonDefaults.outlinedButtonColors(
                 containerColor = MaterialTheme.colorScheme.surface,
-                contentColor = MaterialTheme.colorScheme.primary
+                contentColor = MaterialTheme.colorScheme.primary,
+                disabledContainerColor = MaterialTheme.colorScheme.surface,
+                disabledContentColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.7f)
             ),
             modifier = Modifier
                 .weight(1f)
@@ -406,9 +524,11 @@ fun MindControlActionSelector(
                 verticalAlignment = Alignment.CenterVertically,
                 modifier = Modifier.fillMaxWidth()
             ) {
+                val tint = if (locked) MaterialTheme.colorScheme.primary.copy(alpha = 0.7f)
+                else MaterialTheme.colorScheme.primary
                 Text(
                     text = displayAction,
-                    color = MaterialTheme.colorScheme.primary,
+                    color = tint,
                     maxLines = 2,
                     overflow = TextOverflow.Ellipsis,
                     modifier = Modifier.weight(1f)
@@ -418,8 +538,18 @@ fun MindControlActionSelector(
                     modifier = Modifier
                         .size(24.dp)
                         .padding(start = 4.dp),
-                    tint = MaterialTheme.colorScheme.primary
+                    tint = tint
                 )
+                if (locked) {
+                    Icon(
+                        imageVector = Icons.Rounded.Lock,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier
+                            .size(20.dp)
+                            .padding(start = 4.dp)
+                    )
+                }
             }
         }
     }

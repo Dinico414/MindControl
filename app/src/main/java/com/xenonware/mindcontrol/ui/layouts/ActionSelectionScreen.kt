@@ -15,6 +15,8 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -30,6 +32,8 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.rounded.KeyboardDoubleArrowRight
+import androidx.compose.material3.Checkbox
+import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
 import androidx.compose.material3.ListItem
 import androidx.compose.material3.ListItemDefaults
@@ -62,6 +66,7 @@ import androidx.compose.ui.window.DialogProperties
 import androidx.core.graphics.drawable.toBitmap
 import com.xenon.mylibrary.ActivityScreen
 import com.xenon.mylibrary.res.XenonDialog
+import com.xenonware.mindcontrol.KeyInput
 import com.xenonware.mindcontrol.R
 import com.xenonware.mindcontrol.SettingsManager
 import com.xenonware.mindcontrol.ShellManager
@@ -69,6 +74,7 @@ import com.xenonware.mindcontrol.ui.res.ActionIcon
 import com.xenonware.mindcontrol.ui.res.AodStylePickerDialog
 import com.xenonware.mindcontrol.ui.res.LiftToWakeWarningDialog
 import com.xenonware.mindcontrol.ui.res.disabledReasonFor
+import com.xenonware.mindcontrol.ui.res.formatKeyInputDisplayName
 import com.xenonware.mindcontrol.ui.res.getActionDisplayName
 import com.xenonware.mindcontrol.ui.res.getTypeDisplayName
 import com.xenonware.mindcontrol.ui.res.horizontalFadingEdges
@@ -87,6 +93,21 @@ val ActionConfigSaver = listSaver<ActionConfig?, Any>(
     restore = { if (it.isEmpty()) null else ActionConfig(it[0] as Int, it[1] as String, it[2] as String) }
 )
 
+/** Actions that repeat while the button is held – shown with a "»" marker in the lists. */
+private val CONTINUOUS_ACTIONS = setOf(
+    SettingsManager.ACTION_VOLUME_UP,
+    SettingsManager.ACTION_VOLUME_DOWN,
+    SettingsManager.ACTION_SCROLL_UP_SMOOTH,
+    SettingsManager.ACTION_SCROLL_DOWN_SMOOTH,
+    SettingsManager.ACTION_SCROLL_UP_SMOOTH_FAST,
+    SettingsManager.ACTION_SCROLL_DOWN_SMOOTH_FAST,
+    "TAP_SCROLL_UP_SMOOTH",
+    "TAP_SCROLL_DOWN_SMOOTH",
+    SettingsManager.ACTION_BRIGHTNESS_UP,
+    SettingsManager.ACTION_BRIGHTNESS_DOWN,
+    SettingsManager.ACTION_KEY_INPUT,
+) + SettingsManager.ARROW_ACTIONS
+
 @Composable
 fun ActionSelectionScreen(
     config: ActionConfig,
@@ -96,6 +117,7 @@ fun ActionSelectionScreen(
 ) {
     val tabs = listOf(
         stringResource(R.string.tab_actions),
+        stringResource(R.string.tab_keyboard),
         stringResource(R.string.tab_apps),
         stringResource(R.string.tab_shortcuts),
         stringResource(R.string.tab_system),
@@ -105,7 +127,6 @@ fun ActionSelectionScreen(
     val pagerState = rememberPagerState(pageCount = { tabs.size })
     val scope = rememberCoroutineScope()
     val isScreenOff = config.state == "OFF"
-
     var shellReady by remember { mutableStateOf(false) }
     LaunchedEffect(Unit) {
         while (true) {
@@ -192,11 +213,12 @@ fun ActionSelectionScreen(
                     )
                     when (page) {
                         0 -> ActionsTab(config, onActionSelected, shellReady, contentPadding)
-                        1 -> AppsTab(config, onActionSelected, isScreenOff, contentPadding)
-                        2 -> ShortcutsTab(config, onActionSelected, isScreenOff, contentPadding)
-                        3 -> SystemTab(config, onActionSelected, shellReady, contentPadding)
-                        4 -> MediaTab(config, onActionSelected, shellReady, contentPadding)
-                        5 -> DisplayTab(config, onActionSelected, shellReady, contentPadding)
+                        1 -> KeyboardTab(config, onActionSelected, shellReady, contentPadding)
+                        2 -> AppsTab(config, onActionSelected, isScreenOff, contentPadding)
+                        3 -> ShortcutsTab(config, onActionSelected, isScreenOff, contentPadding)
+                        4 -> SystemTab(config, onActionSelected, shellReady, contentPadding)
+                        5 -> MediaTab(config, onActionSelected, shellReady, contentPadding)
+                        6 -> DisplayTab(config, onActionSelected, shellReady, contentPadding)
                     }
                 }
             }
@@ -240,6 +262,26 @@ fun ActionsTab(
         SettingsManager.ACTION_SPEED_DIAL,
         SettingsManager.ACTION_URL,
         SettingsManager.ACTION_QR_CODE,
+    )
+    ActionList(actions, config, onActionSelected, shellReady, contentPadding)
+}
+
+@Composable
+fun KeyboardTab(
+    config: ActionConfig,
+    onActionSelected: (String) -> Unit,
+    shellReady: Boolean,
+    contentPadding: PaddingValues
+) {
+    val actions = listOf(
+        SettingsManager.ACTION_KEY_INPUT,
+        SettingsManager.ACTION_ARROW_UP,
+        SettingsManager.ACTION_ARROW_DOWN,
+        SettingsManager.ACTION_ARROW_LEFT,
+        SettingsManager.ACTION_ARROW_RIGHT,
+        SettingsManager.ACTION_SHIFT_HOLD,
+        SettingsManager.ACTION_SHIFT_LOCK,
+        SettingsManager.ACTION_OPEN_EMOJI_KEYBOARD,
     )
     ActionList(actions, config, onActionSelected, shellReady, contentPadding)
 }
@@ -376,7 +418,6 @@ fun ShortcutsTab(
         if (result.resultCode == Activity.RESULT_OK) {
             val data = result.data ?: return@rememberLauncherForActivityResult
 
-            // Log for debugging
             Log.d("ShortcutsTab", "Shortcut picker returned data: ${data.extras?.keySet()}")
 
             val shortcutIntent =
@@ -888,6 +929,7 @@ fun DisplayTab(
     }
 }
 
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 fun ActionList(
     actions: List<String>,
@@ -924,6 +966,133 @@ fun ActionList(
     val speedDialName = stringResource(R.string.speed_dial)
     val urlName = stringResource(R.string.url)
     val qrCodeName = stringResource(R.string.qr_code)
+
+    var showKeyInputDialog by rememberSaveable { mutableStateOf(false) }
+    var letterInput by rememberSaveable { mutableStateOf("") }
+    var shiftChecked by rememberSaveable { mutableStateOf(false) }
+    var ctrlChecked by rememberSaveable { mutableStateOf(false) }
+    var altChecked by rememberSaveable { mutableStateOf(false) }
+
+    if (showKeyInputDialog) {
+        val keyName = KeyInput.normalizeName(letterInput)
+        val isValid = KeyInput.isValid(keyName)
+
+        // Label shown on the chip -> key name stored in the action
+        val specialKeys = listOf(
+            stringResource(R.string.arrow_up) to "Up",
+            stringResource(R.string.arrow_down) to "Down",
+            stringResource(R.string.arrow_left) to "Left",
+            stringResource(R.string.arrow_right) to "Right",
+            "Tab" to "Tab",
+            "Enter" to "Enter",
+            "Space" to "Space",
+            "Backspace" to "Backspace",
+            "Delete" to "Delete",
+            "Esc" to "Esc",
+            "Home" to "Home",
+            "End" to "End",
+            "Page Up" to "PgUp",
+            "Page Down" to "PgDn",
+        )
+
+        XenonDialog(
+            onDismissRequest = { showKeyInputDialog = false },
+            properties = DialogProperties(usePlatformDefaultWidth = true),
+            title = stringResource(R.string.key_input_title),
+            confirmButtonText = stringResource(R.string.ok),
+            onConfirmButtonClick = {
+                if (isValid) {
+                    val spec = KeyInput.Spec(shiftChecked, ctrlChecked, altChecked, keyName)
+                    SettingsManager.setAction(
+                        context,
+                        config.keyCode,
+                        config.state,
+                        config.type,
+                        KeyInput.encode(spec)
+                    )
+                    onActionSelected(formatKeyInputDisplayName(shiftChecked, ctrlChecked, altChecked, keyName))
+                    showKeyInputDialog = false
+                }
+            },
+            content = {
+                Column(
+                    verticalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    OutlinedTextField(
+                        value = letterInput,
+                        onValueChange = { input -> letterInput = input },
+                        singleLine = true,
+                        isError = letterInput.isNotEmpty() && !isValid,
+                        label = { Text(stringResource(R.string.enter_letter_hint)) },
+                        placeholder = { Text("e.g. A, 1, /, F5, Space") },
+                        supportingText = if (letterInput.isNotEmpty() && !isValid) {
+                            { Text(stringResource(R.string.key_input_invalid)) }
+                        } else null,
+                        modifier = Modifier.fillMaxWidth()
+                    )
+
+                    FlowRow(
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        verticalArrangement = Arrangement.spacedBy(4.dp),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        specialKeys.forEach { (label, keyVal) ->
+                            FilterChip(
+                                selected = keyName.equals(keyVal, ignoreCase = true),
+                                onClick = { letterInput = keyVal },
+                                label = { Text(label, style = MaterialTheme.typography.labelMedium) }
+                            )
+                        }
+                    }
+
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            modifier = Modifier.clickable { shiftChecked = !shiftChecked }
+                        ) {
+                            Checkbox(
+                                checked = shiftChecked,
+                                onCheckedChange = { shiftChecked = it }
+                            )
+                            Text(stringResource(R.string.modifier_shift))
+                        }
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            modifier = Modifier.clickable { ctrlChecked = !ctrlChecked }
+                        ) {
+                            Checkbox(
+                                checked = ctrlChecked,
+                                onCheckedChange = { ctrlChecked = it }
+                            )
+                            Text(stringResource(R.string.modifier_ctrl))
+                        }
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            modifier = Modifier.clickable { altChecked = !altChecked }
+                        ) {
+                            Checkbox(
+                                checked = altChecked,
+                                onCheckedChange = { altChecked = it }
+                            )
+                            Text(stringResource(R.string.modifier_alt))
+                        }
+                    }
+
+                    if (isValid) {
+                        Text(
+                            text = formatKeyInputDisplayName(shiftChecked, ctrlChecked, altChecked, keyName),
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.primary
+                        )
+                    }
+                }
+            }
+        )
+    }
 
     if (showLiftToWakeWarning) {
         LiftToWakeWarningDialog(
@@ -1033,17 +1202,7 @@ fun ActionList(
             val disabledReasonRes = disabledReasonFor(action, shellReady)
 
             val displayName = getActionDisplayName(action)
-
-            val isContinuum = action == SettingsManager.ACTION_VOLUME_UP ||
-                    action == SettingsManager.ACTION_VOLUME_DOWN ||
-                    action == SettingsManager.ACTION_SCROLL_UP_SMOOTH ||
-                    action == SettingsManager.ACTION_SCROLL_DOWN_SMOOTH ||
-                    action == SettingsManager.ACTION_SCROLL_UP_SMOOTH_FAST ||
-                    action == SettingsManager.ACTION_SCROLL_DOWN_SMOOTH_FAST ||
-                    action == "TAP_SCROLL_UP_SMOOTH" ||
-                    action == "TAP_SCROLL_DOWN_SMOOTH" ||
-                    action == SettingsManager.ACTION_BRIGHTNESS_UP ||
-                    action == SettingsManager.ACTION_BRIGHTNESS_DOWN
+            val isContinuum = action in CONTINUOUS_ACTIONS
 
             val shape = when {
                 actions.size == 1 -> RoundedCornerShape(30.dp)
@@ -1100,7 +1259,16 @@ fun ActionList(
                     } else null,
                     modifier = Modifier
                         .clickable(enabled = !disabled) {
-                            if (action == SettingsManager.ACTION_AOD) {
+                            if (action == SettingsManager.ACTION_KEY_INPUT) {
+                                val saved = KeyInput.decode(
+                                    SettingsManager.getAction(context, config.keyCode, config.state, config.type)
+                                )
+                                letterInput = saved?.key ?: ""
+                                shiftChecked = saved?.shift ?: false
+                                ctrlChecked = saved?.ctrl ?: false
+                                altChecked = saved?.alt ?: false
+                                showKeyInputDialog = true
+                            } else if (action == SettingsManager.ACTION_AOD) {
                                 if (SettingsManager.shouldShowLiftToWakeWarning(context)) {
                                     showLiftToWakeWarning = true
                                 } else {

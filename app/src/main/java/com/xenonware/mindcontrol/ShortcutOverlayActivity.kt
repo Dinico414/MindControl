@@ -81,7 +81,7 @@ class ShortcutOverlayActivity : ComponentActivity() {
         }
     }
 
-    /** A cancel can race with a successful unlock, so give it a moment before treating it as "user cancelled". */
+    /** A cancel can race with a successful unlock, so give it a moment before treating it as "user canceled". */
     private val cancelCheck = Runnable {
         if (!isPending()) return@Runnable
         if (!keyguardManager.isKeyguardLocked) {
@@ -166,7 +166,7 @@ class ShortcutOverlayActivity : ComponentActivity() {
 
     override fun onResume() {
         super.onResume()
-        // Being resumed while waiting usually means the keyguard is going away. The confirm loop
+        // Being resumed while waiting usually means the keyguard is going away. The confirmation loop
         // makes sure we only continue once it is really gone.
         if (waitingForUnlock) onUnlockSignal("onResume")
     }
@@ -175,7 +175,7 @@ class ShortcutOverlayActivity : ComponentActivity() {
         super.onStop()
         // We are only stopped after launching once the shortcut's window fully covers ours, so the
         // black has done its job and can be removed now with no visible gap. (If we were stopped
-        // for some other reason while still waiting, isPending() is true and we leave it running.)
+        // for some other reason while still waiting, isPending() is true, and we leave it running.)
         if (launched) finishWithoutAnimation()
     }
 

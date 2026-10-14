@@ -96,6 +96,28 @@ object SettingsManager {
     const val PREFIX_CUSTOM_SIZE = "CUSTOM_SIZE:"
     const val PREFIX_CUSTOM_DENSITY = "CUSTOM_DENSITY:"
 
+    // ── Keyboard actions ──────────────────────────────────────────────────
+    const val ACTION_KEY_INPUT = "KEY_INPUT"
+    const val PREFIX_KEY_INPUT = "KEY_INPUT:"
+    const val ACTION_ARROW_UP = "ARROW_UP"
+    const val ACTION_ARROW_DOWN = "ARROW_DOWN"
+    const val ACTION_ARROW_LEFT = "ARROW_LEFT"
+    const val ACTION_ARROW_RIGHT = "ARROW_RIGHT"
+    const val ACTION_SHIFT_HOLD = "SHIFT_HOLD"
+    const val ACTION_SHIFT_LOCK = "SHIFT_LOCK"
+    const val ACTION_OPEN_EMOJI_KEYBOARD = "OPEN_EMOJI_KEYBOARD"
+
+    val ARROW_ACTIONS = setOf(ACTION_ARROW_UP, ACTION_ARROW_DOWN, ACTION_ARROW_LEFT, ACTION_ARROW_RIGHT)
+
+    /** Key name (understood by [KeyInput.resolveKeyCode]) for an arrow action, or null. */
+    fun arrowKeyName(action: String): String? = when (action) {
+        ACTION_ARROW_UP -> "Up"
+        ACTION_ARROW_DOWN -> "Down"
+        ACTION_ARROW_LEFT -> "Left"
+        ACTION_ARROW_RIGHT -> "Right"
+        else -> null
+    }
+
     private const val KEY_DISABLE_IN_CAMERA = "disable_in_camera"
     private const val KEY_DEFAULT_WHEN_VOLUME_VISIBLE = "default_when_volume_visible"
     private const val KEY_OVERRIDE_SCREEN_OFF = "override_screen_off"
@@ -159,13 +181,68 @@ object SettingsManager {
         PIXEL_INLINE
     }
 
+    @Volatile
+    private var cachedPrefs: SharedPreferences? = null
+
+    /**
+     * Cached after the first successful migration. Previously every getAction() call re-ran
+     * moveSharedPreferencesFrom() (file I/O), several times per key press.
+     */
     private fun prefs(context: Context): SharedPreferences {
-        val deviceProtectedContext = context.createDeviceProtectedStorageContext()
-        
-        // Migrate existing preferences if necessary
-        deviceProtectedContext.moveSharedPreferencesFrom(context, PREFS_NAME)
-        
-        return deviceProtectedContext.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+        cachedPrefs?.let { return it }
+        synchronized(this) {
+            cachedPrefs?.let { return it }
+            val appContext = context.applicationContext ?: context
+            val deviceProtectedContext = appContext.createDeviceProtectedStorageContext()
+            // Returns true when moved or when there was nothing to move; false e.g. before first unlock.
+            val migrated = deviceProtectedContext.moveSharedPreferencesFrom(appContext, PREFS_NAME)
+            val prefs = deviceProtectedContext.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+            if (migrated) cachedPrefs = prefs
+            return prefs
+        }
+    }
+
+    // ── Better Shift ──────────────────────────────────────────────────────
+    private const val KEY_BETTER_SHIFT = "better_shift"
+
+    /** Press types a Shift key offers while Better Shift is on. */
+    val BETTER_SHIFT_PRESS_TYPES = listOf("SINGLE_PRESS", "HOLD")
+
+    fun isShiftKey(keyCode: Int): Boolean =
+        keyCode == android.view.KeyEvent.KEYCODE_SHIFT_LEFT || keyCode == android.view.KeyEvent.KEYCODE_SHIFT_RIGHT
+
+    /** On by default: Shift keys only have Single press + Hold, react instantly, and always override the keyboard. */
+    fun isBetterShiftEnabled(context: Context): Boolean =
+        prefs(context).getBoolean(KEY_BETTER_SHIFT, true)
+
+    fun setBetterShiftEnabled(context: Context, enabled: Boolean) {
+        prefs(context).edit { putBoolean(KEY_BETTER_SHIFT, enabled) }
+    }
+
+    fun isBetterShiftKey(context: Context, keyCode: Int): Boolean =
+        isShiftKey(keyCode) && isBetterShiftEnabled(context)
+
+    /** For the button screen: which press types to list for this key. */
+    fun pressTypesFor(context: Context, keyCode: Int, allTypes: List<String>): List<String> =
+        if (isBetterShiftKey(context, keyCode)) allTypes.filter { it in BETTER_SHIFT_PRESS_TYPES } else allTypes
+
+    /** For the button screen: the "override while keyboard is active" switch is forced on and disabled. */
+    fun isKeyboardOverrideLocked(context: Context, keyCode: Int): Boolean = isBetterShiftKey(context, keyCode)
+
+    /** For the button screen: with Better Shift on, the Shift press types are shown but can't be changed. */
+    fun isPressTypeLocked(context: Context, keyCode: Int): Boolean = isBetterShiftKey(context, keyCode)
+
+    /**
+     * The action that actually runs. Better Shift keys are fixed: Single press = Shift, Hold = Shift Lock,
+     * every other press type is blocked. Anything stored for Shift only applies when Better Shift is off.
+     */
+    fun getEffectiveAction(context: Context, keyCode: Int, state: String, type: String): String {
+        if (!isBetterShiftKey(context, keyCode)) return getAction(context, keyCode, state, type)
+        return when (type) {
+            "SINGLE_PRESS" -> ACTION_SHIFT_HOLD
+            "HOLD" -> ACTION_SHIFT_LOCK
+            else -> ACTION_NONE
+        }
     }
 
     fun getAction(context: Context, keyCode: Int, state: String, type: String): String {
@@ -238,7 +315,7 @@ object SettingsManager {
     private fun updateAppIcon(context: Context, palette: Palette) {
         val packageManager = context.packageManager
         val packageName = context.packageName
-        
+
         val palettes = listOf(
             Palette.Black to "MainActivityAliasBlack",
             Palette.White to "MainActivityAliasWhite",
@@ -252,7 +329,7 @@ object SettingsManager {
             } else {
                 PackageManager.COMPONENT_ENABLED_STATE_DISABLED
             }
-            
+
             try {
                 // Da wir im Manifest ${applicationId}. Alias nutzen,
                 // bauen wir den Namen hier exakt so zusammen.
@@ -425,6 +502,7 @@ object SettingsManager {
     }
 
     fun isButtonOverrideEnabled(context: Context, keyCode: Int): Boolean {
+        if (isBetterShiftKey(context, keyCode)) return true
         val prefs = prefs(context)
         val key = "btn_override_$keyCode"
         if (prefs.contains(key)) {
@@ -449,5 +527,26 @@ object SettingsManager {
 
     fun setButtonOverrideEnabled(context: Context, keyCode: Int, enabled: Boolean) {
         prefs(context).edit { putBoolean("btn_override_$keyCode", enabled) }
+    }
+
+    val keyboardKeyCodes: Set<Int> = (7..16).toSet() +   // Numbers 0-9
+            (29..56).toSet() +                               // Letters a-z, comma, period
+            (57..60).toSet() +                               // Alt, Shift
+            (61..76).toSet() +                               // Tab, Space, Enter, Backspace, punctuation
+            (92..93).toSet() +                               // Page Up, Page Down
+            (111..116).toSet() +                             // Escape, Delete, Ctrl, Caps/Scroll Lock
+            (123..124).toSet() +                             // End, Insert
+            (19..23).toSet() +                               // Arrow keys / Dpad
+            (131..142).toSet()                               // F1-F12
+
+    fun isKeyboardKey(keyCode: Int): Boolean = keyCode in keyboardKeyCodes
+
+    fun isIgnoreKeyboardActive(context: Context, keyCode: Int): Boolean {
+        if (isKeyboardOverrideLocked(context, keyCode)) return true
+        return prefs(context).getBoolean("ignore_kbd_active_$keyCode", false)
+    }
+
+    fun setIgnoreKeyboardActive(context: Context, keyCode: Int, enabled: Boolean) {
+        prefs(context).edit { putBoolean("ignore_kbd_active_$keyCode", enabled) }
     }
 }

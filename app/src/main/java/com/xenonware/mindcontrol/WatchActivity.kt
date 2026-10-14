@@ -1,5 +1,7 @@
 package com.xenonware.mindcontrol
 
+import android.Manifest
+import android.R
 import android.app.KeyguardManager
 import android.content.BroadcastReceiver
 import android.content.ComponentName
@@ -17,6 +19,7 @@ import android.view.KeyEvent
 import android.view.WindowManager
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
+import androidx.annotation.RequiresPermission
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.animateFloatAsState
@@ -94,6 +97,7 @@ class WatchActivity : ComponentActivity() {
 
     private var keyguardListener: KeyguardManager.KeyguardLockedStateListener? = null
 
+    @RequiresPermission(Manifest.permission.SUBSCRIBE_TO_KEYGUARD_LOCKED_STATE)
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
@@ -228,7 +232,7 @@ class WatchActivity : ComponentActivity() {
 
             LaunchedEffect(Unit) {
                 val isLockEnabled = SettingsManager.isAodLockEnabled(context)
-                val km = context.getSystemService(Context.KEYGUARD_SERVICE) as KeyguardManager
+                val km = context.getSystemService(KEYGUARD_SERVICE) as KeyguardManager
                 while (isActive) {
                     if (isLockEnabled && !km.isKeyguardLocked) {
                         Log.d("WatchActivity", "Polling check: device unlocked, finishing AOD")
@@ -374,7 +378,7 @@ class WatchActivity : ComponentActivity() {
                                                     finish()
                                                     overridePendingTransition(
                                                         0,
-                                                        android.R.anim.fade_out
+                                                        R.anim.fade_out
                                                     )
                                                 }
                                             } else {
@@ -385,11 +389,15 @@ class WatchActivity : ComponentActivity() {
                                                             "WatchActivity",
                                                             "Triggering Play/Pause"
                                                         )
-                                                        val audioManager = context.getSystemService(Context.AUDIO_SERVICE) as AudioManager
+                                                        val audioManager = context.getSystemService(
+                                                            AUDIO_SERVICE
+                                                        ) as AudioManager
                                                         audioManager.dispatchMediaKeyEvent(KeyEvent(KeyEvent.ACTION_DOWN, KeyEvent.KEYCODE_MEDIA_PLAY_PAUSE))
                                                         audioManager.dispatchMediaKeyEvent(KeyEvent(KeyEvent.ACTION_UP, KeyEvent.KEYCODE_MEDIA_PLAY_PAUSE))
                                                     } else if (lockedDirection == "H") {
-                                                        val audioManager = context.getSystemService(Context.AUDIO_SERVICE) as AudioManager
+                                                        val audioManager = context.getSystemService(
+                                                            AUDIO_SERVICE
+                                                        ) as AudioManager
                                                         if (totalDragX < -mediaThreshold) {
                                                             Log.d(
                                                                 "WatchActivity",

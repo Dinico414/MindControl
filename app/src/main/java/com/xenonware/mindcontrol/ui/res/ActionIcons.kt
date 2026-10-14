@@ -2,6 +2,15 @@ package com.xenonware.mindcontrol.ui.res
 
 import android.graphics.drawable.Drawable
 import androidx.compose.foundation.Image
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.ArrowBack
 import androidx.compose.material.icons.automirrored.rounded.RotateRight
@@ -24,6 +33,8 @@ import androidx.compose.material.icons.rounded.ContentCut
 import androidx.compose.material.icons.rounded.ContentPaste
 import androidx.compose.material.icons.rounded.DataUsage
 import androidx.compose.material.icons.rounded.DoNotDisturbOn
+import androidx.compose.material.icons.rounded.East
+import androidx.compose.material.icons.rounded.EmojiEmotions
 import androidx.compose.material.icons.rounded.FastForward
 import androidx.compose.material.icons.rounded.FastRewind
 import androidx.compose.material.icons.rounded.FlashlightOn
@@ -31,8 +42,10 @@ import androidx.compose.material.icons.rounded.Forward10
 import androidx.compose.material.icons.rounded.History
 import androidx.compose.material.icons.rounded.Home
 import androidx.compose.material.icons.rounded.Info
+import androidx.compose.material.icons.rounded.Keyboard
 import androidx.compose.material.icons.rounded.KeyboardArrowDown
 import androidx.compose.material.icons.rounded.KeyboardArrowUp
+import androidx.compose.material.icons.rounded.KeyboardCapslock
 import androidx.compose.material.icons.rounded.KeyboardDoubleArrowDown
 import androidx.compose.material.icons.rounded.KeyboardDoubleArrowUp
 import androidx.compose.material.icons.rounded.Language
@@ -41,6 +54,7 @@ import androidx.compose.material.icons.rounded.Lock
 import androidx.compose.material.icons.rounded.Menu
 import androidx.compose.material.icons.rounded.MicOff
 import androidx.compose.material.icons.rounded.Nfc
+import androidx.compose.material.icons.rounded.North
 import androidx.compose.material.icons.rounded.Notifications
 import androidx.compose.material.icons.rounded.Phone
 import androidx.compose.material.icons.rounded.PlayArrow
@@ -56,23 +70,35 @@ import androidx.compose.material.icons.rounded.Settings
 import androidx.compose.material.icons.rounded.SettingsBackupRestore
 import androidx.compose.material.icons.rounded.SkipNext
 import androidx.compose.material.icons.rounded.SkipPrevious
+import androidx.compose.material.icons.rounded.South
 import androidx.compose.material.icons.rounded.Stop
 import androidx.compose.material.icons.rounded.Straighten
 import androidx.compose.material.icons.rounded.Tune
 import androidx.compose.material.icons.rounded.Vibration
 import androidx.compose.material.icons.rounded.WatchLater
+import androidx.compose.material.icons.rounded.West
 import androidx.compose.material.icons.rounded.Wifi
 import androidx.compose.material3.Icon
 import androidx.compose.material3.LocalContentColor
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Surface
+import androidx.compose.material3.Switch
+import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.unit.dp
 import androidx.core.graphics.drawable.toBitmap
+import com.xenonware.mindcontrol.KeyInput
 import com.xenonware.mindcontrol.R
 import com.xenonware.mindcontrol.SettingsManager
 
@@ -109,11 +135,28 @@ fun disabledReasonFor(action: String, shellReady: Boolean): Int? = when {
     else -> null
 }
 
+fun formatKeyInputDisplayName(isShift: Boolean, isCtrl: Boolean, isAlt: Boolean, letter: String): String {
+    val mods = mutableListOf<String>()
+    if (isCtrl) mods.add("Ctrl")
+    if (isAlt) mods.add("Alt")
+    if (isShift) mods.add("Shift")
+    mods.add(if (letter.length == 1) letter.uppercase() else letter)
+    return "Key: " + mods.joinToString(" + ")
+}
+
 @Composable
 fun getActionDisplayName(action: String): String {
     val resId = when (action) {
         SettingsManager.ACTION_NONE -> R.string.action_none
         SettingsManager.ACTION_DEFAULT -> R.string.action_default
+        SettingsManager.ACTION_KEY_INPUT -> R.string.action_key_input
+        SettingsManager.ACTION_ARROW_UP -> R.string.action_arrow_up
+        SettingsManager.ACTION_ARROW_DOWN -> R.string.action_arrow_down
+        SettingsManager.ACTION_ARROW_LEFT -> R.string.action_arrow_left
+        SettingsManager.ACTION_ARROW_RIGHT -> R.string.action_arrow_right
+        SettingsManager.ACTION_SHIFT_HOLD -> R.string.action_shift_hold
+        SettingsManager.ACTION_SHIFT_LOCK -> R.string.action_shift_lock
+        SettingsManager.ACTION_OPEN_EMOJI_KEYBOARD -> R.string.action_open_emoji_keyboard
         SettingsManager.ACTION_PLAY_PAUSE -> R.string.action_play_pause
         SettingsManager.ACTION_NEXT -> R.string.action_next
         SettingsManager.ACTION_PREVIOUS -> R.string.action_previous
@@ -181,16 +224,96 @@ fun getActionDisplayName(action: String): String {
         SettingsManager.ACTION_CUSTOM_DENSITY_TOGGLE -> R.string.action_custom_density_toggle
         else -> null
     }
-    return if (resId != null) stringResource(resId) else if (action.startsWith(SettingsManager.PREFIX_CUSTOM_SIZE)) {
-        val size = action.removePrefix(SettingsManager.PREFIX_CUSTOM_SIZE)
-        val toggleName = stringResource(R.string.action_custom_size_toggle)
-        "$toggleName: $size"
-    } else if (action.startsWith(SettingsManager.PREFIX_CUSTOM_DENSITY)) {
-        val density = action.removePrefix(SettingsManager.PREFIX_CUSTOM_DENSITY)
-        val toggleName = stringResource(R.string.action_custom_density_toggle)
-        "$toggleName: $density"
-    } else action.split("_").joinToString(" ") { word ->
-        word.lowercase().replaceFirstChar { if (it.isLowerCase()) it.titlecase() else it.toString() }
+    if (resId != null) return stringResource(resId)
+
+    return when {
+        action.startsWith(SettingsManager.PREFIX_CUSTOM_SIZE) -> {
+            val size = action.removePrefix(SettingsManager.PREFIX_CUSTOM_SIZE)
+            "${stringResource(R.string.action_custom_size_toggle)}: $size"
+        }
+        action.startsWith(SettingsManager.PREFIX_CUSTOM_DENSITY) -> {
+            val density = action.removePrefix(SettingsManager.PREFIX_CUSTOM_DENSITY)
+            "${stringResource(R.string.action_custom_density_toggle)}: $density"
+        }
+        action.startsWith(SettingsManager.PREFIX_KEY_INPUT) -> {
+            val spec = KeyInput.decode(action)
+            if (spec != null) formatKeyInputDisplayName(spec.shift, spec.ctrl, spec.alt, spec.key)
+            else stringResource(R.string.action_key_input)
+        }
+        else -> action.split("_").joinToString(" ") { word ->
+            word.lowercase().replaceFirstChar { if (it.isLowerCase()) it.titlecase() else it.toString() }
+        }
+    }
+}
+
+/**
+ * Drop-in for the press-type screen (the one listing Single press, Double press, Hold …).
+ * Shows the Better Shift switch only for the Shift keys; renders nothing for any other button.
+ * [onChanged] lets the screen refresh its press-type list and keyboard-override switch.
+ */
+@Composable
+fun BetterShiftSetting(
+    keyCode: Int,
+    onChanged: (Boolean) -> Unit = {},
+    modifier: Modifier = Modifier
+) {
+    if (!SettingsManager.isShiftKey(keyCode)) return
+    val context = LocalContext.current
+    var enabled by remember { mutableStateOf(SettingsManager.isBetterShiftEnabled(context)) }
+    BetterShiftCard(
+        enabled = enabled,
+        onEnabledChange = {
+            enabled = it
+            SettingsManager.setBetterShiftEnabled(context, it)
+            onChanged(it)
+        },
+        modifier = modifier
+    )
+}
+
+/**
+ * "Better Shift" switch for the Shift keys' press-type screen (Single press, Double press, Hold …).
+ * On (default): only Single press + Hold, instant reaction, keyboard override locked on.
+ */
+@Composable
+fun BetterShiftCard(
+    enabled: Boolean,
+    onEnabledChange: (Boolean) -> Unit,
+    modifier: Modifier = Modifier
+) {
+    Surface(
+        color = MaterialTheme.colorScheme.surfaceContainerHighest,
+        shape = RoundedCornerShape(30.dp),
+        modifier = modifier.fillMaxWidth()
+    ) {
+        Column(
+            modifier = Modifier.padding(horizontal = 20.dp, vertical = 16.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Icon(
+                    imageVector = Icons.Rounded.KeyboardCapslock,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.primary,
+                    modifier = Modifier.size(24.dp)
+                )
+                Spacer(Modifier.width(12.dp))
+                Text(
+                    text = stringResource(R.string.better_shift),
+                    style = MaterialTheme.typography.titleMedium,
+                    color = MaterialTheme.colorScheme.onSurface,
+                    modifier = Modifier.weight(1f)
+                )
+                Switch(checked = enabled, onCheckedChange = onEnabledChange)
+            }
+            Text(
+                text = stringResource(
+                    if (enabled) R.string.better_shift_on_desc else R.string.better_shift_off_desc
+                ),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+        }
     }
 }
 
@@ -232,6 +355,14 @@ fun ActionIcon(action: String, modifier: Modifier = Modifier, tint: Color = Loca
         action.startsWith(SettingsManager.PREFIX_QR_CODE) || action == SettingsManager.ACTION_QR_CODE -> Icons.Rounded.QrCode
         action.startsWith(SettingsManager.PREFIX_CUSTOM_SIZE) || action == SettingsManager.ACTION_CUSTOM_SIZE_TOGGLE -> Icons.Rounded.AspectRatio
         action.startsWith(SettingsManager.PREFIX_CUSTOM_DENSITY) || action == SettingsManager.ACTION_CUSTOM_DENSITY_TOGGLE -> Icons.Rounded.Straighten
+        action.startsWith(SettingsManager.PREFIX_KEY_INPUT) || action == SettingsManager.ACTION_KEY_INPUT -> Icons.Rounded.Keyboard
+        action == SettingsManager.ACTION_ARROW_UP -> Icons.Rounded.North
+        action == SettingsManager.ACTION_ARROW_DOWN -> Icons.Rounded.South
+        action == SettingsManager.ACTION_ARROW_LEFT -> Icons.Rounded.West
+        action == SettingsManager.ACTION_ARROW_RIGHT -> Icons.Rounded.East
+        action == SettingsManager.ACTION_SHIFT_HOLD -> Icons.Rounded.KeyboardCapslock
+        action == SettingsManager.ACTION_SHIFT_LOCK -> Icons.Rounded.Lock
+        action == SettingsManager.ACTION_OPEN_EMOJI_KEYBOARD -> Icons.Rounded.EmojiEmotions
         action == SettingsManager.ACTION_NONE -> Icons.Rounded.Block
         action == SettingsManager.ACTION_DEFAULT -> Icons.Rounded.SettingsBackupRestore
         action == SettingsManager.ACTION_HOME -> Icons.Rounded.Home
@@ -279,17 +410,17 @@ fun ActionIcon(action: String, modifier: Modifier = Modifier, tint: Color = Loca
         action == SettingsManager.ACTION_VOLUME_DIALOG -> Icons.Rounded.Tune
         action == SettingsManager.ACTION_MUTE_MIC_TOGGLE -> Icons.Rounded.MicOff
         action == SettingsManager.ACTION_ASPECT_RATIO_FULL_4_3 ||
-        action == SettingsManager.ACTION_ASPECT_RATIO_FULL_16_9 ||
-        action == SettingsManager.ACTION_ASPECT_RATIO_CYCLE ||
-        action == SettingsManager.ACTION_ASPECT_RATIO_FULL_4_3_16_9 ||
-        action == SettingsManager.ACTION_ASPECT_RATIO_UP ||
-        action == SettingsManager.ACTION_ASPECT_RATIO_DOWN ||
-        action == SettingsManager.ACTION_SIZE_FULL ||
-        action == SettingsManager.ACTION_SIZE_4_3 ||
-        action == SettingsManager.ACTION_SIZE_16_9 -> Icons.Rounded.AspectRatio
+                action == SettingsManager.ACTION_ASPECT_RATIO_FULL_16_9 ||
+                action == SettingsManager.ACTION_ASPECT_RATIO_CYCLE ||
+                action == SettingsManager.ACTION_ASPECT_RATIO_FULL_4_3_16_9 ||
+                action == SettingsManager.ACTION_ASPECT_RATIO_UP ||
+                action == SettingsManager.ACTION_ASPECT_RATIO_DOWN ||
+                action == SettingsManager.ACTION_SIZE_FULL ||
+                action == SettingsManager.ACTION_SIZE_4_3 ||
+                action == SettingsManager.ACTION_SIZE_16_9 -> Icons.Rounded.AspectRatio
         action == SettingsManager.ACTION_DENSITY_CYCLE ||
-        action == SettingsManager.ACTION_DENSITY_300 ||
-        action == SettingsManager.ACTION_DENSITY_400 -> Icons.Rounded.Straighten
+                action == SettingsManager.ACTION_DENSITY_300 ||
+                action == SettingsManager.ACTION_DENSITY_400 -> Icons.Rounded.Straighten
         action == SettingsManager.ACTION_PREVIOUS -> Icons.Rounded.SkipPrevious
         action == SettingsManager.ACTION_NEXT -> Icons.Rounded.SkipNext
         action == SettingsManager.ACTION_PLAY_PAUSE -> Icons.Rounded.PlayArrow

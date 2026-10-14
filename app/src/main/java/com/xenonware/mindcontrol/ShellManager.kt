@@ -5,6 +5,7 @@ import android.content.Intent
 import android.content.pm.PackageManager
 import android.os.ParcelFileDescriptor
 import android.util.Log
+import androidx.core.content.edit
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -118,7 +119,7 @@ object ShellManager {
         }
 
     private fun saveRootResult(granted: Boolean) {
-        prefs().edit().putString(KEY_ROOT_RESULT, if (granted) "granted" else "denied").apply()
+        prefs().edit { putString(KEY_ROOT_RESULT, if (granted) "granted" else "denied") }
     }
 
     /** Shows the Magisk/KernelSU prompt. Only call on user action. */

@@ -51,6 +51,21 @@
     <string name="keyboard_color">Tastaturfarbe</string>
     <string name="button_override">Tasten-Überschreibung</string>
     <string name="button_override_desc">Benutzerdefinierte Aktionen und Neubelegung für diese Taste aktivieren</string>
+    <string name="ignore_keyboard_active">Tastatur-Aktivität ignorieren</string>
+    <string name="ignore_keyboard_active_desc">Benutzerdefinierte Aktionen auch ausführen, wenn ein Textfeld fokussiert ist</string>
+    <string name="action_key_input">Tastendruck / Buchstabe</string>
+    <string name="key_input_title">Tastendruck Aktion</string>
+    <string name="enter_letter_hint">Buchstabe oder Taste</string>
+    <string name="modifier_shift">Shift</string>
+    <string name="modifier_ctrl">Strg</string>
+    <string name="modifier_alt">Alt</string>
+    <string name="arrow_up">Oben ↑</string>
+    <string name="arrow_down">Unten ↓</string>
+    <string name="arrow_left">Links ←</string>
+    <string name="arrow_right">Rechts →</string>
+    <string name="action_shift_hold">Shift Halten</string>
+    <string name="action_shift_lock">Shift Sperre</string>
+    <string name="action_open_emoji_keyboard">Emoji Tastatur</string>
 
     <!-- Dialogs -->
     <string name="notice">Hinweis</string>
@@ -232,9 +247,9 @@
 
     <string name="buy_me_a_coffee">Kauf mir einen Kaffee</string>
     <string name="buy_me_a_coffee_description">Unterstütze den Entwickler von MindControl</string>
-    <string name="style_track">Track</string>
-    <string name="style_digital_abstract">Digital Abstract</string>
-    <string name="style_cubes">Cube</string>
+    <string name="style_track">Spur</string>
+    <string name="style_digital_abstract">Digital Abstrakt</string>
+    <string name="style_cubes">Würfel</string>
     <string name="style_text">Textuhr</string>
 
     <!-- Clock Options -->
@@ -265,4 +280,13 @@
     <string name="weight_extra_bold">Extra Fett</string>
     <string name="font_italic">Kursiv</string>
     <string name="lock">Sperren</string>
+    <string name="tab_keyboard">Keyboard</string>
+    <string name="action_arrow_up">Pfeil auf</string>
+    <string name="action_arrow_down">Pfeil ab</string>
+    <string name="action_arrow_left">Pfeil links</string>
+    <string name="action_arrow_right">Pfeil rechts</string>
+    <string name="key_input_invalid">Unbekannte Taste</string>
+    <string name="better_shift">Better Shift</string>
+    <string name="better_shift_on_desc">Tap for Shift, hold for Shift Lock. Reacts instantly and always overrides the keyboard. Other press types are blocked.</string>
+    <string name="better_shift_off_desc">Shift works like any other button, with all press types and settings.</string>
 </resources>

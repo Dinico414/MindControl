@@ -51,6 +51,21 @@
     <string name="keyboard_color">Keyboard color</string>
     <string name="button_override">Button Override</string>
     <string name="button_override_desc">Enable custom actions and remapping for this button</string>
+    <string name="ignore_keyboard_active">Ignore keyboard active</string>
+    <string name="ignore_keyboard_active_desc">Trigger custom actions even when typing or text field is focused</string>
+    <string name="action_key_input">Key Press / Letter</string>
+    <string name="key_input_title">Key Press Action</string>
+    <string name="enter_letter_hint">Letter or key</string>
+    <string name="modifier_shift">Shift</string>
+    <string name="modifier_ctrl">Ctrl</string>
+    <string name="modifier_alt">Alt</string>
+    <string name="arrow_up">Up ↑</string>
+    <string name="arrow_down">Down ↓</string>
+    <string name="arrow_left">Left ←</string>
+    <string name="arrow_right">Right →</string>
+    <string name="action_shift_hold">Shift Hold</string>
+    <string name="action_shift_lock">Shift Lock</string>
+    <string name="action_open_emoji_keyboard">Emoji Keyboard</string>
 
     <!-- Dialogs -->
     <string name="notice">Notice</string>
@@ -265,4 +280,13 @@
     <string name="weight_extra_bold">Extra Bold</string>
     <string name="font_italic">Italic</string>
     <string name="lock">Lock</string>
+    <string name="tab_keyboard">Keyboard</string>
+    <string name="action_arrow_up">Arrow up</string>
+    <string name="action_arrow_down">Arrow down</string>
+    <string name="action_arrow_left">Arrow left</string>
+    <string name="action_arrow_right">Arrow right</string>
+    <string name="key_input_invalid">Unknown key</string>
+    <string name="better_shift">Better Shift</string>
+    <string name="better_shift_on_desc">Tap for Shift, hold for Shift Lock. Reacts instantly and always overrides the keyboard. Other press types are blocked.</string>
+    <string name="better_shift_off_desc">Shift works like any other button, with all press types and settings.</string>
 </resources>

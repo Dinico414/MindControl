@@ -1,6 +1,14 @@
 package com.xenonware.mindcontrol.ui.layouts
 
+import android.content.Context
 import android.content.res.Configuration
+import android.hardware.input.InputManager
+import android.view.InputDevice
+import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
@@ -27,7 +35,6 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
-import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -75,7 +82,7 @@ fun GridScreen(
         Row(
             modifier = Modifier
                 .weight(2f)
-                .fillMaxWidth()
+                .fillMaxWidth(),
         ) {
             // AI Button
             RedTheme {
@@ -86,32 +93,42 @@ fun GridScreen(
                         .fillMaxHeight()
                         .padding(end = 4.dp, bottom = 4.dp),
                     shape = RoundedCornerShape(16.dp),
-                    color = if (pressedKeys.contains(131)) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.primaryContainer
+                    color = if (pressedKeys.contains(131)) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.primaryContainer,
                 ) {
                     Row(
                         verticalAlignment = Alignment.CenterVertically,
                         modifier = Modifier
                             .fillMaxSize()
-                            .padding(8.dp)
+                            .padding(8.dp),
                     ) {
                         Box(
-                            modifier = Modifier.weight(0.333f), contentAlignment = Alignment.Center
+                            modifier = Modifier.weight(0.333f),
+                            contentAlignment = Alignment.Center,
                         ) {
                             Icon(
                                 painter = painterResource(id = R.drawable.stars),
                                 contentDescription = null,
-                                tint = if (pressedKeys.contains(131)) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onPrimaryContainer
+                                tint = if (pressedKeys.contains(131)) {
+                                    MaterialTheme.colorScheme.onPrimary
+                                } else {
+                                    MaterialTheme.colorScheme.onPrimaryContainer
+                                },
                             )
                         }
                         Box(
-                            modifier = Modifier.weight(0.667f), contentAlignment = Alignment.Center
+                            modifier = Modifier.weight(0.667f),
+                            contentAlignment = Alignment.Center,
                         ) {
                             Text(
                                 text = stringResource(R.string.ai_button),
                                 style = MaterialTheme.typography.titleMedium,
                                 textAlign = TextAlign.Center,
                                 fontFamily = QuicksandTitleVariable,
-                                color = if (pressedKeys.contains(131)) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onPrimaryContainer
+                                color = if (pressedKeys.contains(131)) {
+                                    MaterialTheme.colorScheme.onPrimary
+                                } else {
+                                    MaterialTheme.colorScheme.onPrimaryContainer
+                                },
                             )
                         }
                     }
@@ -225,8 +242,7 @@ fun GridScreen(
                 .weight(4f)
                 .fillMaxWidth()
         ) {
-            val configuration = LocalConfiguration.current
-            val hasKeyboard = configuration.keyboard != Configuration.KEYBOARD_NOKEYS
+            val hasKeyboard = rememberHasKeyboard()
 
             Column(
                 modifier = Modifier
@@ -508,5 +524,70 @@ private fun AutoHyphenatedButtonText(
             textAlign = TextAlign.Center,
             color = color,
         )
+    }
+}
+
+@Composable
+private fun rememberHasKeyboard(): Boolean {
+    val context = LocalContext.current
+    val configuration = LocalConfiguration.current
+
+    var hasKeyboard by remember {
+        mutableStateOf(
+            (configuration.keyboard != Configuration.KEYBOARD_NOKEYS) ||
+            hasPhysicalKeyboardConnected(context)
+        )
+    }
+
+    DisposableEffect(context, configuration) {
+        val inputManager = context.getSystemService(Context.INPUT_SERVICE) as? InputManager
+        val listener = object : InputManager.InputDeviceListener {
+            private fun update() {
+                val configHasKeyboard = configuration.keyboard != Configuration.KEYBOARD_NOKEYS
+                val inputManagerHasKeyboard = inputManager?.let { im ->
+                    im.inputDeviceIds.any { id ->
+                        val device = im.getInputDevice(id)
+                        ((device != null) && (!device.isVirtual) && ((device.sources and InputDevice.SOURCE_KEYBOARD) != 0))
+                    }
+                } == true
+                hasKeyboard = configHasKeyboard || inputManagerHasKeyboard
+            }
+
+            override fun onInputDeviceAdded(deviceId: Int) = update()
+            override fun onInputDeviceRemoved(deviceId: Int) = update()
+            override fun onInputDeviceChanged(deviceId: Int) = update()
+        }
+
+        try {
+            inputManager?.registerInputDeviceListener(listener, null)
+            val configHasKeyboard = configuration.keyboard != Configuration.KEYBOARD_NOKEYS
+            val inputManagerHasKeyboard = inputManager?.let { im ->
+                im.inputDeviceIds.any { id ->
+                    val device = im.getInputDevice(id)
+                    ((device != null) && (!device.isVirtual) && ((device.sources and InputDevice.SOURCE_KEYBOARD) != 0))
+                }
+            } == true
+            hasKeyboard = configHasKeyboard || inputManagerHasKeyboard
+        } catch (_: Exception) {}
+
+        onDispose {
+            try {
+                inputManager?.unregisterInputDeviceListener(listener)
+            } catch (_: Exception) {}
+        }
+    }
+
+    return hasKeyboard
+}
+
+private fun hasPhysicalKeyboardConnected(context: Context): Boolean {
+    return try {
+        val inputManager = context.getSystemService(Context.INPUT_SERVICE) as? InputManager
+        inputManager?.inputDeviceIds?.any { id ->
+            val device = inputManager.getInputDevice(id)
+            ((device != null) && (!device.isVirtual) && ((device.sources and InputDevice.SOURCE_KEYBOARD) != 0))
+        } == true
+    } catch (_: Exception) {
+        false
     }
 }
