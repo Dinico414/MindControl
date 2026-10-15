@@ -931,7 +931,6 @@ fun DisplayTab(
     }
 }
 
-@OptIn(ExperimentalLayoutApi::class)
 @Composable
 fun ActionList(
     actions: List<String>,

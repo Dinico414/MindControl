@@ -2,15 +2,6 @@ package com.xenonware.mindcontrol.ui.res
 
 import android.graphics.drawable.Drawable
 import androidx.compose.foundation.Image
-import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.ArrowBack
 import androidx.compose.material.icons.automirrored.rounded.ArrowForward
@@ -81,23 +72,14 @@ import androidx.compose.material.icons.rounded.West
 import androidx.compose.material.icons.rounded.Wifi
 import androidx.compose.material3.Icon
 import androidx.compose.material3.LocalContentColor
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Surface
-import androidx.compose.material3.Switch
-import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.unit.dp
 import androidx.core.graphics.drawable.toBitmap
 import com.xenonware.mindcontrol.KeyInput
 import com.xenonware.mindcontrol.R
@@ -247,77 +229,6 @@ fun getActionDisplayName(action: String): String {
         }
         else -> action.split("_").joinToString(" ") { word ->
             word.lowercase().replaceFirstChar { if (it.isLowerCase()) it.titlecase() else it.toString() }
-        }
-    }
-}
-
-/**
- * Drop-in for the press-type screen (the one listing Single press, Double press, Hold …).
- * Shows the Better Shift switch only for the Shift keys; renders nothing for any other button.
- * [onChanged] lets the screen refresh its press-type list and keyboard-override switch.
- */
-@Composable
-fun BetterShiftSetting(
-    keyCode: Int,
-    onChanged: (Boolean) -> Unit = {},
-    modifier: Modifier = Modifier
-) {
-    if (!SettingsManager.isShiftKey(keyCode)) return
-    val context = LocalContext.current
-    var enabled by remember { mutableStateOf(SettingsManager.isBetterShiftEnabled(context)) }
-    BetterShiftCard(
-        enabled = enabled,
-        onEnabledChange = {
-            enabled = it
-            SettingsManager.setBetterShiftEnabled(context, it)
-            onChanged(it)
-        },
-        modifier = modifier
-    )
-}
-
-/**
- * "Better Shift" switch for the Shift keys' press-type screen (Single press, Double press, Hold …).
- * On (default): only Single press + Hold, instant reaction, keyboard override locked on.
- */
-@Composable
-fun BetterShiftCard(
-    enabled: Boolean,
-    onEnabledChange: (Boolean) -> Unit,
-    modifier: Modifier = Modifier
-) {
-    Surface(
-        color = MaterialTheme.colorScheme.surfaceContainerHighest,
-        shape = RoundedCornerShape(30.dp),
-        modifier = modifier.fillMaxWidth()
-    ) {
-        Column(
-            modifier = Modifier.padding(horizontal = 20.dp, vertical = 16.dp),
-            verticalArrangement = Arrangement.spacedBy(8.dp)
-        ) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Icon(
-                    imageVector = Icons.Rounded.KeyboardCapslock,
-                    contentDescription = null,
-                    tint = MaterialTheme.colorScheme.primary,
-                    modifier = Modifier.size(24.dp)
-                )
-                Spacer(Modifier.width(12.dp))
-                Text(
-                    text = stringResource(R.string.better_shift),
-                    style = MaterialTheme.typography.titleMedium,
-                    color = MaterialTheme.colorScheme.onSurface,
-                    modifier = Modifier.weight(1f)
-                )
-                Switch(checked = enabled, onCheckedChange = onEnabledChange)
-            }
-            Text(
-                text = stringResource(
-                    if (enabled) R.string.better_shift_on_desc else R.string.better_shift_off_desc
-                ),
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
-            )
         }
     }
 }

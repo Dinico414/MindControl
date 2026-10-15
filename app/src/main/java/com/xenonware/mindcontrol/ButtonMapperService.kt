@@ -175,20 +175,44 @@ class ButtonMapperService : AccessibilityService() {
         return if (powerManager.isInteractive && !km.isKeyguardLocked) "ON" else "OFF"
     }
 
-    private fun isTextFieldFocused(): Boolean {
-        if (isTextFocusActive) return true
+    private fun isEditableClass(className: CharSequence?): Boolean {
+        val name = className?.toString() ?: return false
+        return name.contains("EditText", ignoreCase = true) ||
+            name.contains("AutoComplete", ignoreCase = true) ||
+            name.contains("SearchView", ignoreCase = true) ||
+            name.contains("WebView", ignoreCase = true) ||
+            name.contains("TextField", ignoreCase = true) ||
+            name.contains("TextInput", ignoreCase = true)
+    }
 
-        try {
-            val rootNode = rootInActiveWindow ?: return false
-            val focusedNode = rootNode.findFocus(AccessibilityNodeInfo.FOCUS_INPUT) ?: return false
-            val isEditable = focusedNode.isEditable
-            val isEditText = focusedNode.className?.toString()?.contains("EditText", ignoreCase = true) == true
-            isTextFocusActive = isEditable || isEditText || focusedNode.isFocused
-            return isTextFocusActive
+    private fun isTextFieldFocused(): Boolean {
+
+        val fromFocusTree = try {
+            val rootNode = rootInActiveWindow
+            val focusedNode = rootNode?.findFocus(AccessibilityNodeInfo.FOCUS_INPUT)
+            if (focusedNode != null) {
+                val editable = focusedNode.isEditable ||
+                    (focusedNode.isFocused && focusedNode.isFocusable && isEditableClass(focusedNode.className))
+                if (editable) {
+                    isTextFocusActive = true
+                    true
+                } else {
+                    false
+                }
+            } else {
+                null // inconclusive - findFocus could not resolve a node
+            }
         } catch (e: Exception) {
             Log.e(tag, "Error checking focused node", e)
+            null
         }
-        return false
+
+        if (fromFocusTree == false) {
+            isTextFocusActive = false
+            return false
+        }
+
+        return fromFocusTree == true || isTextFocusActive
     }
 
     /** Fresh (un-throttled) lookup of the focused editable field, or null. */
@@ -325,7 +349,18 @@ class ButtonMapperService : AccessibilityService() {
             AccessibilityEvent.TYPE_VIEW_CLICKED -> {
                 val source = event.source
                 if (source != null) {
-                    isTextFocusActive = source.isEditable || source.className?.toString()?.contains("EditText", ignoreCase = true) == true
+                    // Broadened to cover Compose/WebView/search fields, not just *EditText*.
+                    isTextFocusActive = source.isEditable || isEditableClass(source.className)
+                    source.recycle()
+                }
+            }
+            AccessibilityEvent.TYPE_VIEW_TEXT_CHANGED -> {
+                // Strong signal that a text field is the one receiving input right now.
+                val source = event.source
+                if (source != null) {
+                    if (source.isEditable || isEditableClass(source.className)) {
+                        isTextFocusActive = true
+                    }
                     source.recycle()
                 }
             }
@@ -367,7 +402,7 @@ class ButtonMapperService : AccessibilityService() {
         // Shift Hold / Shift Lock / held Shift applied to physical keyboard typing
         if (handleShiftedTyping(event)) return true
 
-        // Emoji softkeyboard physical shortcut: Ctrl + . or Alt + . or Cmd/Meta + .
+        // Emoji soft keyboard physical shortcut: Ctrl + . or Alt + . or Cmd/Meta + .
         // (only real keyboards – our own injected events must never re-trigger it)
         if (keyCode == KeyEvent.KEYCODE_PERIOD && event.deviceId != KeyCharacterMap.VIRTUAL_KEYBOARD &&
             (event.isCtrlPressed || event.isAltPressed || event.isMetaPressed)
@@ -530,7 +565,7 @@ class ButtonMapperService : AccessibilityService() {
             if (focusedEditableNode() == null) return false
             // A user mapping only wins while typing if it is set to also work while the keyboard is
             // active (same rule as handleKeyEvent). Mappings meant for "keyboard not in use" must not
-            // block Shift – otherwise this letter stays lowercase and the NEXT letter gets capitalised.
+            // block Shift – otherwise this letter stays lowercase and the NEXT letter gets capitalized.
             if (SettingsManager.isButtonOverrideEnabled(this, keyCode) &&
                 SettingsManager.isIgnoreKeyboardActive(this, keyCode) &&
                 hasCustomMapping(keyCode, currentState())
@@ -1288,7 +1323,7 @@ class ButtonMapperService : AccessibilityService() {
     /**
      * D-pad navigation for arrow keys.
      *
-     * If a text field is focused the caret moves (like a keyboard arrow). Otherwise the arrow acts
+     * If a text field is focused the caret moves (like a keyboard arrow). Otherwise, the arrow acts
      * as a controller D-pad: real system focus navigation via shell when available, then a
      * best-effort scroll fallback so it still does something useful without Shizuku/root.
      * Returns false only when nothing could be done, letting the generic flow try.
@@ -1325,7 +1360,7 @@ class ButtonMapperService : AccessibilityService() {
      * search over the accessibility tree) and focuses it, imitating a controller D-pad.
      *
      * ACTION_FOCUS does not report back through findFocus(FOCUS_ACCESSIBILITY), so we keep our own
-     * cursor of the last node we focused. Otherwise the next press would recompute from a null/stale
+     * cursor of the last node we focused. Otherwise, the next press would recompute from a null/stale
      * reference and keep re-selecting the same first item.
      */
     private var dpadFocusCursor: AccessibilityNodeInfo? = null
@@ -1373,7 +1408,7 @@ class ButtonMapperService : AccessibilityService() {
                 // Require the candidate to be in the requested direction when we have a cursor.
                 if (hasCurrent && primary <= 0f) continue
 
-                // Prefer aligned, close nodes: primary distance dominates, cross-axis penalised.
+                // Prefer aligned, close nodes: primary distance dominates, cross-axis penalized.
                 val score = if (hasCurrent) primary + secondary * 2f else secondary
                 if (score < bestScore) {
                     bestScore = score
@@ -1430,8 +1465,7 @@ class ButtonMapperService : AccessibilityService() {
     }
 
     private fun shellSafeScroll(node: AccessibilityNodeInfo?, forward: Boolean): Boolean {
-        if (node == null) return false
-        return node.performAction(
+        return node != null && node.performAction(
             if (forward) AccessibilityNodeInfo.ACTION_SCROLL_FORWARD
             else AccessibilityNodeInfo.ACTION_SCROLL_BACKWARD
         )

@@ -207,9 +207,6 @@ object SettingsManager {
     // ── Better Shift ──────────────────────────────────────────────────────
     private const val KEY_BETTER_SHIFT = "better_shift"
 
-    /** Press types a Shift key offers while Better Shift is on. */
-    val BETTER_SHIFT_PRESS_TYPES = listOf("SINGLE_PRESS", "HOLD")
-
     fun isShiftKey(keyCode: Int): Boolean =
         keyCode == android.view.KeyEvent.KEYCODE_SHIFT_LEFT || keyCode == android.view.KeyEvent.KEYCODE_SHIFT_RIGHT
 
@@ -224,15 +221,8 @@ object SettingsManager {
     fun isBetterShiftKey(context: Context, keyCode: Int): Boolean =
         isShiftKey(keyCode) && isBetterShiftEnabled(context)
 
-    /** For the button screen: which press types to list for this key. */
-    fun pressTypesFor(context: Context, keyCode: Int, allTypes: List<String>): List<String> =
-        if (isBetterShiftKey(context, keyCode)) allTypes.filter { it in BETTER_SHIFT_PRESS_TYPES } else allTypes
-
     /** For the button screen: the "override while keyboard is active" switch is forced on and disabled. */
     fun isKeyboardOverrideLocked(context: Context, keyCode: Int): Boolean = isBetterShiftKey(context, keyCode)
-
-    /** For the button screen: with Better Shift on, the Shift press types are shown but can't be changed. */
-    fun isPressTypeLocked(context: Context, keyCode: Int): Boolean = isBetterShiftKey(context, keyCode)
 
     // ── Zero-latency remapping ────────────────────────────────────────────
     private const val KEY_ZERO_LATENCY_PREFIX = "zero_latency_"
@@ -569,8 +559,7 @@ object SettingsManager {
     fun isKeyboardKey(keyCode: Int): Boolean = keyCode in keyboardKeyCodes
 
     fun isIgnoreKeyboardActive(context: Context, keyCode: Int): Boolean {
-        if (isKeyboardOverrideLocked(context, keyCode)) return true
-        return prefs(context).getBoolean("ignore_kbd_active_$keyCode", false)
+        return isKeyboardOverrideLocked(context, keyCode) || prefs(context).getBoolean("ignore_kbd_active_$keyCode", false)
     }
 
     fun setIgnoreKeyboardActive(context: Context, keyCode: Int, enabled: Boolean) {
