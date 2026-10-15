@@ -16,6 +16,22 @@ android {
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         buildConfigField("String", "FEATURE_DROP", "\"${libs.versions.featureDrop.get()}\"")
+
+        // Pinned: 28.2.13676358 is missing build/cmake/android.toolchain.cmake on this machine,
+        // so Gradle's default NDK cannot configure the native build.
+        ndkVersion = "30.0.16248370"
+
+        // The virtual gamepad helper is a native executable. x86_64 is kept so emulator and
+        // ChromeOS builds still resolve the binary.
+        ndk {
+            abiFilters += listOf("arm64-v8a", "armeabi-v7a", "x86_64")
+        }
+
+        externalNativeBuild {
+            cmake {
+                arguments += listOf("-DANDROID_STL=none")
+            }
+        }
     }
 
     buildTypes {
@@ -45,6 +61,20 @@ android {
     buildFeatures {
         compose = true
         buildConfig = true
+    }
+
+    externalNativeBuild {
+        cmake {
+            path = file("src/main/cpp/CMakeLists.txt")
+        }
+    }
+
+    // The helper must be an on-disk, executable file: Android will not exec a binary that is
+    // memory-mapped straight out of the APK. Legacy packaging extracts native libs instead.
+    packaging {
+        jniLibs {
+            useLegacyPackaging = true
+        }
     }
 
 }

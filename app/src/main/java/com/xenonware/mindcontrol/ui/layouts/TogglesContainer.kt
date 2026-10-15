@@ -52,6 +52,8 @@ import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.DialogProperties
 import androidx.core.net.toUri
 import com.xenon.mylibrary.res.XenonDialog
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import com.xenon.mylibrary.theme.QuicksandTitleVariable
 import com.xenonware.mindcontrol.PermissionStatus
 import com.xenonware.mindcontrol.R
@@ -184,6 +186,13 @@ fun TogglesContainer(
                 context
             )
         )
+    }
+
+    var virtualDpad by remember { mutableStateOf(SettingsManager.isVirtualDpadEnabled(context)) }
+    // Probing /dev/uinput costs a shell round-trip, so it runs off the composition and only once.
+    var virtualDpadAvailable by remember { mutableStateOf(false) }
+    LaunchedEffect(Unit) {
+        virtualDpadAvailable = withContext(Dispatchers.IO) { ShellManager.isUinputAvailable() }
     }
 
     var isNotificationListenerEnabled by remember { mutableStateOf(false) }
@@ -575,6 +584,34 @@ fun TogglesContainer(
                     screenOffShortcutOverlay = it
                     SettingsManager.setScreenOffShortcutOverlayEnabled(context, it)
                 })
+            }
+
+            // Only shown when a virtual gamepad can actually be created: the mechanism needs
+            // Shizuku or root *and* a writable /dev/uinput, so otherwise this would be a dead
+            // switch. The service falls back to normal key injection when it is off.
+            if (virtualDpadAvailable) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 4.dp)
+                ) {
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(
+                            stringResource(R.string.controller_style_arrows),
+                            style = MaterialTheme.typography.bodySmall
+                        )
+                        Text(
+                            stringResource(R.string.controller_style_arrows_desc),
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                    Switch(checked = virtualDpad, onCheckedChange = {
+                        virtualDpad = it
+                        SettingsManager.setVirtualDpadEnabled(context, it)
+                    })
+                }
             }
 
             if (!shellGranted) {

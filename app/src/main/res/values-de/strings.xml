@@ -47,6 +47,8 @@
     <string name="default_volume_slider">Standard-Lautstärke wenn Schieberegler sichtbar</string>
     <string name="override_screen_off">Überschreiben Bildschirm aus</string>
     <string name="volume_skip_screen_off">Lautstärke-Sprung (Bildschirm aus)</string>
+    <string name="controller_style_arrows">Pfeile im Controller-Stil</string>
+    <string name="controller_style_arrows_desc">Verschiebt den Fokus wie ein Gamecontroller, damit die Pfeile in mehr Apps funktionieren.</string>
     <string name="device_color">Gerätefarbe</string>
     <string name="keyboard_color">Tastaturfarbe</string>
     <string name="button_override">Tasten-Überschreibung</string>

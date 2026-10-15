@@ -224,8 +224,29 @@ object SettingsManager {
     /** For the button screen: the "override while keyboard is active" switch is forced on and disabled. */
     fun isKeyboardOverrideLocked(context: Context, keyCode: Int): Boolean = isBetterShiftKey(context, keyCode)
 
+    // ── Virtual gamepad D-pad ─────────────────────────────────────────────
+    private const val KEY_VIRTUAL_DPAD = "virtual_dpad"
+
+    /**
+     * On by default. Arrow actions are sent through a virtual gamepad so Android's Focus Navigation
+     * Engine moves focus, the way a physical Xbox controller does, instead of handing the key to the
+     * app and letting it ignore it.
+     *
+     * Only takes effect when the helper and /dev/uinput are actually usable, so enabling it is
+     * always safe: the service silently falls back to key injection when it cannot create a device.
+     */
+    fun isVirtualDpadEnabled(context: Context): Boolean =
+        prefs(context).getBoolean(KEY_VIRTUAL_DPAD, true)
+
+    fun setVirtualDpadEnabled(context: Context, enabled: Boolean) {
+        prefs(context).edit { putBoolean(KEY_VIRTUAL_DPAD, enabled) }
+    }
+
     // ── Zero-latency remapping ────────────────────────────────────────────
     private const val KEY_ZERO_LATENCY_PREFIX = "zero_latency_"
+
+    /** The comma key is preconfigured: zero-latency on, override on, single press = "default" (types ","), hold = emoji. */
+    private const val COMMA_KEY = android.view.KeyEvent.KEYCODE_COMMA
 
     /** Press types that can still be detected while zero-latency is on (no multi-press wait). */
     val ZERO_LATENCY_PRESS_TYPES = listOf("SINGLE_PRESS", "HOLD")
@@ -235,13 +256,13 @@ object SettingsManager {
         !isShiftKey(keyCode) && keyCode != 132 && keyCode != 133
 
     /**
-     * Off by default. When on, Single press fires the moment the key is released, without waiting
-     * for further presses. Actions stay user-configurable; stored multi-press actions are kept and
-     * come back when this is turned off again.
+     * Off by default, except for the comma key (on by default). When on, Single press fires the
+     * moment the key is released, without waiting for further presses. Actions stay user-configurable;
+     * stored multi-press actions are kept and come back when this is turned off again.
      */
     fun isZeroLatencyEnabled(context: Context, keyCode: Int): Boolean =
         supportsZeroLatency(keyCode) &&
-                prefs(context).getBoolean("$KEY_ZERO_LATENCY_PREFIX$keyCode", false)
+                prefs(context).getBoolean("$KEY_ZERO_LATENCY_PREFIX$keyCode", keyCode == COMMA_KEY)
 
     fun setZeroLatencyEnabled(context: Context, keyCode: Int, enabled: Boolean) {
         prefs(context).edit { putBoolean("$KEY_ZERO_LATENCY_PREFIX$keyCode", enabled) }
@@ -273,12 +294,20 @@ object SettingsManager {
             "HOLD" -> "LONG"
             else -> null
         }
+        val def = defaultAction(keyCode, type)
         if (oldType != null) {
-            return prefs.getString("btn_${keyCode}_${state}_${oldType}", ACTION_DEFAULT) ?: ACTION_DEFAULT
+            return prefs.getString("btn_${keyCode}_${state}_${oldType}", def) ?: def
         }
 
-        return ACTION_DEFAULT
+        return def
     }
+
+    /**
+     * Per-key fallback actions used when nothing is stored yet. The comma key is preconfigured so
+     * that Single press types the comma normally (DEFAULT) and Hold opens the emoji keyboard.
+     */
+    private fun defaultAction(keyCode: Int, type: String): String =
+        if (keyCode == COMMA_KEY && type == "HOLD") ACTION_OPEN_EMOJI_KEYBOARD else ACTION_DEFAULT
 
     fun setAction(context: Context, keyCode: Int, state: String, type: String, action: String) {
         prefs(context).edit { putString("btn_${keyCode}_${state}_${type}", action) }
@@ -518,6 +547,7 @@ object SettingsManager {
 
     fun isButtonOverrideEnabled(context: Context, keyCode: Int): Boolean {
         if (isBetterShiftKey(context, keyCode)) return true
+        if (keyCode == COMMA_KEY) return true
         val prefs = prefs(context)
         val key = "btn_override_$keyCode"
         if (prefs.contains(key)) {
@@ -559,7 +589,8 @@ object SettingsManager {
     fun isKeyboardKey(keyCode: Int): Boolean = keyCode in keyboardKeyCodes
 
     fun isIgnoreKeyboardActive(context: Context, keyCode: Int): Boolean {
-        return isKeyboardOverrideLocked(context, keyCode) || prefs(context).getBoolean("ignore_kbd_active_$keyCode", false)
+        return isKeyboardOverrideLocked(context, keyCode) ||
+                prefs(context).getBoolean("ignore_kbd_active_$keyCode", keyCode == COMMA_KEY)
     }
 
     fun setIgnoreKeyboardActive(context: Context, keyCode: Int, enabled: Boolean) {

@@ -39,8 +39,7 @@
         android:roundIcon="@mipmap/ic_launcher_round"
         android:supportsRtl="true"
         android:theme="@style/Theme.MindControl"
-        android:enableOnBackInvokedCallback="true"
-        android:extractNativeLibs="false">
+        android:enableOnBackInvokedCallback="true">
 
         <service
             android:name=".ButtonMapperService"

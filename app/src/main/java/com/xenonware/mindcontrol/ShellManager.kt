@@ -9,16 +9,69 @@ import androidx.core.content.edit
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import moe.shizuku.server.IRemoteProcess
 import moe.shizuku.server.IShizukuService
 import rikka.shizuku.Shizuku
 import java.io.BufferedReader
 import java.io.DataOutputStream
 import java.io.File
+import java.io.InputStream
 import java.io.InputStreamReader
+import java.io.OutputStream
 import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicBoolean
 
 enum class PermissionStatus { UNAVAILABLE, AVAILABLE, DENIED, GRANTED }
+
+/**
+ * Adapts a local [java.lang.Process] to [IRemoteProcess] so the root and Shizuku paths share one
+ * type.
+ *
+ * Root runs the helper through `su -c`, which yields a plain local process; Shizuku hands back a
+ * binder-backed remote one. [IRemoteProcess] is not [java.lang.Process]-shaped: its streams are
+ * [ParcelFileDescriptor]s and liveness is [alive], so only the two streams actually used by the
+ * virtual D-pad are adapted. The remaining methods exist to satisfy the interface.
+ */
+private class LocalRemoteProcess(private val process: Process) : IRemoteProcess {
+    override fun destroy() = process.destroy()
+    override fun waitFor(): Int = process.waitFor()
+    override fun alive(): Boolean = process.isAlive
+
+    /** Wraps a stream as a pipe-backed descriptor, the same shape Shizuku returns. */
+    private fun descriptorFor(input: InputStream): ParcelFileDescriptor {
+        val pipe = ParcelFileDescriptor.createPipe()
+        Thread {
+            runCatching {
+                ParcelFileDescriptor.AutoCloseOutputStream(pipe[1]).use { out ->
+                    input.copyTo(out)
+                }
+            }.also { runCatching { input.close() } }
+        }.start()
+        return pipe[0]
+    }
+
+    override fun getInputStream(): ParcelFileDescriptor = descriptorFor(process.inputStream)
+
+    /** The helper writes nothing to stderr, so no pipe is needed. */
+    override fun getErrorStream(): ParcelFileDescriptor? = null
+
+    /** The process' stdin needs the opposite direction, so it is wrapped separately. */
+    override fun getOutputStream(): ParcelFileDescriptor {
+        val pipe = ParcelFileDescriptor.createPipe()
+        Thread {
+            runCatching {
+                ParcelFileDescriptor.AutoCloseInputStream(pipe[0]).use { input ->
+                    input.copyTo(process.outputStream)
+                }
+            }.also { runCatching { process.outputStream.close() } }
+        }.start()
+        return pipe[1]
+    }
+
+    override fun exitValue(): Int = 0
+    override fun waitForTimeout(timeout: Long, unit: String): Boolean = false
+    override fun asBinder(): android.os.IBinder? = null
+}
 
 object ShellManager {
     private const val TAG = "ShellManager"
@@ -208,7 +261,7 @@ object ShellManager {
     }
 
     private fun startShizukuMonitoring(onKeyEvent: (Int, Boolean) -> Unit) {
-        var remoteProcess: moe.shizuku.server.IRemoteProcess? = null
+        var remoteProcess: IRemoteProcess? = null
         try {
             val binder = Shizuku.getBinder() ?: return
             val service = IShizukuService.Stub.asInterface(binder)
@@ -266,6 +319,164 @@ object ShellManager {
     fun injectKey(keyCode: Int) {
         runShellCommand("input keyevent $keyCode")
     }
+
+    // ---------------------------------------------------------------------
+    // Virtual gamepad D-pad
+    // ---------------------------------------------------------------------
+
+    /**
+     * A long-lived `virtual_dpad` process with its stdin/stdout kept open.
+     *
+     * The device is created and destroyed on demand while this process stays alive, so pressing an
+     * arrow never pays the cost of spawning a shell. The device itself is what Android sees as a
+     * gamepad; this object is just the pipe to it.
+     */
+    private var dpadProcess: IRemoteProcess? = null
+    private var dpadStdin: OutputStream? = null
+    private var dpadStdout: BufferedReader? = null
+    private var dpadDeviceCreated = false
+
+    /**
+     * Resolves the on-disk path of the packaged native helper.
+     *
+     * The APK ships it as `lib/<abi>/virtual_dpad.so`. Because the app uses legacy packaging the
+     * file is extracted, but it is not always marked executable, so we chmod it before use.
+     */
+    fun nativeHelperPath(): String? {
+        val dir = appContext.applicationInfo.nativeLibraryDir ?: return null
+        val file = File(dir, "virtual_dpad.so")
+        if (!file.exists()) return null
+        if (!file.canExecute()) {
+            // The library directory is app-owned, so a plain chmod works without any privilege.
+            runCatching { file.setExecutable(true, false) }
+        }
+        return if (file.canExecute()) file.absolutePath else null
+    }
+
+    /**
+     * True when the helper is present *and* the shell uid may open /dev/uinput.
+     *
+     * The uinput node is owned by uhid:uhid and the shell uid is in the uhid group, so this
+     * normally succeeds, but OEM policies vary, so the result is probed rather than assumed.
+     * The answer is cached because probing costs a shell round-trip.
+     */
+    private var uinputProbeResult: Boolean? = null
+
+    fun isUinputAvailable(): Boolean {
+        uinputProbeResult?.let { return it }
+        if (nativeHelperPath() == null) {
+            uinputProbeResult = false
+            return false
+        }
+        if (!isRootAvailable() && !isShizukuAvailable()) {
+            uinputProbeResult = false
+            return false
+        }
+        val writable = runShellCommandBlocking("[ -w /dev/uinput ] && echo yes || echo no")
+        uinputProbeResult = writable.contains("yes")
+        return uinputProbeResult == true
+    }
+
+    /** Starts the helper if needed. Returns the running process, or null when it cannot start. */
+    private fun ensureDpadProcess(): IRemoteProcess? {
+        dpadProcess?.let { if (it.alive()) return it }
+
+        val path = nativeHelperPath() ?: return null
+        if (!isAvailable()) return null
+
+        return try {
+            val process: IRemoteProcess = if (isRootAvailable()) {
+                LocalRemoteProcess(Runtime.getRuntime().exec(arrayOf("su", "-c", path)))
+            } else {
+                val binder = Shizuku.getBinder() ?: return null
+                if (!binder.pingBinder()) return null
+                IShizukuService.Stub.asInterface(binder).newProcess(arrayOf(path), null, null)
+            }
+            dpadProcess = process
+            dpadStdin = ParcelFileDescriptor.AutoCloseOutputStream(process.outputStream)
+            dpadStdout = BufferedReader(
+                InputStreamReader(ParcelFileDescriptor.AutoCloseInputStream(process.inputStream))
+            )
+            dpadDeviceCreated = false
+            process
+        } catch (e: Exception) {
+            Log.e(TAG, "Failed to start virtual D-pad helper", e)
+            dpadProcess = null
+            null
+        }
+    }
+
+    /**
+     * Writes one command and reads one reply line.
+     *
+     * Kept deliberately synchronous: the helper answers every command, so a reply means the kernel
+     * accepted the event. [timeoutMs] guards against a wedged helper.
+     */
+    private fun dpadCommand(command: String, timeoutMs: Long = 500): String? {
+        val stdin = dpadStdin ?: return null
+        val stdout = dpadStdout ?: return null
+        return try {
+            stdin.write((command + "\n").toByteArray())
+            stdin.flush()
+
+            val deadline = System.currentTimeMillis() + timeoutMs
+            while (System.currentTimeMillis() < deadline) {
+                if (stdout.ready()) {
+                    val line = stdout.readLine() ?: break
+                    if (line.isNotBlank()) return line
+                } else {
+                    Thread.sleep(2)
+                }
+            }
+            null
+        } catch (e: Exception) {
+            Log.w(TAG, "D-pad command '$command' failed", e)
+            null
+        }
+    }
+
+    /**
+     * Sends one D-pad press, creating the device on first use.
+     *
+     * Returns true only when the helper confirmed the event was written, so callers can fall back
+     * to key injection when the virtual device is unavailable.
+     */
+    fun sendDpad(direction: String): Boolean {
+        if (!isUinputAvailable()) return false
+        ensureDpadProcess() ?: return false
+
+        if (!dpadDeviceCreated) {
+            val created = dpadCommand("CREATE", timeoutMs = 1500)
+            if (created?.contains("CREATED") != true) {
+                Log.w(TAG, "Virtual D-pad CREATE rejected: $created")
+                return false
+            }
+            dpadDeviceCreated = true
+            // Give InputReader a moment to register the new device before the first press, or the
+            // very first event can be dropped because no device is reading it yet.
+            Thread.sleep(60)
+        }
+        return dpadCommand(direction)?.contains("OK") == true
+    }
+
+    /** Tears the virtual device down and stops the helper. Safe to call repeatedly. */
+    fun stopVirtualDpad() {
+        try {
+            if (dpadDeviceCreated) dpadCommand("DESTROY", timeoutMs = 500)
+            dpadCommand("QUIT", timeoutMs = 200)
+        } catch (_: Exception) {
+        } finally {
+            dpadDeviceCreated = false
+            runCatching { dpadStdin?.close() }
+            runCatching { dpadStdout?.close() }
+            runCatching { dpadProcess?.destroy() }
+            dpadStdin = null
+            dpadStdout = null
+            dpadProcess = null
+        }
+    }
+
+
 
     fun isAvailable(): Boolean = isRootAvailable() || isShizukuAvailable()
 

@@ -47,6 +47,8 @@
     <string name="default_volume_slider">Default volume if slider visible</string>
     <string name="override_screen_off">Override Screen off</string>
     <string name="volume_skip_screen_off">Volume Skip (Screen Off)</string>
+    <string name="controller_style_arrows">Controller-style arrows</string>
+    <string name="controller_style_arrows_desc">Moves focus the way a game controller does, so arrows work in more apps.</string>
     <string name="device_color">Device color</string>
     <string name="keyboard_color">Keyboard color</string>
     <string name="button_override">Button Override</string>

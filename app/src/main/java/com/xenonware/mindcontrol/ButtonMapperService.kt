@@ -1323,16 +1323,29 @@ class ButtonMapperService : AccessibilityService() {
     /**
      * D-pad navigation for arrow keys.
      *
-     * If a text field is focused the caret moves (like a keyboard arrow). Otherwise, the arrow acts
-     * as a controller D-pad: real system focus navigation via shell when available, then a
-     * best-effort scroll fallback so it still does something useful without Shizuku/root.
-     * Returns false only when nothing could be done, letting the generic flow try.
+     * The preferred route is a virtual gamepad: the event enters the system tagged SOURCE_GAMEPAD,
+     * so Android's Focus Navigation Engine moves focus before the app is consulted. That is what
+     * makes arrows behave like a physical Xbox controller and removes the "only works in some
+     * apps" problem, because the app never gets the chance to ignore the key.
+     *
+     * If the gamepad device cannot be created (no Shizuku/root, or an OEM blocks /dev/uinput) the
+     * original chain still runs: caret movement in text fields, shell D-pad injection, the raw key
+     * to the focused app, a geometric focus search, then a scroll fallback.
      */
     private fun injectViaDpadNavigation(keyCode: Int, meta: Int): Boolean {
         val editable = focusedEditableNode()
         if (editable != null) {
             // Text field: move the caret at character/line granularity like a keyboard arrow.
             if (injectViaNodeActions(keyCode, meta)) return true
+        }
+
+        // 0) Controller-style navigation through a virtual gamepad, when enabled and available.
+        if (SettingsManager.isVirtualDpadEnabled(this)) {
+            val direction = dpadDirectionFor(keyCode)
+            if (direction != null && ShellManager.sendDpad(direction)) {
+                Log.d(tag, "injectKey $keyCode -> virtual gamepad ($direction)")
+                return true
+            }
         }
 
         // 1) Real system focus navigation via shell when available (exact, works everywhere).
@@ -1353,6 +1366,18 @@ class ButtonMapperService : AccessibilityService() {
 
         // 4) Last resort: scroll the nearest scrollable container in the arrow's direction.
         return performDpadScroll(keyCode)
+    }
+
+    /**
+     * Maps an arrow key code to the helper's direction name, or null if it is not an arrow.
+     * The names match the protocol implemented by `virtual_dpad.c`.
+     */
+    private fun dpadDirectionFor(keyCode: Int): String? = when (keyCode) {
+        KeyEvent.KEYCODE_DPAD_UP -> "UP"
+        KeyEvent.KEYCODE_DPAD_DOWN -> "DOWN"
+        KeyEvent.KEYCODE_DPAD_LEFT -> "LEFT"
+        KeyEvent.KEYCODE_DPAD_RIGHT -> "RIGHT"
+        else -> null
     }
 
     /**
@@ -2403,5 +2428,7 @@ class ButtonMapperService : AccessibilityService() {
         Shizuku.removeBinderReceivedListener(binderListener)
         Shizuku.removeRequestPermissionResultListener(permissionListener)
         ShellManager.stopMonitoring()
+        // Release the virtual gamepad, otherwise Android keeps reporting a connected controller.
+        ShellManager.stopVirtualDpad()
     }
 }
