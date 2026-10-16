@@ -515,9 +515,11 @@ class ButtonMapperService : AccessibilityService() {
         // Gamepad mode runs before the Shift machinery below. Shift consumes keys to re-send them
         // shifted, so a key bound to a controller action would be swallowed and never reach the
         // gamepad branch -- which is why binding Shift itself had no effect in gamepad mode.
-        if (gamepadActive &&
-            SettingsManager.getGamepadBinding(this, activeGamepadProfile(), keyCode) != null
-        ) {
+        //
+        // This covers *every* mappable key, bound or not: an unbound ("None") key is routed to the
+        // gamepad branch too, where it is consumed without reaching the app. Leaving it out here
+        // meant an unbound key never entered that branch and leaked through as a typing key.
+        if (gamepadActive && keyCode in keyboardKeyCodes) {
             return handleKeyEvent(keyCode, isDown, fromShizuku = false)
         }
 
@@ -909,7 +911,17 @@ class ButtonMapperService : AccessibilityService() {
             val gamepadAction =
                 SettingsManager.getGamepadBinding(this, activeGamepadProfile(), keyCode)
             Log.d(tag, "Gamepad probe: key=$keyCode binding=${gamepadAction?.label} down=$isDown")
-            if (gamepadAction != null && !dup) {
+
+            // A key set to "None" must not leak through to the app. In gamepad mode the key row is
+            // a controller, not a keyboard: a key with no binding deliberately does nothing, so it
+            // is consumed here (after the ButtonState update, so the on-screen key still lights up)
+            // rather than falling through to the typing path and being delivered to the app.
+            if (gamepadAction == null) {
+                updateButtonState()
+                return true
+            }
+
+            if (!dup) {
                 updateButtonState()
                 val stick = gamepadAction.stick
                 when {
