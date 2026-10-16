@@ -1250,8 +1250,12 @@ class ButtonMapperService : AccessibilityService() {
             SettingsManager.ACTION_ARROW_DOWN,
             SettingsManager.ACTION_ARROW_LEFT,
             SettingsManager.ACTION_ARROW_RIGHT -> {
+                // Explicit Arrow action: send a plain keyboard arrow, never virtual controller input.
                 val name = SettingsManager.arrowKeyName(finalAction)!!
-                executeKeyInputAction(KeyInput.Spec(shift = false, ctrl = false, alt = false, key = name))
+                executeKeyInputAction(
+                    KeyInput.Spec(shift = false, ctrl = false, alt = false, key = name),
+                    asKeyboard = true
+                )
                 true
             }
             SettingsManager.ACTION_SHIFT_HOLD -> {
@@ -1400,7 +1404,12 @@ class ButtonMapperService : AccessibilityService() {
 
     // ── Keyboard: key input / arrows ──────────────────────────────────────
 
-    private fun executeKeyInputAction(spec: KeyInput.Spec) {
+    /**
+     * [asKeyboard] marks a key the user set as an explicit *action* (e.g. the Arrow actions in the
+     * action picker). Such a key must behave as a plain keyboard key and never be re-emitted as
+     * virtual controller input, so it stays completely separate from the gamepad/controller mode.
+     */
+    private fun executeKeyInputAction(spec: KeyInput.Spec, asKeyboard: Boolean = false) {
         val keyCode = KeyInput.resolveKeyCode(spec.key)
         if (keyCode == KeyEvent.KEYCODE_UNKNOWN) {
             Log.w(tag, "Key input: unknown key '${spec.key}'")
@@ -1416,7 +1425,7 @@ class ButtonMapperService : AccessibilityService() {
         }
 
         Log.d(tag, "Key input: key=${spec.key} ($keyCode) shift=$shift ctrl=${spec.ctrl} alt=${spec.alt}")
-        injectKey(keyCode, shift, spec.ctrl, spec.alt)
+        injectKey(keyCode, shift, spec.ctrl, spec.alt, asKeyboard = asKeyboard)
     }
 
     private fun metaStateFor(shift: Boolean, ctrl: Boolean, alt: Boolean): Int =
@@ -1433,14 +1442,21 @@ class ButtonMapperService : AccessibilityService() {
      * [typing] = re-sending physical keyboard input; prefers the fast, ordered routes over the shell
      * so fast typing doesn't arrive out of order.
      */
-    private fun injectKey(keyCode: Int, shift: Boolean, ctrl: Boolean, alt: Boolean, typing: Boolean = false) {
+    private fun injectKey(
+        keyCode: Int,
+        shift: Boolean,
+        ctrl: Boolean,
+        alt: Boolean,
+        typing: Boolean = false,
+        asKeyboard: Boolean = false
+    ) {
         val meta = metaStateFor(shift, ctrl, alt)
 
         // Arrow keys double as D-pad navigation. Inside a text field they move the caret; outside
         // they move focus like a controller, which the IME connection can't do, so route those to
         // the dedicated path instead of the generic IME-first flow below.
         if (keyCode in KeyInput.arrowKeyCodes && !typing) {
-            if (injectViaDpadNavigation(keyCode, meta)) {
+            if (injectViaDpadNavigation(keyCode, meta, asKeyboard)) {
                 Log.d(tag, "injectKey $keyCode -> dpad navigation")
                 return
             }
@@ -1478,7 +1494,7 @@ class ButtonMapperService : AccessibilityService() {
      * original chain still runs: caret movement in text fields, shell D-pad injection, the raw key
      * to the focused app, a geometric focus search, then a scroll fallback.
      */
-    private fun injectViaDpadNavigation(keyCode: Int, meta: Int): Boolean {
+    private fun injectViaDpadNavigation(keyCode: Int, meta: Int, asKeyboard: Boolean = false): Boolean {
         val editable = focusedEditableNode()
         if (editable != null) {
             // Text field: move the caret at character/line granularity like a keyboard arrow.
@@ -1486,7 +1502,11 @@ class ButtonMapperService : AccessibilityService() {
         }
 
         // 0) Controller-style navigation through a virtual gamepad, when enabled and available.
-        if (SettingsManager.isVirtualDpadEnabled(this)) {
+        //
+        // Skipped for a user-set Arrow *action* (asKeyboard): that action must be delivered as a
+        // real keyboard arrow, so it never enters the virtual controller device. This keeps the
+        // settable Arrow actions fully separate from the gamepad/controller mode.
+        if (!asKeyboard && SettingsManager.isVirtualDpadEnabled(this)) {
             val direction = dpadDirectionFor(keyCode)
             if (direction != null && ShellManager.sendDpad(direction)) {
                 Log.d(tag, "injectKey $keyCode -> virtual gamepad ($direction)")
