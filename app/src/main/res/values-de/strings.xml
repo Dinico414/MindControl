@@ -64,6 +64,12 @@
     <string name="gamepad_group_stick_left">Linker Stick</string>
     <string name="gamepad_group_stick_right">Rechter Stick</string>
     <string name="gamepad_group_system">Start &amp; Select</string>
+    <string name="gamepad_group_profiles">Profile</string>
+    <string name="gamepad_profile_label">Profil</string>
+    <string name="gamepad_profile_switched">Profil %1$d</string>
+    <string name="action_profile_1">Profil 1</string>
+    <string name="action_profile_2">Profil 2</string>
+    <string name="action_profile_3">Profil 3</string>
     <string name="gamepad_channel_name">Gamepad-Modus</string>
     <string name="gamepad_notification_title">Controller aktiv</string>
     <string name="gamepad_notification_text">Meldet einen Xbox-Controller an %1$s</string>

@@ -111,6 +111,32 @@ object SettingsManager {
 
     val ARROW_ACTIONS = setOf(ACTION_ARROW_UP, ACTION_ARROW_DOWN, ACTION_ARROW_LEFT, ACTION_ARROW_RIGHT)
 
+    // ── Gamepad profiles ────────────────────────────────────────────────
+    //
+    // Switching the active controller profile is an ordinary, user-assignable action -- not a
+    // hardcoded key shortcut. The three actions below appear in the action picker like any other,
+    // so the user decides which button selects which profile. They only do anything while gamepad
+    // mode is active, so keyboard mode is never affected.
+
+    const val ACTION_PROFILE_1 = "PROFILE_1"
+    const val ACTION_PROFILE_2 = "PROFILE_2"
+    const val ACTION_PROFILE_3 = "PROFILE_3"
+
+    /**
+     * Profile number (1..3) an action selects, or null when it is not a profile action.
+     *
+     * The active profile is only ever changed through this mapping, so the action storage and the
+     * binding storage stay decoupled.
+     */
+    fun profileForAction(action: String): Int? = when (action) {
+        ACTION_PROFILE_1 -> 1
+        ACTION_PROFILE_2 -> 2
+        ACTION_PROFILE_3 -> 3
+        else -> null
+    }
+
+    val GAMEPAD_PROFILES: IntRange = 1..3
+
     /** Key name (understood by [KeyInput.resolveKeyCode]) for an arrow action, or null. */
     fun arrowKeyName(action: String): String? = when (action) {
         ACTION_ARROW_UP -> "Up"
@@ -130,6 +156,13 @@ object SettingsManager {
     private const val KEY_GAMEPAD_BINDING_PREFIX = "gamepad_binding_"
 
     /**
+     * The pre-profile binding key, from a build that had a single gamepad layout.
+     *
+     * Kept only to read an existing setup once; new writes always go through the per-profile key.
+     */
+    private const val KEY_GAMEPAD_BINDING_LEGACY_PREFIX = "gamepad_binding_"
+
+    /**
      * Packages whose keyboard switches to the gamepad setup.
      *
      * The pad device is only reported as connected while one of these is in the foreground, so
@@ -145,6 +178,21 @@ object SettingsManager {
     fun isGamepadApp(context: Context, packageName: String?): Boolean =
         packageName != null && packageName in getGamepadApps(context)
 
+    private const val KEY_ACTIVE_GAMEPAD_PROFILE = "active_gamepad_profile"
+
+    /**
+     * The controller profile currently in use (1..3).
+     *
+     * Clamped on read, so a stored value from an older build can never point at a profile that no
+     * longer exists.
+     */
+    fun getActiveGamepadProfile(context: Context): Int =
+        prefs(context).getInt(KEY_ACTIVE_GAMEPAD_PROFILE, 1).coerceIn(GAMEPAD_PROFILES)
+
+    fun setActiveGamepadProfile(context: Context, profile: Int) {
+        prefs(context).edit { putInt(KEY_ACTIVE_GAMEPAD_PROFILE, profile.coerceIn(GAMEPAD_PROFILES)) }
+    }
+
     /**
      * A controller action assignable to one keyboard key.
      *
@@ -154,7 +202,13 @@ object SettingsManager {
     data class GamepadAction(
         val label: String,
         val keyCode: Int = 0,
-        val stick: StickDirection? = null
+        val stick: StickDirection? = null,
+        // Set for a profile-switch binding: pressing the key activates this controller profile
+        // instead of sending any controller input. Null for every ordinary controller action.
+        val profile: Int? = null,
+        // Optional drawable for the action. Drawn on the assigned keyboard key and next to the
+        // row in the picker, so a bound key shows the same glyph as the control it maps to.
+        @androidx.annotation.DrawableRes val iconRes: Int? = null
     )
 
     /**
@@ -162,18 +216,42 @@ object SettingsManager {
      */
     data class StickDirection(val isLeft: Boolean, val x: Int, val y: Int)
 
-    val GAMEPAD_STICK_ACTIONS: List<GamepadAction> = buildList {
-        fun stick(label: String, isLeft: Boolean, x: Int, y: Int) =
-            add(GamepadAction(label, stick = StickDirection(isLeft, x, y)))
+    /**
+     * The three profile-switch bindings, shown in the gamepad picker next to the controller
+     * actions so the user can assign "switch to profile N" to any key.
+     */
+    val GAMEPAD_PROFILE_ACTIONS: List<GamepadAction> = buildList {
+        GAMEPAD_PROFILES.forEach { n ->
+            add(
+                GamepadAction(
+                    label = "Profile $n",
+                    profile = n,
+                    iconRes = profileIconRes(n)
+                )
+            )
+        }
+    }
 
-        stick("L-Up", isLeft = true, x = 0, y = -1)
-        stick("L-Down", isLeft = true, x = 0, y = 1)
-        stick("L-Left", isLeft = true, x = -1, y = 0)
-        stick("L-Right", isLeft = true, x = 1, y = 0)
-        stick("R-Up", isLeft = false, x = 0, y = -1)
-        stick("R-Down", isLeft = false, x = 0, y = 1)
-        stick("R-Left", isLeft = false, x = -1, y = 0)
-        stick("R-Right", isLeft = false, x = 1, y = 0)
+    /** Numbered counter drawable for a controller profile (1..3). */
+    @androidx.annotation.DrawableRes
+    fun profileIconRes(profile: Int): Int = when (profile) {
+        2 -> R.drawable.counter_2_24px
+        3 -> R.drawable.counter_3_24px
+        else -> R.drawable.counter_1_24px
+    }
+
+    val GAMEPAD_STICK_ACTIONS: List<GamepadAction> = buildList {
+        fun stick(label: String, isLeft: Boolean, x: Int, y: Int, iconRes: Int) =
+            add(GamepadAction(label, stick = StickDirection(isLeft, x, y), iconRes = iconRes))
+
+        stick("L-Up", isLeft = true, x = 0, y = -1, R.drawable.game_stick_l_up_24px)
+        stick("L-Down", isLeft = true, x = 0, y = 1, R.drawable.game_stick_l_down_24px)
+        stick("L-Left", isLeft = true, x = -1, y = 0, R.drawable.game_stick_l_left_24px)
+        stick("L-Right", isLeft = true, x = 1, y = 0, R.drawable.game_stick_l_right_24px)
+        stick("R-Up", isLeft = false, x = 0, y = -1, R.drawable.game_stick_r_up_24px)
+        stick("R-Down", isLeft = false, x = 0, y = 1, R.drawable.game_stick_r_down_24px)
+        stick("R-Left", isLeft = false, x = -1, y = 0, R.drawable.game_stick_r_left_24px)
+        stick("R-Right", isLeft = false, x = 1, y = 0, R.drawable.game_stick_r_right_24px)
     }
 
     /**
@@ -211,29 +289,44 @@ object SettingsManager {
             androidKeyCode == android.view.KeyEvent.KEYCODE_BUTTON_R2
 
     val GAMEPAD_BUTTON_ACTIONS: List<GamepadAction> = listOf(
-        GamepadAction("A", android.view.KeyEvent.KEYCODE_BUTTON_A),
-        GamepadAction("B", android.view.KeyEvent.KEYCODE_BUTTON_B),
-        GamepadAction("X", android.view.KeyEvent.KEYCODE_BUTTON_X),
-        GamepadAction("Y", android.view.KeyEvent.KEYCODE_BUTTON_Y),
-        GamepadAction("D-Up", android.view.KeyEvent.KEYCODE_DPAD_UP),
-        GamepadAction("D-Down", android.view.KeyEvent.KEYCODE_DPAD_DOWN),
-        GamepadAction("D-Left", android.view.KeyEvent.KEYCODE_DPAD_LEFT),
-        GamepadAction("D-Right", android.view.KeyEvent.KEYCODE_DPAD_RIGHT),
-        GamepadAction("L-Bumper", android.view.KeyEvent.KEYCODE_BUTTON_L1),
-        GamepadAction("R-Bumper", android.view.KeyEvent.KEYCODE_BUTTON_R1),
-        GamepadAction("L-Trigger", android.view.KeyEvent.KEYCODE_BUTTON_L2),
-        GamepadAction("R-Trigger", android.view.KeyEvent.KEYCODE_BUTTON_R2),
-        GamepadAction("L3", android.view.KeyEvent.KEYCODE_BUTTON_THUMBL),
-        GamepadAction("R3", android.view.KeyEvent.KEYCODE_BUTTON_THUMBR),
-        GamepadAction("Start", android.view.KeyEvent.KEYCODE_BUTTON_START),
-        GamepadAction("Select", android.view.KeyEvent.KEYCODE_BUTTON_SELECT),
-        GamepadAction("Mode", android.view.KeyEvent.KEYCODE_BUTTON_MODE),
+        GamepadAction("A", android.view.KeyEvent.KEYCODE_BUTTON_A, iconRes = R.drawable.a_circle_24px),
+        GamepadAction("B", android.view.KeyEvent.KEYCODE_BUTTON_B, iconRes = R.drawable.b_circle_24px),
+        GamepadAction("X", android.view.KeyEvent.KEYCODE_BUTTON_X, iconRes = R.drawable.x_circle_24px),
+        GamepadAction("Y", android.view.KeyEvent.KEYCODE_BUTTON_Y, iconRes = R.drawable.y_circle_24px),
+        GamepadAction("D-Up", android.view.KeyEvent.KEYCODE_DPAD_UP, iconRes = R.drawable.gamepad_up_24px),
+        GamepadAction("D-Down", android.view.KeyEvent.KEYCODE_DPAD_DOWN, iconRes = R.drawable.gamepad_down_24px),
+        GamepadAction("D-Left", android.view.KeyEvent.KEYCODE_DPAD_LEFT, iconRes = R.drawable.gamepad_left_24px),
+        GamepadAction("D-Right", android.view.KeyEvent.KEYCODE_DPAD_RIGHT, iconRes = R.drawable.gamepad_right_24px),
+        GamepadAction("L-Bumper", android.view.KeyEvent.KEYCODE_BUTTON_L1, iconRes = R.drawable.game_bumper_left_24px),
+        GamepadAction("R-Bumper", android.view.KeyEvent.KEYCODE_BUTTON_R1, iconRes = R.drawable.game_bumper_right_24px),
+        GamepadAction("L-Trigger", android.view.KeyEvent.KEYCODE_BUTTON_L2, iconRes = R.drawable.game_trigger_left_24px),
+        GamepadAction("R-Trigger", android.view.KeyEvent.KEYCODE_BUTTON_R2, iconRes = R.drawable.game_trigger_right_24px),
+        GamepadAction("L3", android.view.KeyEvent.KEYCODE_BUTTON_THUMBL, iconRes = R.drawable.game_stick_l3_24px),
+        GamepadAction("R3", android.view.KeyEvent.KEYCODE_BUTTON_THUMBR, iconRes = R.drawable.game_stick_r3_24px),
+        GamepadAction("Start", android.view.KeyEvent.KEYCODE_BUTTON_START, iconRes = R.drawable.start_24px),
+        GamepadAction("Menu", android.view.KeyEvent.KEYCODE_BUTTON_MODE, iconRes = R.drawable.home_24px),
+        GamepadAction("Select", android.view.KeyEvent.KEYCODE_BUTTON_SELECT, iconRes = R.drawable.select_24px),
     )
 
     /**
      * Stick bindings live above every real key code so both kinds can share one stored int.
      */
     private const val STICK_BINDING_BASE = 1_000_000
+
+    /**
+     * Profile-switch bindings live above the stick range, so one int still carries all three
+     * kinds of binding (controller button, stick direction, profile switch).
+     */
+    private const val PROFILE_BINDING_BASE = 2_000_000
+
+    /**
+     * "None", stored explicitly so it can override a preset.
+     *
+     * Without a stored value the presets below are applied, so simply removing the entry would
+     * make "None" impossible to keep: the next read would put the preset back. This sentinel
+     * occupies its own range above every real binding and decodes to null (no action).
+     */
+    private const val NONE_BINDING = 3_000_000
 
     /**
      * The binding assigned to [keyCode], or null when nothing is assigned.
@@ -243,19 +336,37 @@ object SettingsManager {
      * from the UI still resolves and keeps working. Relying on a list lookup here previously made
      * every binding silently stop working as soon as the list changed.
      */
-    fun getGamepadBinding(context: Context, keyCode: Int): GamepadAction? {
-        val stored = prefs(context).getInt(KEY_GAMEPAD_BINDING_PREFIX + keyCode, -1)
-        if (stored == -1) return null
+    fun getGamepadBinding(context: Context, profile: Int, keyCode: Int): GamepadAction? {
+        val stored = prefs(context).getInt(bindingKey(profile, keyCode), -1)
+        if (stored == -1) {
+            // Nothing stored for this profile+key, so the presets apply.
+            //
+            // The profile switcher (c/v/b) is preset in *every* profile, so the user can always
+            // move between 1 and 2 and 3 no matter which one is active. Profile 1 additionally
+            // ships the full controller layout; an older build's single-binding value is honoured
+            // as a profile-1 fallback so an existing setup is never lost.
+            if (profile == 1) {
+                legacyGamepadBinding(context, keyCode)?.let { return it }
+            }
+            GAMEPAD_PROFILE_1_PRESET[keyCode]?.takeIf { profile == 1 }?.let { return it }
+            return GAMEPAD_PROFILE_SWITCH_PRESET[keyCode]
+        }
+
+        // An explicitly stored "None": the key is unbound and no preset may re-apply.
+        if (stored == NONE_BINDING) return null
+
+        if (stored >= PROFILE_BINDING_BASE) {
+            return GAMEPAD_PROFILE_ACTIONS.getOrNull(stored - PROFILE_BINDING_BASE)
+        }
 
         if (stored >= STICK_BINDING_BASE) {
             val index = stored - STICK_BINDING_BASE
-            GAMEPAD_STICK_ACTIONS.getOrNull(index)?.let { return it }
-            return null
+            return GAMEPAD_STICK_ACTIONS.getOrNull(index)
         }
 
         // A button: the stored int *is* the Android key code, so rebuild the action from it
         // rather than looking it up in the (mutable) picker list.
-        return GamepadAction(labelForKeyCode(stored), stored)
+        return GamepadAction(labelForKeyCode(stored), stored, iconRes = iconForKeyCode(stored))
     }
 
     /** Display label for a controller key code, falling back to the raw number. */
@@ -263,19 +374,104 @@ object SettingsManager {
         GAMEPAD_BUTTON_ACTIONS.firstOrNull { it.keyCode == androidKeyCode }?.label
             ?: "0x" + androidKeyCode.toString(16)
 
-    fun setGamepadBinding(context: Context, keyCode: Int, action: GamepadAction?) {
+    /** Drawable for a controller key code, or null when the code has no icon. */
+    private fun iconForKeyCode(androidKeyCode: Int): Int? =
+        GAMEPAD_BUTTON_ACTIONS.firstOrNull { it.keyCode == androidKeyCode }?.iconRes
+
+    /**
+     * The pre-profile binding for a key, from a build that had only one gamepad layout.
+     *
+     * Read-only: it is never written back, so nothing here can resurrect an old value once the
+     * user assigns a real binding for the profile.
+     */
+    private fun legacyGamepadBinding(context: Context, keyCode: Int): GamepadAction? {
+        val stored = prefs(context).getInt(KEY_GAMEPAD_BINDING_LEGACY_PREFIX + keyCode, -1)
+        if (stored == -1) return null
+        if (stored >= STICK_BINDING_BASE) {
+            return GAMEPAD_STICK_ACTIONS.getOrNull(stored - STICK_BINDING_BASE)
+        }
+        return GamepadAction(labelForKeyCode(stored), stored, iconRes = iconForKeyCode(stored))
+    }
+
+    fun setGamepadBinding(context: Context, profile: Int, keyCode: Int, action: GamepadAction?) {
         val stored = when {
-            action == null -> null
+            // "None" is written explicitly (not removed), so it overrides any preset on read.
+            action == null -> NONE_BINDING
+            action.profile != null -> {
+                val index = GAMEPAD_PROFILE_ACTIONS.indexOf(action)
+                if (index < 0) NONE_BINDING else PROFILE_BINDING_BASE + index
+            }
             action.stick != null -> {
                 val index = GAMEPAD_STICK_ACTIONS.indexOf(action)
-                if (index < 0) null else STICK_BINDING_BASE + index
+                if (index < 0) NONE_BINDING else STICK_BINDING_BASE + index
             }
             else -> action.keyCode
         }
         prefs(context).edit {
-            if (stored == null) remove(KEY_GAMEPAD_BINDING_PREFIX + keyCode)
-            else putInt(KEY_GAMEPAD_BINDING_PREFIX + keyCode, stored)
+            putInt(bindingKey(profile, keyCode), stored)
         }
+    }
+
+    /** Storage key for one profile's binding of one keyboard key. */
+    private fun bindingKey(profile: Int, keyCode: Int): String =
+        KEY_GAMEPAD_BINDING_PREFIX + profile.coerceIn(GAMEPAD_PROFILES) + "_" + keyCode
+
+    /**
+     * Profile 1's shipped default layout.
+     *
+     * Resolved by action *label* against the picker's own lists, so the preset never stores raw
+     * magic numbers and keeps working if a code ever changes. Only profile 1 ships this full
+     * controller layout; profiles 2 and 3 are empty apart from the shared switcher below.
+     */
+    val GAMEPAD_PROFILE_1_PRESET: Map<Int, GamepadAction> by lazy {
+        val byLabel = (GAMEPAD_BUTTON_ACTIONS + GAMEPAD_STICK_ACTIONS).associateBy { it.label }
+
+        mapOf(
+            // Left hand: left stick on w/a/s/d, left trigger/bumper on q/a, D-pad on r/t/f/g.
+            45 to "L-Bumper",   // q
+            51 to "L-Up",       // w
+            33 to "L-Right",    // e
+            46 to "D-Up",       // r
+            48 to "D-Right",    // t
+            29 to "L-Trigger",  // a
+            47 to "L-Left",     // s
+            32 to "L-Down",     // d
+            34 to "D-Left",     // f
+            35 to "D-Down",     // g
+            // Right hand: face buttons on i/o/k/l, right stick on y/u/h/j, bumper/trigger on p/[.
+            53 to "R-Left",     // y
+            49 to "R-Up",       // u
+            37 to "X",          // i
+            43 to "Y",          // o
+            44 to "R-Bumper",   // p
+            36 to "R-Down",     // h
+            38 to "R-Right",    // j
+            39 to "A",          // k
+            40 to "B",          // l
+            71 to "R-Trigger",  // [
+            // Stick presses and system buttons around the bottom row.
+            59 to "L3",         // Shift
+            67 to "R3",         // Backspace
+            55 to "Select",     // ,
+            62 to "Menu",       // Space
+            56 to "Start",      // .
+        ).mapValues { (_, label) -> byLabel.getValue(label) }
+    }
+
+    /**
+     * The manual profile switcher, preset in every profile.
+     *
+     * `c` -> Profile 1, `v` -> Profile 2, `b` -> Profile 3, on the home row of every profile, so
+     * the user can always move between profiles no matter which one is active. These are ordinary,
+     * changeable bindings, not a hardcoded shortcut.
+     */
+    val GAMEPAD_PROFILE_SWITCH_PRESET: Map<Int, GamepadAction> by lazy {
+        val profileSwitch = GAMEPAD_PROFILE_ACTIONS.associateBy { it.profile }
+        mapOf(
+            31 to profileSwitch.getValue(1),  // c
+            50 to profileSwitch.getValue(2),  // v
+            30 to profileSwitch.getValue(3),  // b
+        )
     }
 
     /**
@@ -289,40 +485,42 @@ object SettingsManager {
     val GAMEPAD_GROUPS: List<GamepadGroup>
         get() = listOf(
             GamepadGroup(R.string.gamepad_group_face, listOf(
-                GamepadAction("A", android.view.KeyEvent.KEYCODE_BUTTON_A),
-                GamepadAction("B", android.view.KeyEvent.KEYCODE_BUTTON_B),
-                GamepadAction("X", android.view.KeyEvent.KEYCODE_BUTTON_X),
-                GamepadAction("Y", android.view.KeyEvent.KEYCODE_BUTTON_Y),
+                GamepadAction("A", android.view.KeyEvent.KEYCODE_BUTTON_A, iconRes = R.drawable.a_circle_24px),
+                GamepadAction("B", android.view.KeyEvent.KEYCODE_BUTTON_B, iconRes = R.drawable.b_circle_24px),
+                GamepadAction("X", android.view.KeyEvent.KEYCODE_BUTTON_X, iconRes = R.drawable.x_circle_24px),
+                GamepadAction("Y", android.view.KeyEvent.KEYCODE_BUTTON_Y, iconRes = R.drawable.y_circle_24px),
             )),
             GamepadGroup(R.string.gamepad_group_dpad, listOf(
-                GamepadAction("D-Up", android.view.KeyEvent.KEYCODE_DPAD_UP),
-                GamepadAction("D-Down", android.view.KeyEvent.KEYCODE_DPAD_DOWN),
-                GamepadAction("D-Left", android.view.KeyEvent.KEYCODE_DPAD_LEFT),
-                GamepadAction("D-Right", android.view.KeyEvent.KEYCODE_DPAD_RIGHT),
+                GamepadAction("D-Up", android.view.KeyEvent.KEYCODE_DPAD_UP, iconRes = R.drawable.gamepad_up_24px),
+                GamepadAction("D-Down", android.view.KeyEvent.KEYCODE_DPAD_DOWN, iconRes = R.drawable.gamepad_down_24px),
+                GamepadAction("D-Left", android.view.KeyEvent.KEYCODE_DPAD_LEFT, iconRes = R.drawable.gamepad_left_24px),
+                GamepadAction("D-Right", android.view.KeyEvent.KEYCODE_DPAD_RIGHT, iconRes = R.drawable.gamepad_right_24px),
             )),
             // Triggers are analog axes on the Xbox layout rather than buttons, so they do not
             // work yet. They are kept in the list, clearly marked, rather than hidden.
             GamepadGroup(R.string.gamepad_group_bumpers, listOf(
-                GamepadAction("L-Bumper", android.view.KeyEvent.KEYCODE_BUTTON_L1),
-                GamepadAction("R-Bumper", android.view.KeyEvent.KEYCODE_BUTTON_R1),
-                GamepadAction("L-Trigger", android.view.KeyEvent.KEYCODE_BUTTON_L2),
-                GamepadAction("R-Trigger", android.view.KeyEvent.KEYCODE_BUTTON_R2),
+                GamepadAction("L-Bumper", android.view.KeyEvent.KEYCODE_BUTTON_L1, iconRes = R.drawable.game_bumper_left_24px),
+                GamepadAction("R-Bumper", android.view.KeyEvent.KEYCODE_BUTTON_R1, iconRes = R.drawable.game_bumper_right_24px),
+                GamepadAction("L-Trigger", android.view.KeyEvent.KEYCODE_BUTTON_L2, iconRes = R.drawable.game_trigger_left_24px),
+                GamepadAction("R-Trigger", android.view.KeyEvent.KEYCODE_BUTTON_R2, iconRes = R.drawable.game_trigger_right_24px),
             )),
             // Each stick group holds its press (L3 / R3) followed by that stick's directions.
             GamepadGroup(R.string.gamepad_group_stick_left, buildList {
-                add(GamepadAction("L3", android.view.KeyEvent.KEYCODE_BUTTON_THUMBL))
+                add(GamepadAction("L3", android.view.KeyEvent.KEYCODE_BUTTON_THUMBL, iconRes = R.drawable.game_stick_l3_24px))
                 addAll(GAMEPAD_STICK_ACTIONS.filter { it.stick?.isLeft == true })
             }),
             GamepadGroup(R.string.gamepad_group_stick_right, buildList {
-                add(GamepadAction("R3", android.view.KeyEvent.KEYCODE_BUTTON_THUMBR))
+                add(GamepadAction("R3", android.view.KeyEvent.KEYCODE_BUTTON_THUMBR, iconRes = R.drawable.game_stick_r3_24px))
                 addAll(GAMEPAD_STICK_ACTIONS.filter { it.stick?.isLeft == false })
             }),
             GamepadGroup(R.string.gamepad_group_system, listOf(
-                GamepadAction("Start", android.view.KeyEvent.KEYCODE_BUTTON_START),
-                GamepadAction("Select", android.view.KeyEvent.KEYCODE_BUTTON_SELECT),
-                // The Xbox logo button, shown as "Mode" in most controller testers.
-                GamepadAction("Mode", android.view.KeyEvent.KEYCODE_BUTTON_MODE),
+                GamepadAction("Start", android.view.KeyEvent.KEYCODE_BUTTON_START, iconRes = R.drawable.start_24px),
+                GamepadAction("Menu", android.view.KeyEvent.KEYCODE_BUTTON_MODE, iconRes = R.drawable.home_24px),
+                GamepadAction("Select", android.view.KeyEvent.KEYCODE_BUTTON_SELECT, iconRes = R.drawable.select_24px),
             )),
+            // Profile switches are ordinary assignable rows like any controller action, so a key
+            // can be set to change the active profile instead of sending controller input.
+            GamepadGroup(R.string.gamepad_group_profiles, GAMEPAD_PROFILE_ACTIONS),
         )
 
     private const val KEY_DISABLE_IN_CAMERA = "disable_in_camera"

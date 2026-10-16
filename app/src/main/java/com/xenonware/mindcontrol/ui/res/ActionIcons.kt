@@ -144,6 +144,9 @@ fun getActionDisplayName(action: String): String {
         SettingsManager.ACTION_TAB -> R.string.action_tab
         SettingsManager.ACTION_REVERSE_TAB -> R.string.action_reverse_tab
         SettingsManager.ACTION_OPEN_EMOJI_KEYBOARD -> R.string.action_open_emoji_keyboard
+        SettingsManager.ACTION_PROFILE_1 -> R.string.action_profile_1
+        SettingsManager.ACTION_PROFILE_2 -> R.string.action_profile_2
+        SettingsManager.ACTION_PROFILE_3 -> R.string.action_profile_3
         SettingsManager.ACTION_PLAY_PAUSE -> R.string.action_play_pause
         SettingsManager.ACTION_NEXT -> R.string.action_next
         SettingsManager.ACTION_PREVIOUS -> R.string.action_previous

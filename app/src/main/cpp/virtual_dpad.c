@@ -140,7 +140,7 @@ static int create_device(void) {
     setup.id.vendor = GAMEPAD_VENDOR;
     setup.id.product = GAMEPAD_PRODUCT;
     setup.id.version = GAMEPAD_VERSION;
-    snprintf(setup.name, UINPUT_MAX_NAME_SIZE, "iKKO MindController");
+    snprintf(setup.name, UINPUT_MAX_NAME_SIZE, "iKKO Mind Controller");
 
     if (ioctl(fd, UI_DEV_SETUP, &setup) < 0) {
         printf("ERROR UI_DEV_SETUP: %s\n", strerror(errno));

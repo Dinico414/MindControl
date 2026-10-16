@@ -34,7 +34,9 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalView
 import androidx.core.view.WindowCompat
+import com.xenonware.mindcontrol.ButtonState
 import com.xenonware.mindcontrol.PermissionStatus
+import com.xenonware.mindcontrol.SettingsManager
 import com.xenonware.mindcontrol.ShellManager
 import com.xenonware.mindcontrol.ui.theme.BlueTheme
 import com.xenonware.mindcontrol.ui.theme.GreenTheme
@@ -68,6 +70,13 @@ fun MindControlMainScreen(
     // Gamepad mode is remembered while the app runs, so returning from a picker keeps it.
     // It is deliberately not persisted: a fresh start goes back to keyboard mode.
     var gamepadMode by remember { mutableStateOf(false) }
+    // Active controller profile, mirrored from shared state so a switch made by the service (from
+    // a profile-switch key press) is reflected in the header without leaving the screen.
+    val gamepadProfile by ButtonState.gamepadProfile.collectAsState()
+    // Seed shared state from storage so the first frame already shows the stored profile.
+    LaunchedEffect(Unit) {
+        ButtonState.setGamepadProfile(SettingsManager.getActiveGamepadProfile(context))
+    }
     // Whether the "which apps get the gamepad keyboard" screen is open.
     var showAppPicker by rememberSaveable { mutableStateOf(false) }
     // Which keyboard key is having a controller action assigned, when that picker is open.
@@ -202,6 +211,11 @@ fun MindControlMainScreen(
                     shellReady = shellPermission,
                     gamepadMode = gamepadMode,
                     onGamepadModeChange = { gamepadMode = it },
+                    gamepadProfile = gamepadProfile,
+                    onGamepadProfileChange = {
+                        SettingsManager.setActiveGamepadProfile(context, it)
+                        ButtonState.setGamepadProfile(it)
+                    },
                     onOpenAppPicker = { showAppPicker = true },
                     onBack = { showKeyboard = false },
                     onKeySelected = { code, name ->

@@ -9,22 +9,25 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeDrawing
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.outlined.Backspace
 import androidx.compose.material.icons.automirrored.rounded.KeyboardReturn
-import androidx.compose.material.icons.rounded.Gamepad
 import androidx.compose.material.icons.rounded.Keyboard
 import androidx.compose.material.icons.rounded.Language
+import androidx.compose.material.icons.rounded.VideogameAsset
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
@@ -41,10 +44,10 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
-import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -80,8 +83,11 @@ private fun KeyInfo.configName(): String = when {
 private const val LAYOUT_BUTTON_LABEL = "__layout__"
 private const val BACK_BUTTON_LABEL = "__back__"
 
-/** Short label for a binding, shown under the key it is assigned to. */
-private fun gamepadActionLabel(action: SettingsManager.GamepadAction): String = action.label
+/** Drawable for a binding's icon, shown on the key it is assigned to. */
+@androidx.annotation.DrawableRes
+private fun gamepadActionIconRes(action: SettingsManager.GamepadAction): Int? = action.iconRes
+
+
 
 @Composable
 fun CustomKeyboardScreen(
@@ -90,6 +96,8 @@ fun CustomKeyboardScreen(
     shellReady: Boolean = false,
     gamepadMode: Boolean = false,
     onGamepadModeChange: (Boolean) -> Unit = {},
+    gamepadProfile: Int = 1,
+    onGamepadProfileChange: (Int) -> Unit = {},
     onOpenAppPicker: () -> Unit = {},
     onBack: () -> Unit,
     onKeySelected: (Int, String) -> Unit
@@ -148,10 +156,10 @@ fun CustomKeyboardScreen(
                     iconTheme {
                         Surface(
                             color = MaterialTheme.colorScheme.primaryContainer,
-                            shape = RoundedCornerShape(50),
                             modifier = Modifier
                                 .width(keyWidth(2f))
                                 .fillMaxHeight()
+                                .clip(RoundedCornerShape(100f))
                                 .clickable { onGamepadModeChange(!gamepadMode) }
                         ) {
                             Crossfade(
@@ -164,7 +172,7 @@ fun CustomKeyboardScreen(
                                     contentAlignment = Alignment.Center
                                 ) {
                                     Icon(
-                                        imageVector = if (isGamepad) Icons.Rounded.Keyboard else Icons.Rounded.Gamepad,
+                                        imageVector = if (isGamepad) Icons.Rounded.Keyboard else Icons.Rounded.VideogameAsset,
                                         contentDescription = stringResource(
                                             if (isGamepad) R.string.keyboard_mode else R.string.gamepad_mode
                                         ),
@@ -177,20 +185,56 @@ fun CustomKeyboardScreen(
                     }
                 }
 
+                // Profile button: only in gamepad mode, 1 wide, sits between the mode switch and
+                // Apps. Shows the active profile as a numbered counter icon and cycles
+                // 1 -> 2 -> 3 -> 1 on tap. The profile only affects controller bindings, never
+                // the keyboard.
+                if (effectiveGamepadMode) {
+                    // Painted green like the rest of the gamepad-mode controls, so the whole
+                    // header reads as one mode rather than mixing in the keyboard palette.
+                    GreenTheme {
+                        Surface(
+                            color = MaterialTheme.colorScheme.primaryContainer,
+                            modifier = Modifier
+                                .width(keyWidth(1f))
+                                .fillMaxHeight()
+                                .clip(RoundedCornerShape(topStart = 16.dp, bottomStart = 16.dp, topEnd = 4.dp, bottomEnd = 4.dp))
+                                .clickable { onGamepadProfileChange((gamepadProfile % 3) + 1) }
+                        ) {
+                            Box(
+                                modifier = Modifier.fillMaxSize(),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Icon(
+                                    painter = painterResource(
+                                        SettingsManager.profileIconRes(gamepadProfile)
+                                    ),
+                                    contentDescription = stringResource(
+                                        R.string.gamepad_profile_label
+                                    ) + " " + gamepadProfile,
+                                    tint = MaterialTheme.colorScheme.onPrimaryContainer,
+                                    modifier = Modifier.size(24.dp)
+                                )
+                            }
+                        }
+                    }
+                }
+
                 // One button, two roles: in gamepad mode it opens the app picker, otherwise it
-                // cycles the typing layout. Always 3 wide, so the row is 5 + 2 + 3 with Shizuku
-                // and 7 + 3 without.
+                // cycles the typing layout. Two wide in gamepad mode (5 + 2 + 1 + 2), and the
+                // full 3 wide otherwise so the row still fills the screen (7 + 3 without Shizuku).
+                val appsWeight = if (effectiveGamepadMode) 2f else 3f
                 val secondaryTheme: @Composable (@Composable () -> Unit) -> Unit =
                     if (effectiveGamepadMode) ({ content -> GreenTheme { content() } })
                     else ({ content -> content() })
                 secondaryTheme {
                     KeyButton(
-                        key = KeyInfo(LAYOUT_BUTTON_LABEL, weight = 3f, onClick = {
+                        key = KeyInfo(LAYOUT_BUTTON_LABEL, weight = appsWeight, onClick = {
                             if (effectiveGamepadMode) onOpenAppPicker()
                             else currentLayout = currentLayout.next()
                         }),
                         displayLabel = if (effectiveGamepadMode) "Apps" else currentLayout.displayName,
-                        modifier = Modifier.width(keyWidth(3f)).clip(RoundedCornerShape(16.dp)),
+                        modifier = Modifier.width(keyWidth(appsWeight)).clip(if (effectiveGamepadMode) RoundedCornerShape(topStart = 4.dp, bottomStart = 4.dp, topEnd = 16.dp, bottomEnd = 16.dp) else RoundedCornerShape(16.dp)),
                         onKeyConfigure = onKeySelected
                     )
                 }
@@ -213,9 +257,9 @@ fun CustomKeyboardScreen(
                                 key = key,
                                 modifier = Modifier.width(keyWidth(key.weight)),
                                 isHardwarePressed = key.keyCode != null && key.keyCode in pressedKeys,
-                                // The assigned controller action is shown under the letter, and
-                                // unassigned keys are dimmed because they do nothing.
-                                subLabel = if (effectiveGamepadMode) bound?.let(::gamepadActionLabel) else null,
+                                // The assigned controller action is shown as its icon under the
+                                // letter, and unassigned keys are dimmed because they do nothing.
+                                subIconRes = if (effectiveGamepadMode) bound?.let(::gamepadActionIconRes) else null,
                                 dimmed = effectiveGamepadMode && bound == null,
                                 onKeyConfigure = onKeySelected
                             )
@@ -227,12 +271,12 @@ fun CustomKeyboardScreen(
 
         // Re-read the bindings when the layout changes, so a value assigned in the picker shows up
         // as soon as the user comes back.
-        LaunchedEffect(currentLayout, effectiveGamepadMode) {
+        LaunchedEffect(currentLayout, effectiveGamepadMode, gamepadProfile) {
             bindings = getRowsForLayout(currentLayout)
                 .flatten()
                 .mapNotNull { it.keyCode }
                 .mapNotNull { code ->
-                    SettingsManager.getGamepadBinding(context, code)?.let { code to it }
+                    SettingsManager.getGamepadBinding(context, gamepadProfile, code)?.let { code to it }
                 }
                 .toMap()
         }
@@ -254,7 +298,8 @@ fun KeyButton(
     modifier: Modifier = Modifier,
     isHardwarePressed: Boolean = false,
     displayLabel: String? = null,
-    subLabel: String? = null,
+    /** Icon of the controller action assigned to this key, shown under the glyph. */
+    @androidx.annotation.DrawableRes subIconRes: Int? = null,
     dimmed: Boolean = false,
     onKeyConfigure: (Int, String) -> Unit = { _, _ -> }
 ) {
@@ -300,38 +345,53 @@ fun KeyButton(
             },
         contentAlignment = Alignment.Center
     ) {
-        // The column wraps both kinds of key so the binding sub-label is shared: without this an
-        // icon key (Backspace, Enter) could never show what it is mapped to.
+        // The column wraps both kinds of key so the binding sub-icon is shared: without this an
+        // icon key (Backspace, Enter) could never show what it is mapped to. When a controller
+        // action is bound the two swap emphasis: the glyph carries the softer tint and the bound
+        // action's icon takes the full-strength one, so the mapping becomes the focal point.
+        // Nudged down a touch when a binding is present, so the stacked icon+glyph pair sits
+        // optically centred in the key.
+        val hasBinding = subIconRes != null
         Column(
             horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.Center
+            verticalArrangement = Arrangement.Center,
+            modifier = Modifier.padding(2.dp).offset(y = if (hasBinding) 4.dp else 0.dp)
         ) {
+            // The assigned controller action sits above the glyph, with a little breathing room
+            // between the two. Drawing the action's own icon is clearer than repeating its label.
+            if (subIconRes != null) {
+                Icon(
+                    painter = painterResource(subIconRes),
+                    contentDescription = null,
+                    tint = if (isHardwarePressed) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = keyAlpha),
+                    modifier = Modifier.size(24.dp)
+                )
+                Spacer(Modifier.height(6.dp))
+            }
+
+            val glyphColor = if (isHardwarePressed) MaterialTheme.colorScheme.onPrimary
+                else MaterialTheme.colorScheme.onPrimaryContainer.copy(
+                    // A key with a binding lets its glyph recede so the action icon stands out.
+                    alpha = if (hasBinding) 0.6f else keyAlpha
+                )
+
             if (key.icon != null) {
                 Icon(
                     imageVector = key.icon,
                     contentDescription = labelForDisplay,
-                    tint = if (isHardwarePressed) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = keyAlpha),
+                    tint = glyphColor,
                     modifier = Modifier.size(20.dp)
                 )
             } else {
+                // A bound key shrinks its letter by 5sp to make room for the icon above it.
+                val baseFontSize = if (labelForDisplay.length > 1) 14.sp else 18.sp
                 Text(
                     text = displayedLabel,
-                    color = if (isHardwarePressed) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = keyAlpha),
-                    fontSize = if (labelForDisplay.length > 1) 14.sp else 18.sp,
+                    color = glyphColor,
+                    fontSize = if (hasBinding) (baseFontSize.value - 5).sp else baseFontSize,
                     fontWeight = FontWeight.Bold,
                     textAlign = TextAlign.Center,
                     fontFamily = QuicksandTitleVariable
-                )
-            }
-            // The assigned controller action, shown directly under the glyph or letter.
-            if (subLabel != null) {
-                Text(
-                    text = subLabel,
-                    color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.75f),
-                    fontSize = 8.sp,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                    textAlign = TextAlign.Center
                 )
             }
         }

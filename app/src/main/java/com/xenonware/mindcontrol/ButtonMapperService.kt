@@ -266,6 +266,9 @@ class ButtonMapperService : AccessibilityService() {
         Log.d(tag, "Service Connected")
         instance = this
 
+        // Publish the stored profile so the UI starts in step with the service.
+        ButtonState.setGamepadProfile(SettingsManager.getActiveGamepadProfile(this))
+
         updateLauncherPackages()
 
         val info = serviceInfo
@@ -512,7 +515,9 @@ class ButtonMapperService : AccessibilityService() {
         // Gamepad mode runs before the Shift machinery below. Shift consumes keys to re-send them
         // shifted, so a key bound to a controller action would be swallowed and never reach the
         // gamepad branch -- which is why binding Shift itself had no effect in gamepad mode.
-        if (gamepadActive && SettingsManager.getGamepadBinding(this, keyCode) != null) {
+        if (gamepadActive &&
+            SettingsManager.getGamepadBinding(this, activeGamepadProfile(), keyCode) != null
+        ) {
             return handleKeyEvent(keyCode, isDown, fromShizuku = false)
         }
 
@@ -901,12 +906,25 @@ class ButtonMapperService : AccessibilityService() {
         // gamepad picker is meant to be intercepted, so requiring that unrelated flag made every
         // binding except the hardcoded-on comma key silently do nothing.
         if (gamepadActive && keyCode in keyboardKeyCodes) {
-            val gamepadAction = SettingsManager.getGamepadBinding(this, keyCode)
+            val gamepadAction =
+                SettingsManager.getGamepadBinding(this, activeGamepadProfile(), keyCode)
             Log.d(tag, "Gamepad probe: key=$keyCode binding=${gamepadAction?.label} down=$isDown")
             if (gamepadAction != null && !dup) {
                 updateButtonState()
                 val stick = gamepadAction.stick
                 when {
+                    // A profile switch sends no controller input: it only changes which profile's
+                    // bindings are in force, and does so on the press (nothing to release).
+                    gamepadAction.profile != null -> {
+                        if (isDown) {
+                            SettingsManager.setActiveGamepadProfile(this, gamepadAction.profile)
+                            // Mirror it to the UI so the header and the key sub-labels follow the
+                            // switch immediately, rather than only on the next screen re-entry.
+                            ButtonState.setGamepadProfile(gamepadAction.profile)
+                            showProfileToast(gamepadAction.profile)
+                            Log.i(tag, "Gamepad profile switched to ${gamepadAction.profile} (key $keyCode)")
+                        }
+                    }
                     stick != null && isDown -> pressStickDirection(gamepadAction, stick)
                     stick != null -> releaseStickDirection(gamepadAction, stick)
                     // Triggers are analog axes, driven fully on or fully off.
@@ -1274,6 +1292,23 @@ class ButtonMapperService : AccessibilityService() {
             }
             SettingsManager.ACTION_OPEN_EMOJI_KEYBOARD -> { openEmojiKeyboard(); true }
 
+            // Switch the active controller profile. Deliberately inert outside gamepad mode:
+            // the profiles are a gamepad-only concept, so a key mapped to this action keeps doing
+            // nothing in normal keyboard mode rather than silently changing layout state.
+            SettingsManager.ACTION_PROFILE_1,
+            SettingsManager.ACTION_PROFILE_2,
+            SettingsManager.ACTION_PROFILE_3 -> {
+                val profile = SettingsManager.profileForAction(finalAction)
+                if (profile != null && gamepadActive) {
+                    SettingsManager.setActiveGamepadProfile(this, profile)
+                    ButtonState.setGamepadProfile(profile)
+                    Log.i(tag, "Gamepad profile switched to $profile")
+                } else if (profile != null) {
+                    Log.d(tag, "Profile action ignored: gamepad mode is not active")
+                }
+                true
+            }
+
             SettingsManager.ACTION_NONE -> { Log.d(tag, "Action is NONE, key blocked."); true }
             else -> {
                 if (finalAction.startsWith(SettingsManager.PREFIX_APP)) {
@@ -1320,6 +1355,23 @@ class ButtonMapperService : AccessibilityService() {
         handler.post {
             keyToast?.cancel()
             keyToast = Toast.makeText(applicationContext, msg, Toast.LENGTH_SHORT).also { it.show() }
+        }
+    }
+
+    // Reusable toast for profile switches. Kept apart from [keyToast] (which the debug key toasts
+    // own) and shown regardless of SHOW_KEY_TOASTS: this is user feedback, not a debug aid, so it
+    // must appear even in a release build.
+    private var profileToast: Toast? = null
+
+    /** Tells the user which controller profile is now active, e.g. "Profile 2". */
+    private fun showProfileToast(profile: Int) {
+        handler.post {
+            profileToast?.cancel()
+            profileToast = Toast.makeText(
+                applicationContext,
+                getString(R.string.gamepad_profile_switched, profile),
+                Toast.LENGTH_SHORT
+            ).also { it.show() }
         }
     }
 
@@ -1562,6 +1614,15 @@ class ButtonMapperService : AccessibilityService() {
 
     /** How often the gamepad state is re-checked, independent of window-change events. */
     private val GAMEPAD_WATCHDOG_INTERVAL_MS = 1500L
+
+    /**
+     * The controller profile whose bindings are currently in force.
+     *
+     * Read on every gamepad key event, so switching profile takes effect immediately without a
+     * restart. Profiles are independent of the keyboard path -- this is only consulted inside the
+     * gamepad branch below.
+     */
+    private fun activeGamepadProfile(): Int = SettingsManager.getActiveGamepadProfile(this)
 
     /**
      * Creates or removes the gamepad device so it matches the app that is now in front.
