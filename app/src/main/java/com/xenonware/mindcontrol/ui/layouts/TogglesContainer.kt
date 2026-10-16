@@ -52,11 +52,10 @@ import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.DialogProperties
 import androidx.core.net.toUri
 import com.xenon.mylibrary.res.XenonDialog
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.withContext
 import com.xenon.mylibrary.theme.QuicksandTitleVariable
 import com.xenonware.mindcontrol.PermissionStatus
 import com.xenonware.mindcontrol.R
+import com.xenonware.mindcontrol.ButtonMapperService
 import com.xenonware.mindcontrol.SettingsManager
 import com.xenonware.mindcontrol.ShellManager
 import com.xenonware.mindcontrol.ui.theme.Palette
@@ -188,11 +187,16 @@ fun TogglesContainer(
         )
     }
 
-    var virtualDpad by remember { mutableStateOf(SettingsManager.isVirtualDpadEnabled(context)) }
-    // Probing /dev/uinput costs a shell round-trip, so it runs off the composition and only once.
-    var virtualDpadAvailable by remember { mutableStateOf(false) }
+    // Manual controller state, polled so the button follows whatever is actually running (the
+    // service can start and stop the device on its own as apps come and go).
+    var controllerConnected by remember { mutableStateOf(ButtonMapperService.isControllerRunning()) }
+    var controllerUnavailable by remember { mutableStateOf(false) }
+
     LaunchedEffect(Unit) {
-        virtualDpadAvailable = withContext(Dispatchers.IO) { ShellManager.isUinputAvailable() }
+        while (true) {
+            controllerConnected = ButtonMapperService.isControllerRunning()
+            delay(2000)
+        }
     }
 
     var isNotificationListenerEnabled by remember { mutableStateOf(false) }
@@ -374,6 +378,56 @@ fun TogglesContainer(
                 }
             }
 
+            // --- Start the controller device by hand ---
+            // Advertised automatically while a chosen app is in front; this is here so the user can
+            // start it on demand, which is also useful when diagnosing why it has not engaged.
+            //
+            // Shown whenever privileged access has been granted. It deliberately does not depend on
+            // a capability probe: that probe used to hide the button entirely when it happened to
+            // run too early, leaving the user with no way to start the controller at all.
+            if (shellGranted) {
+                Card(
+                    onClick = {
+                        if (controllerConnected) {
+                            ButtonMapperService.stopControllerManually()
+                        } else if (!ButtonMapperService.startControllerManually()) {
+                            // The service is the only thing that can create the device, so say why
+                            // instead of leaving a button that appears to do nothing.
+                            controllerUnavailable = true
+                        }
+                    },
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(vertical = 4.dp),
+                    colors = CardDefaults.cardColors(
+                        containerColor = if (controllerConnected) GreenContainer else YellowContainer
+                    ),
+                    border = BorderStroke(1.dp, if (controllerConnected) GreenContent else YellowContent)
+                ) {
+                    Column(modifier = Modifier.padding(12.dp)) {
+                        Text(
+                            text = if (controllerConnected) {
+                                stringResource(R.string.controller_stop)
+                            } else {
+                                stringResource(R.string.controller_start)
+                            },
+                            color = if (controllerConnected) GreenContent else YellowContent,
+                            style = MaterialTheme.typography.bodyMedium
+                        )
+                        Text(
+                            text = if (controllerConnected) {
+                                stringResource(R.string.controller_running_desc)
+                            } else {
+                                stringResource(R.string.controller_start_desc)
+                            },
+                            color = (if (controllerConnected) GreenContent else YellowContent)
+                                .copy(alpha = 0.7f),
+                            style = MaterialTheme.typography.labelSmall
+                        )
+                    }
+                }
+            }
+
             // --- Media Control / Notification Listener (Hide if Active) ---
             if (!isNotificationListenerEnabled) {
                 Card(
@@ -469,7 +523,22 @@ fun TogglesContainer(
                 }
             }
 
-            if (showAccessibilityDisclosure) {
+            // Shown when the manual switch is flipped but the service is not connected, so the user
+        // gets a reason instead of a switch that silently snaps back.
+        if (controllerUnavailable) {
+            XenonDialog(
+                properties = DialogProperties(usePlatformDefaultWidth = true),
+                onDismissRequest = { controllerUnavailable = false },
+                title = stringResource(R.string.warning),
+                confirmButtonText = stringResource(R.string.ok),
+                onConfirmButtonClick = { controllerUnavailable = false },
+                content = {
+                    Text(stringResource(R.string.controller_manual_unavailable))
+                }
+            )
+        }
+
+        if (showAccessibilityDisclosure) {
                 XenonDialog(
                     properties = DialogProperties(usePlatformDefaultWidth = true),
                     onDismissRequest = { showAccessibilityDisclosure = false },
@@ -586,33 +655,6 @@ fun TogglesContainer(
                 })
             }
 
-            // Only shown when a virtual gamepad can actually be created: the mechanism needs
-            // Shizuku or root *and* a writable /dev/uinput, so otherwise this would be a dead
-            // switch. The service falls back to normal key injection when it is off.
-            if (virtualDpadAvailable) {
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = 4.dp)
-                ) {
-                    Column(modifier = Modifier.weight(1f)) {
-                        Text(
-                            stringResource(R.string.controller_style_arrows),
-                            style = MaterialTheme.typography.bodySmall
-                        )
-                        Text(
-                            stringResource(R.string.controller_style_arrows_desc),
-                            style = MaterialTheme.typography.labelSmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                    }
-                    Switch(checked = virtualDpad, onCheckedChange = {
-                        virtualDpad = it
-                        SettingsManager.setVirtualDpadEnabled(context, it)
-                    })
-                }
-            }
 
             if (!shellGranted) {
                 Row(

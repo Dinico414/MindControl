@@ -26,6 +26,7 @@ import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.listSaver
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
@@ -64,6 +65,13 @@ fun MindControlMainScreen(
     var selectedButton by rememberSaveable(stateSaver = PairSaver) { mutableStateOf(null) }
     var showKeyboard by rememberSaveable { mutableStateOf(false) }
     var configFromKeyboard by rememberSaveable { mutableStateOf(false) }
+    // Gamepad mode is remembered while the app runs, so returning from a picker keeps it.
+    // It is deliberately not persisted: a fresh start goes back to keyboard mode.
+    var gamepadMode by remember { mutableStateOf(false) }
+    // Whether the "which apps get the gamepad keyboard" screen is open.
+    var showAppPicker by rememberSaveable { mutableStateOf(false) }
+    // Which keyboard key is having a controller action assigned, when that picker is open.
+    var gamepadPickerKey by rememberSaveable(stateSaver = PairSaver) { mutableStateOf(null) }
     var actionSelectionConfig by rememberSaveable(stateSaver = ActionConfigSaver) { mutableStateOf(null) }
     var isScreenOff by rememberSaveable { mutableStateOf(false) }
 
@@ -90,7 +98,9 @@ fun MindControlMainScreen(
 
     val state = when {
         actionSelectionConfig != null -> "action_selection"
+        gamepadPickerKey != null -> "gamepad_picker"
         selectedButton != null -> "config"
+        showAppPicker -> "app_picker"
         showKeyboard -> "keyboard"
         else -> "grid"
     }
@@ -116,6 +126,8 @@ fun MindControlMainScreen(
             progress.collect { }
             when (state) {
                 "action_selection" -> actionSelectionConfig = null
+                "app_picker" -> showAppPicker = false
+                "gamepad_picker" -> gamepadPickerKey = null
                 "config" -> {
                     val cameFromKeyboard = configFromKeyboard
                     selectedButton = null
@@ -182,15 +194,45 @@ fun MindControlMainScreen(
                 }
             }
 
+            // No safePadding here: the screen owns its insets, like the other full screens.
             "keyboard" -> PaletteTheme(palette = keyboardPalette) {
                 CustomKeyboardScreen(
-                    modifier = modifier.padding(safePadding),
+                    modifier = modifier,
                     devicePalette = devicePalette,
+                    shellReady = shellPermission,
+                    gamepadMode = gamepadMode,
+                    onGamepadModeChange = { gamepadMode = it },
+                    onOpenAppPicker = { showAppPicker = true },
                     onBack = { showKeyboard = false },
                     onKeySelected = { code, name ->
-                        configFromKeyboard = true
-                        selectedButton = code to name
+                        if (gamepadMode) {
+                            // Gamepad mode has its own picker: one key, exactly one action.
+                            gamepadPickerKey = code to name
+                        } else {
+                            configFromKeyboard = true
+                            selectedButton = code to name
+                        }
                     })
+            }
+
+            // A sibling of the keyboard, so it is full screen on its own.
+            "app_picker" -> GamepadAppPickerScreen(
+                modifier = modifier,
+                onBack = { showAppPicker = false }
+            )
+
+            "gamepad_picker" -> {
+                val button = gamepadPickerKey
+                if (button != null) {
+                    GamepadButtonPickerScreen(
+                        keyCode = button.first,
+                        name = button.second,
+                        modifier = modifier,
+                        onBack = { gamepadPickerKey = null }
+                    )
+                } else {
+                    Box(modifier.fillMaxSize())
+                }
             }
 
             "config" -> {

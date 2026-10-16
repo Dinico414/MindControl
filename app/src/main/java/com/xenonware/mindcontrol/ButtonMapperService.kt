@@ -46,6 +46,40 @@ class ButtonMapperService : AccessibilityService() {
 
         /** Vibration when holding Shift triggers Shift Lock (Better Shift). */
         private const val SHIFT_LOCK_VIBRATION_MS = 80L
+
+        /**
+         * The running service instance, so the settings screen can start or stop the controller
+         * without a broadcast or bound service. Null when the service is not connected.
+         */
+        @Volatile
+        private var instance: ButtonMapperService? = null
+
+        /** True when the accessibility service is connected and can act on requests. */
+        fun isConnected(): Boolean = instance != null
+
+        /**
+         * Starts advertising a controller, regardless of which app is in front.
+         *
+         * Returns false when the service is not running, so the caller can tell the user to enable
+         * accessibility first rather than leaving them with a button that does nothing.
+         */
+        fun startControllerManually(): Boolean {
+            val service = instance ?: return false
+            service.manualGamepadRequested = true
+            service.handler.post { service.syncGamepadForForegroundApp() }
+            return true
+        }
+
+        /** Stops a manually started controller and returns to automatic per-app behaviour. */
+        fun stopControllerManually(): Boolean {
+            val service = instance ?: return false
+            service.manualGamepadRequested = false
+            service.handler.post { service.syncGamepadForForegroundApp() }
+            return true
+        }
+
+        /** True while a controller is being advertised, however it was started. */
+        fun isControllerRunning(): Boolean = ShellManager.isGamepadRunning()
     }
 
     private val tag = "ButtonMapper"
@@ -230,6 +264,7 @@ class ButtonMapperService : AccessibilityService() {
     @SuppressLint("WakelockTimeout")
     override fun onServiceConnected() {
         Log.d(tag, "Service Connected")
+        instance = this
 
         updateLauncherPackages()
 
@@ -257,6 +292,34 @@ class ButtonMapperService : AccessibilityService() {
         Shizuku.addBinderReceivedListenerSticky(binderListener)
         Shizuku.addRequestPermissionResultListener(permissionListener)
         tryStartMonitoring()
+
+        // Gamepad mode is also re-checked on a timer rather than only on window changes. Sync used
+        // to run solely when the foreground package changed, so it never happened when the service
+        // started while a chosen app was already open -- after a reboot, for example -- and the
+        // controller was then never advertised until the user switched apps twice.
+        startGamepadWatchdog()
+    }
+
+    /**
+     * Keeps the controller device in step with the foreground app, independently of window events.
+     *
+     * Cheap by design: it compares the current package against the last one it acted on, so the
+     * work happens only when the state actually differs.
+     */
+    private val gamepadWatchdog = object : Runnable {
+        override fun run() {
+            try {
+                syncGamepadForForegroundApp()
+            } catch (e: Exception) {
+                Log.w(tag, "Gamepad watchdog failed", e)
+            }
+            handler.postDelayed(this, GAMEPAD_WATCHDOG_INTERVAL_MS)
+        }
+    }
+
+    private fun startGamepadWatchdog() {
+        handler.removeCallbacks(gamepadWatchdog)
+        handler.post(gamepadWatchdog)
     }
 
     private fun createNotificationChannel() {
@@ -272,6 +335,54 @@ class ButtonMapperService : AccessibilityService() {
             .setSmallIcon(android.R.drawable.ic_menu_preferences)
             .setOnlyAlertOnce(true)
             .build()
+
+    // ---------------------------------------------------------------------
+    // Gamepad notifications
+    // ---------------------------------------------------------------------
+    //
+    // Uses its own channel and id so it never disturbs the foreground-service notification, and
+    // is silent: the user already knows they turned gamepad mode on.
+
+    private val gamepadChannelId = "gamepad_channel"
+    private val gamepadNotificationId = 2
+
+    private fun ensureGamepadChannel() {
+        val channel = NotificationChannel(
+            gamepadChannelId,
+            getString(R.string.gamepad_channel_name),
+            NotificationManager.IMPORTANCE_LOW
+        )
+        (getSystemService(NOTIFICATION_SERVICE) as NotificationManager).createNotificationChannel(channel)
+    }
+
+    /** Tells the user a controller is being reported while a chosen app is in front. */
+    private fun showGamepadNotification(packageName: String?) {
+        ensureGamepadChannel()
+        val label = runCatching {
+            val info = packageManager.getApplicationInfo(packageName ?: "", 0)
+            packageManager.getApplicationLabel(info).toString()
+        }.getOrNull() ?: packageName.orEmpty()
+
+        val notification = Notification.Builder(this, gamepadChannelId)
+            .setContentTitle(getString(R.string.gamepad_notification_title))
+            .setContentText(getString(R.string.gamepad_notification_text, label))
+            .setSmallIcon(android.R.drawable.ic_menu_preferences)
+            .setOnlyAlertOnce(true)
+            .setOngoing(true)
+            .build()
+
+        runCatching {
+            (getSystemService(NOTIFICATION_SERVICE) as NotificationManager)
+                .notify(gamepadNotificationId, notification)
+        }.onFailure { Log.w(tag, "Could not show gamepad notification", it) }
+    }
+
+    private fun hideGamepadNotification() {
+        runCatching {
+            (getSystemService(NOTIFICATION_SERVICE) as NotificationManager)
+                .cancel(gamepadNotificationId)
+        }
+    }
 
     /** Shows the current Shift state in the persistent notification so it's never "invisible". */
     private fun updateModifierIndicator() {
@@ -327,6 +438,8 @@ class ButtonMapperService : AccessibilityService() {
                         previousPackageName = lastPackageName
                         lastPackageName = pkg
                         Log.d(tag, "App Track: Current=$lastPackageName, Previous=$previousPackageName")
+                        // Enter or leave gamepad mode for the app that just came to the front.
+                        syncGamepadForForegroundApp()
                     }
                 }
 
@@ -395,6 +508,13 @@ class ButtonMapperService : AccessibilityService() {
 
         // TOAST: show for EVERY key the service receives, before any filtering
         if (isDown) showKeyToast(keyCode)
+
+        // Gamepad mode runs before the Shift machinery below. Shift consumes keys to re-send them
+        // shifted, so a key bound to a controller action would be swallowed and never reach the
+        // gamepad branch -- which is why binding Shift itself had no effect in gamepad mode.
+        if (gamepadActive && SettingsManager.getGamepadBinding(this, keyCode) != null) {
+            return handleKeyEvent(keyCode, isDown, fromShizuku = false)
+        }
 
         // Shift key itself (managed by default, reacts instantly – no multi-press wait)
         if (handleManagedShiftKey(event)) return true
@@ -773,6 +893,32 @@ class ButtonMapperService : AccessibilityService() {
                 handler.postDelayed(task, 500L)
             } else {
                 ButtonState.setKeyPressed(keyCode, isDown)
+            }
+        }
+
+        // Gamepad mode runs before the Button Override gate below. Button Override exists to decide
+        // whether a *typing* key should be intercepted; a key the user explicitly bound on the
+        // gamepad picker is meant to be intercepted, so requiring that unrelated flag made every
+        // binding except the hardcoded-on comma key silently do nothing.
+        if (gamepadActive && keyCode in keyboardKeyCodes) {
+            val gamepadAction = SettingsManager.getGamepadBinding(this, keyCode)
+            Log.d(tag, "Gamepad probe: key=$keyCode binding=${gamepadAction?.label} down=$isDown")
+            if (gamepadAction != null && !dup) {
+                updateButtonState()
+                val stick = gamepadAction.stick
+                when {
+                    stick != null && isDown -> pressStickDirection(gamepadAction, stick)
+                    stick != null -> releaseStickDirection(gamepadAction, stick)
+                    // Triggers are analog axes, driven fully on or fully off.
+                    SettingsManager.isTriggerKey(gamepadAction.keyCode) ->
+                        setGamepadTrigger(gamepadAction.keyCode, isDown)
+                    // The D-pad rides the hat axes; press moves it, release re-centres.
+                    isDpadAction(gamepadAction.keyCode) ->
+                        setGamepadDpad(gamepadAction.keyCode, isDown)
+                    isDown -> triggerGamepadAction(gamepadAction)
+                    else -> releaseGamepadAction(gamepadAction)
+                }
+                return true
             }
         }
 
@@ -1367,6 +1513,226 @@ class ButtonMapperService : AccessibilityService() {
         // 4) Last resort: scroll the nearest scrollable container in the arrow's direction.
         return performDpadScroll(keyCode)
     }
+
+    // ---------------------------------------------------------------------
+    // Gamepad mode
+    // ---------------------------------------------------------------------
+    //
+    // Kept separate from the keyboard path on purpose. Nothing in this section writes to the
+    // arrow/action storage, and the arrow path never reads anything here, so enabling gamepad
+    // mode cannot change how arrow keys behave.
+
+    /**
+     * Set when the user starts the controller by hand from settings.
+     *
+     * While true the controller stays advertised whatever app is in front, and the watchdog leaves
+     * it alone instead of tearing it down on its next pass.
+     */
+    @Volatile
+    private var manualGamepadRequested = false
+
+    /**
+     * Whether the resident gamepad device is currently advertised.
+     *
+     * Written by the watchdog and read on the key-event path, so it is volatile: the key path
+     * must see the latest value without waiting for the next sync pass.
+     */
+    @Volatile
+    private var gamepadActive = false
+
+    /** How often the gamepad state is re-checked, independent of window-change events. */
+    private val GAMEPAD_WATCHDOG_INTERVAL_MS = 1500L
+
+    /**
+     * Creates or removes the gamepad device so it matches the app that is now in front.
+     *
+     * The controller is advertised only inside the apps the user chose, so the rest of the system
+     * never sees a controller that is not being used.
+     */
+    private fun syncGamepadForForegroundApp() {
+        // Falls back to the window's own package when no window change has been seen yet, which is
+        // the case right after a service start. Without this the lookup used a null package and
+        // gamepad mode never engaged until the user happened to switch apps.
+        val foreground = lastPackageName
+            ?: rootInActiveWindow?.packageName?.toString()
+
+        // A manual start from settings holds the controller open regardless of the foreground app,
+        // until the user stops it. Without this the watchdog would tear it down on its next pass.
+        if (manualGamepadRequested) {
+            if (!gamepadActive) {
+                if (ShellManager.startGamepad()) {
+                    gamepadActive = true
+                    showGamepadNotification(foreground)
+                    Log.i(tag, "Gamepad started manually")
+                } else {
+                    Log.w(tag, "Manual gamepad start failed")
+                }
+            }
+            return
+        }
+
+        val shouldBeActive = SettingsManager.isGamepadApp(this, foreground)
+
+        // Only act (and log) when something actually differs. The watchdog runs every 1.5 s, so
+        // logging each pass would flood the log and hide the entries that matter.
+        if (shouldBeActive == gamepadActive) {
+            // Still re-post the notification while active, so it survives being dismissed.
+            if (gamepadActive) showGamepadNotification(foreground)
+            return
+        }
+
+        Log.d(
+            tag,
+            "Gamepad sync: foreground=$foreground shouldBeActive=$shouldBeActive " +
+                "active=$gamepadActive"
+        )
+        when {
+            shouldBeActive && !gamepadActive -> {
+                if (ShellManager.startGamepad()) {
+                    gamepadActive = true
+                    showGamepadNotification(foreground)
+                    Log.i(tag, "Gamepad mode active for $foreground")
+                } else {
+                    Log.w(tag, "Gamepad mode requested but the device could not be created")
+                }
+            }
+            !shouldBeActive && gamepadActive -> {
+                ShellManager.stopGamepad()
+                gamepadActive = false
+                hideGamepadNotification()
+                Log.i(tag, "Gamepad mode left, controller removed")
+            }
+        }
+    }
+
+    /**
+     * Sends one gamepad binding: a controller button, or a stick direction.
+     *
+     * Buttons go through the normal key path; stick directions are accumulated per stick so two
+     * can be held at once (e.g. L-Up + L-Right) and each contributes to its own axis.
+     */
+    private fun triggerGamepadAction(action: SettingsManager.GamepadAction) {
+        val stick = action.stick
+        if (stick != null) {
+            pressStickDirection(action, stick)
+            return
+        }
+        // Sent through the gamepad device as a real controller button, not injected as a key
+        // event: an app reading controller input would ignore a synthetic keyevent.
+        val hid = SettingsManager.hidCodeFor(action.keyCode)
+        if (hid == 0) {
+            Log.w(tag, "Gamepad: no HID code for ${action.label} (${action.keyCode})")
+            return
+        }
+        ShellManager.sendPadButton(hid, isDown = true)
+    }
+
+    /** True when a binding is one of the four D-pad directions. */
+    private fun isDpadAction(androidKeyCode: Int): Boolean = when (androidKeyCode) {
+        KeyEvent.KEYCODE_DPAD_UP, KeyEvent.KEYCODE_DPAD_DOWN,
+        KeyEvent.KEYCODE_DPAD_LEFT, KeyEvent.KEYCODE_DPAD_RIGHT -> true
+        else -> false
+    }
+
+    /**
+     * Currently held D-pad directions.
+     *
+     * Tracked as a set so two can be held at once (up + left gives a diagonal) and releasing one
+     * leaves the other applied, exactly like a real hat switch.
+     */
+    private val heldDpadDirections = mutableSetOf<Int>()
+
+    /** Presses or releases one D-pad direction and re-sends the resulting hat position. */
+    private fun setGamepadDpad(androidKeyCode: Int, isDown: Boolean) {
+        if (isDown) heldDpadDirections.add(androidKeyCode) else heldDpadDirections.remove(androidKeyCode)
+
+        val x = (if (KeyEvent.KEYCODE_DPAD_RIGHT in heldDpadDirections) 1 else 0) -
+            (if (KeyEvent.KEYCODE_DPAD_LEFT in heldDpadDirections) 1 else 0)
+        val y = (if (KeyEvent.KEYCODE_DPAD_DOWN in heldDpadDirections) 1 else 0) -
+            (if (KeyEvent.KEYCODE_DPAD_UP in heldDpadDirections) 1 else 0)
+
+        Log.d(tag, "Gamepad dpad: x=$x y=$y")
+        ShellManager.sendPadDpad(x, y)
+    }
+
+    /**
+     * Sets one trigger fully pressed or released.
+     *
+     * Triggers are 0..255 axes, not buttons: pressing sets 255, releasing returns to 0. The other
+     * trigger keeps whatever value it already had.
+     */
+    private fun setGamepadTrigger(androidKeyCode: Int, isDown: Boolean) {
+        val left = if (androidKeyCode == KeyEvent.KEYCODE_BUTTON_L2) isDown else heldTriggers.contains(KeyEvent.KEYCODE_BUTTON_L2)
+        val right = if (androidKeyCode == KeyEvent.KEYCODE_BUTTON_R2) isDown else heldTriggers.contains(KeyEvent.KEYCODE_BUTTON_R2)
+
+        if (isDown) heldTriggers.add(androidKeyCode) else heldTriggers.remove(androidKeyCode)
+
+        val leftValue = if (left) TRIGGER_FULL else 0
+        val rightValue = if (right) TRIGGER_FULL else 0
+        Log.d(tag, "Gamepad trigger: left=$leftValue right=$rightValue")
+        ShellManager.sendPadTrigger(leftValue, rightValue)
+    }
+
+    /** Which triggers are currently held, so each axis is independent of the other. */
+    private val heldTriggers = mutableSetOf<Int>()
+
+    /** A trigger is fully on or fully off, so there are only these two values. */
+    private val TRIGGER_FULL = 255
+
+    /** Releases the controller button bound to a key, so it does not stay latched down. */
+    private fun releaseGamepadAction(action: SettingsManager.GamepadAction) {
+        val hid = SettingsManager.hidCodeFor(action.keyCode)
+        if (hid == 0) return
+        ShellManager.sendPadButton(hid, isDown = false)
+    }
+
+    /** Currently held stick directions, per stick. */
+    private val heldStickDirections =
+        mutableMapOf<Boolean, MutableSet<SettingsManager.StickDirection>>()
+
+    private fun pressStickDirection(
+        action: SettingsManager.GamepadAction,
+        stick: SettingsManager.StickDirection
+    ) {
+        heldStickDirections.getOrPut(stick.isLeft) { mutableSetOf() }.add(stick)
+        Log.d(tag, "Gamepad stick direction held: ${action.label}")
+        applySticks()
+    }
+
+    private fun releaseStickDirection(
+        action: SettingsManager.GamepadAction,
+        stick: SettingsManager.StickDirection
+    ) {
+        heldStickDirections[stick.isLeft]?.remove(stick)
+        Log.d(tag, "Gamepad stick direction released: ${action.label}")
+        // Recomputes both sticks; a stick with nothing held sums to zero, i.e. centred.
+        applySticks()
+    }
+
+    /**
+     * One stick's axis value.
+     *
+     * Held directions are summed and clamped to full deflection, so up + right gives a diagonal
+     * at full value on both axes, while opposing directions cancel back to centre.
+     */
+    private fun stickAxis(isLeft: Boolean, axis: Int): Int {
+        val held = heldStickDirections[isLeft].orEmpty()
+        val sum = held.sumOf { if (axis == 0) it.x else it.y }.coerceIn(-1, 1)
+        return sum * STICK_FULL_DEFLECTION
+    }
+
+    /** Sends both sticks from everything currently held. */
+    private fun applySticks() {
+        ShellManager.sendPadStick(
+            leftX = stickAxis(isLeft = true, axis = 0),
+            leftY = stickAxis(isLeft = true, axis = 1),
+            rightX = stickAxis(isLeft = false, axis = 0),
+            rightY = stickAxis(isLeft = false, axis = 1)
+        )
+    }
+
+    /** Full deflection an analog stick reports at its limit; matches the native device range. */
+    private val STICK_FULL_DEFLECTION = 32767
 
     /**
      * Maps an arrow key code to the helper's direction name, or null if it is not an arrow.
@@ -2427,8 +2793,14 @@ class ButtonMapperService : AccessibilityService() {
         wakeLock?.let { if (it.isHeld) it.release() }
         Shizuku.removeBinderReceivedListener(binderListener)
         Shizuku.removeRequestPermissionResultListener(permissionListener)
+        if (instance === this) instance = null
         ShellManager.stopMonitoring()
-        // Release the virtual gamepad, otherwise Android keeps reporting a connected controller.
+        handler.removeCallbacks(gamepadWatchdog)
+        // Drop the resident controller first, then the helper: otherwise the phone would keep
+        // reporting a connected gamepad after the service is gone.
+        ShellManager.stopGamepad()
+        gamepadActive = false
+        hideGamepadNotification()
         ShellManager.stopVirtualDpad()
     }
 }

@@ -24,7 +24,7 @@ android {
         // The virtual gamepad helper is a native executable. x86_64 is kept so emulator and
         // ChromeOS builds still resolve the binary.
         ndk {
-            abiFilters += listOf("arm64-v8a", "armeabi-v7a", "x86_64")
+            abiFilters += listOf("arm64-v8a", "x86_64")
         }
 
         externalNativeBuild {
@@ -46,7 +46,8 @@ android {
         }
         getByName("release") {
             isMinifyEnabled = true
-            isShrinkResources = true
+            //noinspection NotShrinkingResources
+            isShrinkResources = false
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro"
             )
@@ -61,6 +62,14 @@ android {
     buildFeatures {
         compose = true
         buildConfig = true
+    }
+
+    testOptions {
+        unitTests {
+            // Pure logic (key-name resolution, settings helpers) is tested on the JVM. Without this
+            // the stubbed android.jar throws on every framework call.
+            isReturnDefaultValues = true
+        }
     }
 
     externalNativeBuild {

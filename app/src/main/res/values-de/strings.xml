@@ -47,8 +47,26 @@
     <string name="default_volume_slider">Standard-Lautstärke wenn Schieberegler sichtbar</string>
     <string name="override_screen_off">Überschreiben Bildschirm aus</string>
     <string name="volume_skip_screen_off">Lautstärke-Sprung (Bildschirm aus)</string>
-    <string name="controller_style_arrows">Pfeile im Controller-Stil</string>
-    <string name="controller_style_arrows_desc">Verschiebt den Fokus wie ein Gamecontroller, damit die Pfeile in mehr Apps funktionieren.</string>
+    <string name="controller_start">Controller starten</string>
+    <string name="controller_start_desc">Meldet dem System jetzt einen Controller, in jeder App</string>
+    <string name="controller_stop">Controller stoppen</string>
+    <string name="controller_running_desc">Ein Controller wird gemeldet. Zum Stoppen tippen.</string>
+    <string name="controller_manual_unavailable">Der Bedienungshilfen-Dienst läuft nicht, der Controller kann nicht gestartet werden.</string>
+
+    <!-- Gamepad mode -->
+    <string name="keyboard_mode">Tastaturmodus</string>
+    <string name="gamepad_mode">Gamepad-Modus</string>
+    <string name="gamepad_apps_title">Apps mit Gamepad-Tastatur</string>
+    <string name="gamepad_pick_action">Wähle eine Controller-Aktion für diese Taste. Tasten ohne Aktion tun nichts.</string>
+    <string name="gamepad_group_face">Aktionstasten</string>
+    <string name="gamepad_group_dpad">Steuerkreuz</string>
+    <string name="gamepad_group_bumpers">Bumper &amp; Trigger</string>
+    <string name="gamepad_group_stick_left">Linker Stick</string>
+    <string name="gamepad_group_stick_right">Rechter Stick</string>
+    <string name="gamepad_group_system">Start &amp; Select</string>
+    <string name="gamepad_channel_name">Gamepad-Modus</string>
+    <string name="gamepad_notification_title">Controller aktiv</string>
+    <string name="gamepad_notification_text">Meldet einen Xbox-Controller an %1$s</string>
     <string name="device_color">Gerätefarbe</string>
     <string name="keyboard_color">Tastaturfarbe</string>
     <string name="button_override">Tasten-Überschreibung</string>

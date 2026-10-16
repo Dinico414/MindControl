@@ -120,6 +120,211 @@ object SettingsManager {
         else -> null
     }
 
+    // ── Gamepad mode ─────────────────────────────────────────────────────
+    //
+    // Entirely separate from the keyboard/arrow logic above. Gamepad mode only takes effect while
+    // a user-chosen app is in the foreground, and it stores its own bindings under their own
+    // prefix, so nothing here can affect arrow-key navigation.
+
+    private const val KEY_GAMEPAD_APPS = "gamepad_apps"
+    private const val KEY_GAMEPAD_BINDING_PREFIX = "gamepad_binding_"
+
+    /**
+     * Packages whose keyboard switches to the gamepad setup.
+     *
+     * The pad device is only reported as connected while one of these is in the foreground, so
+     * the phone never claims a controller exists in apps the user did not choose.
+     */
+    fun getGamepadApps(context: Context): Set<String> =
+        prefs(context).getStringSet(KEY_GAMEPAD_APPS, emptySet()) ?: emptySet()
+
+    fun setGamepadApps(context: Context, packages: Set<String>) {
+        prefs(context).edit { putStringSet(KEY_GAMEPAD_APPS, packages) }
+    }
+
+    fun isGamepadApp(context: Context, packageName: String?): Boolean =
+        packageName != null && packageName in getGamepadApps(context)
+
+    /**
+     * A controller action assignable to one keyboard key.
+     *
+     * A button carries a real [android.view.KeyEvent] key code. A stick direction carries axis
+     * values instead, because a stick reports a position rather than pressing a button.
+     */
+    data class GamepadAction(
+        val label: String,
+        val keyCode: Int = 0,
+        val stick: StickDirection? = null
+    )
+
+    /**
+     * One stick direction. Each axis is -1, 0 or 1; [isLeft] picks which stick it belongs to.
+     */
+    data class StickDirection(val isLeft: Boolean, val x: Int, val y: Int)
+
+    val GAMEPAD_STICK_ACTIONS: List<GamepadAction> = buildList {
+        fun stick(label: String, isLeft: Boolean, x: Int, y: Int) =
+            add(GamepadAction(label, stick = StickDirection(isLeft, x, y)))
+
+        stick("L-Up", isLeft = true, x = 0, y = -1)
+        stick("L-Down", isLeft = true, x = 0, y = 1)
+        stick("L-Left", isLeft = true, x = -1, y = 0)
+        stick("L-Right", isLeft = true, x = 1, y = 0)
+        stick("R-Up", isLeft = false, x = 0, y = -1)
+        stick("R-Down", isLeft = false, x = 0, y = 1)
+        stick("R-Left", isLeft = false, x = -1, y = 0)
+        stick("R-Right", isLeft = false, x = 1, y = 0)
+    }
+
+    /**
+     * Linux HID usage code for an Android controller key code, or 0 when there is none.
+     *
+     * The resident device is driven by HID usages (BTN_A, BTN_TL …) rather than Android key
+     * codes, so bindings are translated on the way out. Kept here as a pure function so it can be
+     * unit tested without a device.
+     */
+    fun hidCodeFor(androidKeyCode: Int): Int = when (androidKeyCode) {
+        android.view.KeyEvent.KEYCODE_BUTTON_A -> 0x130
+        android.view.KeyEvent.KEYCODE_BUTTON_B -> 0x131
+        android.view.KeyEvent.KEYCODE_BUTTON_X -> 0x133
+        android.view.KeyEvent.KEYCODE_BUTTON_Y -> 0x134
+        android.view.KeyEvent.KEYCODE_BUTTON_L1 -> 0x136
+        android.view.KeyEvent.KEYCODE_BUTTON_R1 -> 0x137
+        // L2 / R2 are analog trigger axes, handled by sendPadTrigger, not as buttons.
+        android.view.KeyEvent.KEYCODE_BUTTON_L2 -> 0
+        android.view.KeyEvent.KEYCODE_BUTTON_R2 -> 0
+        // SELECT is 158 (0x09e) on the stock Xbox keylayout, not the 0x13a a generic pad would
+        // use. Sending the wrong code meant the tester never saw it.
+        android.view.KeyEvent.KEYCODE_BUTTON_SELECT -> 0x09e
+        android.view.KeyEvent.KEYCODE_BUTTON_START -> 0x13b
+        android.view.KeyEvent.KEYCODE_BUTTON_MODE -> 0x13c
+        android.view.KeyEvent.KEYCODE_BUTTON_THUMBL -> 0x13d
+        android.view.KeyEvent.KEYCODE_BUTTON_THUMBR -> 0x13e
+        // D-pad is NOT sent as button codes: the Xbox keylayout maps it to the hat axes, so the
+        // direction is carried by ABS_HAT0X / ABS_HAT0Y instead (see sendPadDpad).
+        else -> 0
+    }
+
+    /** Which trigger a key code refers to, or null when it is not a trigger. */
+    fun isTriggerKey(androidKeyCode: Int): Boolean =
+        androidKeyCode == android.view.KeyEvent.KEYCODE_BUTTON_L2 ||
+            androidKeyCode == android.view.KeyEvent.KEYCODE_BUTTON_R2
+
+    val GAMEPAD_BUTTON_ACTIONS: List<GamepadAction> = listOf(
+        GamepadAction("A", android.view.KeyEvent.KEYCODE_BUTTON_A),
+        GamepadAction("B", android.view.KeyEvent.KEYCODE_BUTTON_B),
+        GamepadAction("X", android.view.KeyEvent.KEYCODE_BUTTON_X),
+        GamepadAction("Y", android.view.KeyEvent.KEYCODE_BUTTON_Y),
+        GamepadAction("D-Up", android.view.KeyEvent.KEYCODE_DPAD_UP),
+        GamepadAction("D-Down", android.view.KeyEvent.KEYCODE_DPAD_DOWN),
+        GamepadAction("D-Left", android.view.KeyEvent.KEYCODE_DPAD_LEFT),
+        GamepadAction("D-Right", android.view.KeyEvent.KEYCODE_DPAD_RIGHT),
+        GamepadAction("L-Bumper", android.view.KeyEvent.KEYCODE_BUTTON_L1),
+        GamepadAction("R-Bumper", android.view.KeyEvent.KEYCODE_BUTTON_R1),
+        GamepadAction("L-Trigger", android.view.KeyEvent.KEYCODE_BUTTON_L2),
+        GamepadAction("R-Trigger", android.view.KeyEvent.KEYCODE_BUTTON_R2),
+        GamepadAction("L3", android.view.KeyEvent.KEYCODE_BUTTON_THUMBL),
+        GamepadAction("R3", android.view.KeyEvent.KEYCODE_BUTTON_THUMBR),
+        GamepadAction("Start", android.view.KeyEvent.KEYCODE_BUTTON_START),
+        GamepadAction("Select", android.view.KeyEvent.KEYCODE_BUTTON_SELECT),
+        GamepadAction("Mode", android.view.KeyEvent.KEYCODE_BUTTON_MODE),
+    )
+
+    /**
+     * Stick bindings live above every real key code so both kinds can share one stored int.
+     */
+    private const val STICK_BINDING_BASE = 1_000_000
+
+    /**
+     * The binding assigned to [keyCode], or null when nothing is assigned.
+     *
+     * Decoding never depends on the action still being present in the picker's list. A binding is
+     * reconstructed from the stored value itself, so an entry that was later renamed or removed
+     * from the UI still resolves and keeps working. Relying on a list lookup here previously made
+     * every binding silently stop working as soon as the list changed.
+     */
+    fun getGamepadBinding(context: Context, keyCode: Int): GamepadAction? {
+        val stored = prefs(context).getInt(KEY_GAMEPAD_BINDING_PREFIX + keyCode, -1)
+        if (stored == -1) return null
+
+        if (stored >= STICK_BINDING_BASE) {
+            val index = stored - STICK_BINDING_BASE
+            GAMEPAD_STICK_ACTIONS.getOrNull(index)?.let { return it }
+            return null
+        }
+
+        // A button: the stored int *is* the Android key code, so rebuild the action from it
+        // rather than looking it up in the (mutable) picker list.
+        return GamepadAction(labelForKeyCode(stored), stored)
+    }
+
+    /** Display label for a controller key code, falling back to the raw number. */
+    fun labelForKeyCode(androidKeyCode: Int): String =
+        GAMEPAD_BUTTON_ACTIONS.firstOrNull { it.keyCode == androidKeyCode }?.label
+            ?: "0x" + androidKeyCode.toString(16)
+
+    fun setGamepadBinding(context: Context, keyCode: Int, action: GamepadAction?) {
+        val stored = when {
+            action == null -> null
+            action.stick != null -> {
+                val index = GAMEPAD_STICK_ACTIONS.indexOf(action)
+                if (index < 0) null else STICK_BINDING_BASE + index
+            }
+            else -> action.keyCode
+        }
+        prefs(context).edit {
+            if (stored == null) remove(KEY_GAMEPAD_BINDING_PREFIX + keyCode)
+            else putInt(KEY_GAMEPAD_BINDING_PREFIX + keyCode, stored)
+        }
+    }
+
+    /**
+     * The picker's sections, in display order.
+     *
+     * Grouped the way a controller is laid out, so related controls sit together. [titleRes] is a
+     * string resource id resolved by the UI.
+     */
+    data class GamepadGroup(val titleRes: Int, val actions: List<GamepadAction>)
+
+    val GAMEPAD_GROUPS: List<GamepadGroup>
+        get() = listOf(
+            GamepadGroup(R.string.gamepad_group_face, listOf(
+                GamepadAction("A", android.view.KeyEvent.KEYCODE_BUTTON_A),
+                GamepadAction("B", android.view.KeyEvent.KEYCODE_BUTTON_B),
+                GamepadAction("X", android.view.KeyEvent.KEYCODE_BUTTON_X),
+                GamepadAction("Y", android.view.KeyEvent.KEYCODE_BUTTON_Y),
+            )),
+            GamepadGroup(R.string.gamepad_group_dpad, listOf(
+                GamepadAction("D-Up", android.view.KeyEvent.KEYCODE_DPAD_UP),
+                GamepadAction("D-Down", android.view.KeyEvent.KEYCODE_DPAD_DOWN),
+                GamepadAction("D-Left", android.view.KeyEvent.KEYCODE_DPAD_LEFT),
+                GamepadAction("D-Right", android.view.KeyEvent.KEYCODE_DPAD_RIGHT),
+            )),
+            // Triggers are analog axes on the Xbox layout rather than buttons, so they do not
+            // work yet. They are kept in the list, clearly marked, rather than hidden.
+            GamepadGroup(R.string.gamepad_group_bumpers, listOf(
+                GamepadAction("L-Bumper", android.view.KeyEvent.KEYCODE_BUTTON_L1),
+                GamepadAction("R-Bumper", android.view.KeyEvent.KEYCODE_BUTTON_R1),
+                GamepadAction("L-Trigger", android.view.KeyEvent.KEYCODE_BUTTON_L2),
+                GamepadAction("R-Trigger", android.view.KeyEvent.KEYCODE_BUTTON_R2),
+            )),
+            // Each stick group holds its press (L3 / R3) followed by that stick's directions.
+            GamepadGroup(R.string.gamepad_group_stick_left, buildList {
+                add(GamepadAction("L3", android.view.KeyEvent.KEYCODE_BUTTON_THUMBL))
+                addAll(GAMEPAD_STICK_ACTIONS.filter { it.stick?.isLeft == true })
+            }),
+            GamepadGroup(R.string.gamepad_group_stick_right, buildList {
+                add(GamepadAction("R3", android.view.KeyEvent.KEYCODE_BUTTON_THUMBR))
+                addAll(GAMEPAD_STICK_ACTIONS.filter { it.stick?.isLeft == false })
+            }),
+            GamepadGroup(R.string.gamepad_group_system, listOf(
+                GamepadAction("Start", android.view.KeyEvent.KEYCODE_BUTTON_START),
+                GamepadAction("Select", android.view.KeyEvent.KEYCODE_BUTTON_SELECT),
+                // The Xbox logo button, shown as "Mode" in most controller testers.
+                GamepadAction("Mode", android.view.KeyEvent.KEYCODE_BUTTON_MODE),
+            )),
+        )
+
     private const val KEY_DISABLE_IN_CAMERA = "disable_in_camera"
     private const val KEY_DEFAULT_WHEN_VOLUME_VISIBLE = "default_when_volume_visible"
     private const val KEY_OVERRIDE_SCREEN_OFF = "override_screen_off"

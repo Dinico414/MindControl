@@ -1,5 +1,7 @@
 package com.xenonware.mindcontrol.ui.layouts
 
+import androidx.compose.animation.Crossfade
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -7,21 +9,28 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.safeDrawing
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.outlined.Backspace
 import androidx.compose.material.icons.automirrored.rounded.KeyboardReturn
+import androidx.compose.material.icons.rounded.Gamepad
+import androidx.compose.material.icons.rounded.Keyboard
 import androidx.compose.material.icons.rounded.Language
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -31,13 +40,19 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.xenon.mylibrary.theme.QuicksandTitleVariable
 import com.xenonware.mindcontrol.ButtonState
+import com.xenonware.mindcontrol.R
+import com.xenonware.mindcontrol.SettingsManager
+import com.xenonware.mindcontrol.ui.theme.GreenTheme
 import com.xenonware.mindcontrol.ui.theme.Palette
 import com.xenonware.mindcontrol.ui.theme.PaletteTheme
 
@@ -61,15 +76,32 @@ private fun KeyInfo.configName(): String = when {
     else -> label
 }
 
+/** Sentinel labels so the UI buttons can be recognised without string matching. */
+private const val LAYOUT_BUTTON_LABEL = "__layout__"
+private const val BACK_BUTTON_LABEL = "__back__"
+
+/** Short label for a binding, shown under the key it is assigned to. */
+private fun gamepadActionLabel(action: SettingsManager.GamepadAction): String = action.label
+
 @Composable
 fun CustomKeyboardScreen(
     modifier: Modifier = Modifier,
     devicePalette: Palette,
+    shellReady: Boolean = false,
+    gamepadMode: Boolean = false,
+    onGamepadModeChange: (Boolean) -> Unit = {},
+    onOpenAppPicker: () -> Unit = {},
     onBack: () -> Unit,
     onKeySelected: (Int, String) -> Unit
 ) {
+    val context = LocalContext.current
     var currentLayout by remember { mutableStateOf(KeyboardLayout.QWERTY) }
+    var bindings by remember { mutableStateOf(emptyMap<Int, SettingsManager.GamepadAction>()) }
     val pressedKeys by ButtonState.pressedKeys.collectAsState()
+
+    // Gamepad mode only works with Shizuku/root. If it is unavailable the mode falls back to the
+    // keyboard, so the header and the key rows can never disagree with each other.
+    val effectiveGamepadMode = gamepadMode && shellReady
 
     val gap = 8.dp
     val columns = 10
@@ -77,6 +109,10 @@ fun CustomKeyboardScreen(
     BoxWithConstraints(
         modifier = modifier
             .fillMaxSize()
+            // This screen does not use ActivityScreen, so it applies the safe-drawing insets
+            // itself. The caller passes a bare modifier, exactly as it does for the action and
+            // button-config screens.
+            .windowInsetsPadding(WindowInsets.safeDrawing)
             .padding(vertical = 12.dp)
     ) {
         val unitWidth = (maxWidth - gap * (columns - 1)) / columns
@@ -90,37 +126,115 @@ fun CustomKeyboardScreen(
                 modifier = Modifier.weight(1f).fillMaxWidth(),
                 horizontalArrangement = Arrangement.spacedBy(gap)
             ) {
+                // Without Shizuku/root the gamepad toggle cannot work, so the back button takes
+                // the freed width instead and the row still fills the screen (7 + 3).
+                val backWeight = if (shellReady) 5f else 7f
                 PaletteTheme(palette = devicePalette) {
                     KeyButton(
-                        key = KeyInfo("Back to system buttons", weight = 7f, onClick = onBack),
-                        modifier = Modifier.width(keyWidth(7f)).clip(RoundedCornerShape(16.dp)),
+                        key = KeyInfo(BACK_BUTTON_LABEL, weight = backWeight, onClick = onBack),
+                        displayLabel = "Back to system buttons",
+                        modifier = Modifier.width(keyWidth(backWeight)).clip(RoundedCornerShape(16.dp)),
                         onKeyConfigure = onKeySelected
                     )
                 }
-                KeyButton(
-                    key = KeyInfo(currentLayout.displayName, weight = 3f, onClick = {
-                        currentLayout = currentLayout.next()
-                    }),
-                    modifier = Modifier.width(keyWidth(3f)).clip(RoundedCornerShape(16.dp)),
-                    onKeyConfigure = onKeySelected
-                )
+
+                // Rounded icon button that both indicates and switches the mode.
+                // Keyboard mode -> controller icon, green.  Gamepad mode -> keyboard icon,
+                // in the keyboard's own colour.
+                if (shellReady) {
+                    val iconTheme: @Composable (@Composable () -> Unit) -> Unit =
+                        if (effectiveGamepadMode) ({ content -> content() })
+                        else ({ content -> GreenTheme { content() } })
+                    iconTheme {
+                        Surface(
+                            color = MaterialTheme.colorScheme.primaryContainer,
+                            shape = RoundedCornerShape(50),
+                            modifier = Modifier
+                                .width(keyWidth(2f))
+                                .fillMaxHeight()
+                                .clickable { onGamepadModeChange(!gamepadMode) }
+                        ) {
+                            Crossfade(
+                                targetState = effectiveGamepadMode,
+                                animationSpec = tween(durationMillis = 350),
+                                label = "keyboardGamepadIcon"
+                            ) { isGamepad ->
+                                Box(
+                                    modifier = Modifier.fillMaxSize(),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    Icon(
+                                        imageVector = if (isGamepad) Icons.Rounded.Keyboard else Icons.Rounded.Gamepad,
+                                        contentDescription = stringResource(
+                                            if (isGamepad) R.string.keyboard_mode else R.string.gamepad_mode
+                                        ),
+                                        tint = MaterialTheme.colorScheme.onPrimaryContainer,
+                                        modifier = Modifier.size(22.dp)
+                                    )
+                                }
+                            }
+                        }
+                    }
+                }
+
+                // One button, two roles: in gamepad mode it opens the app picker, otherwise it
+                // cycles the typing layout. Always 3 wide, so the row is 5 + 2 + 3 with Shizuku
+                // and 7 + 3 without.
+                val secondaryTheme: @Composable (@Composable () -> Unit) -> Unit =
+                    if (effectiveGamepadMode) ({ content -> GreenTheme { content() } })
+                    else ({ content -> content() })
+                secondaryTheme {
+                    KeyButton(
+                        key = KeyInfo(LAYOUT_BUTTON_LABEL, weight = 3f, onClick = {
+                            if (effectiveGamepadMode) onOpenAppPicker()
+                            else currentLayout = currentLayout.next()
+                        }),
+                        displayLabel = if (effectiveGamepadMode) "Apps" else currentLayout.displayName,
+                        modifier = Modifier.width(keyWidth(3f)).clip(RoundedCornerShape(16.dp)),
+                        onKeyConfigure = onKeySelected
+                    )
+                }
             }
 
-            getRowsForLayout(currentLayout).forEach { row ->
-                Row(
-                    modifier = Modifier.weight(1f).fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(gap)
-                ) {
-                    row.forEach { key ->
-                        KeyButton(
-                            key = key,
-                            modifier = Modifier.width(keyWidth(key.weight)),
-                            isHardwarePressed = key.keyCode != null && key.keyCode in pressedKeys,
-                            onKeyConfigure = onKeySelected
-                        )
+            // In gamepad mode the whole keyboard is drawn green, overriding the chosen palette.
+            val rowsTheme: @Composable (@Composable () -> Unit) -> Unit =
+                if (effectiveGamepadMode) ({ content -> GreenTheme { content() } })
+                else ({ content -> content() })
+
+            rowsTheme {
+                getRowsForLayout(currentLayout).forEach { row ->
+                    Row(
+                        modifier = Modifier.weight(1f).fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(gap)
+                    ) {
+                        row.forEach { key ->
+                            val bound = key.keyCode?.let { bindings[it] }
+                            KeyButton(
+                                key = key,
+                                modifier = Modifier.width(keyWidth(key.weight)),
+                                isHardwarePressed = key.keyCode != null && key.keyCode in pressedKeys,
+                                // The assigned controller action is shown under the letter, and
+                                // unassigned keys are dimmed because they do nothing.
+                                subLabel = if (effectiveGamepadMode) bound?.let(::gamepadActionLabel) else null,
+                                dimmed = effectiveGamepadMode && bound == null,
+                                onKeyConfigure = onKeySelected
+                            )
+                        }
                     }
                 }
             }
+        }
+
+        // Re-read the bindings when the layout changes, so a value assigned in the picker shows up
+        // as soon as the user comes back.
+        LaunchedEffect(currentLayout, effectiveGamepadMode) {
+            bindings = getRowsForLayout(currentLayout)
+                .flatten()
+                .mapNotNull { it.keyCode }
+                .mapNotNull { code ->
+                    SettingsManager.getGamepadBinding(context, code)?.let { code to it }
+                }
+                .toMap()
         }
     }
 }
@@ -139,13 +253,28 @@ fun KeyButton(
     key: KeyInfo,
     modifier: Modifier = Modifier,
     isHardwarePressed: Boolean = false,
+    displayLabel: String? = null,
+    subLabel: String? = null,
+    dimmed: Boolean = false,
     onKeyConfigure: (Int, String) -> Unit = { _, _ -> }
 ) {
-    // Logic to visually dim disabled buttons
-    val isDisabled = key.keyCode == null && key.onClick != null && key.label != "Back to system buttons" && !key.label.contains(KeyboardLayout.QWERTY.displayName, true) && !key.label.contains("QWERTZ", true) && !key.label.contains("AZERTY", true)
+    // Visually dim only the decorative keys that exist for looks (123, Fn …).
+    // The header buttons are real controls, so they are recognised by their sentinel labels
+    // rather than by their visible text -- that text is passed in as [displayLabel] and changes
+    // with the mode, which previously made these buttons look disabled.
+    val isUiButton = key.label == BACK_BUTTON_LABEL || key.label == LAYOUT_BUTTON_LABEL
+    val isDisabled = key.keyCode == null && key.onClick != null && !isUiButton
 
-    val displayedLabel = remember(key.label) {
-        if (key.label.length == 1) key.label.uppercase() else key.label
+    val labelForDisplay = displayLabel ?: key.label
+    val displayedLabel = remember(labelForDisplay) {
+        if (labelForDisplay.length == 1) labelForDisplay.uppercase() else labelForDisplay
+    }
+
+    // [dimmed] is the gamepad "nothing assigned" state: the key does nothing and reads softer.
+    val keyAlpha = when {
+        dimmed -> 0.75f
+        isDisabled -> 0.3f
+        else -> 1f
     }
 
     Box(
@@ -156,6 +285,7 @@ fun KeyButton(
                 when {
                     isHardwarePressed -> MaterialTheme.colorScheme.primary
                     isDisabled -> MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.4f)
+                    dimmed -> MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.75f)
                     else -> MaterialTheme.colorScheme.primaryContainer
                 }
             )
@@ -170,22 +300,40 @@ fun KeyButton(
             },
         contentAlignment = Alignment.Center
     ) {
-        if (key.icon != null) {
-            Icon(
-                imageVector = key.icon,
-                contentDescription = key.label,
-                tint = if (isHardwarePressed) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = if (isDisabled) 0.3f else 1f),
-                modifier = Modifier.size(20.dp)
-            )
-        } else {
-            Text(
-                text = displayedLabel,
-                color = if (isHardwarePressed) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = if (isDisabled) 0.3f else 1f),
-                fontSize = if (key.label.length > 1) 14.sp else 18.sp,
-                fontWeight = FontWeight.Bold,
-                textAlign = TextAlign.Center,
-                fontFamily = QuicksandTitleVariable
-            )
+        // The column wraps both kinds of key so the binding sub-label is shared: without this an
+        // icon key (Backspace, Enter) could never show what it is mapped to.
+        Column(
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.Center
+        ) {
+            if (key.icon != null) {
+                Icon(
+                    imageVector = key.icon,
+                    contentDescription = labelForDisplay,
+                    tint = if (isHardwarePressed) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = keyAlpha),
+                    modifier = Modifier.size(20.dp)
+                )
+            } else {
+                Text(
+                    text = displayedLabel,
+                    color = if (isHardwarePressed) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = keyAlpha),
+                    fontSize = if (labelForDisplay.length > 1) 14.sp else 18.sp,
+                    fontWeight = FontWeight.Bold,
+                    textAlign = TextAlign.Center,
+                    fontFamily = QuicksandTitleVariable
+                )
+            }
+            // The assigned controller action, shown directly under the glyph or letter.
+            if (subLabel != null) {
+                Text(
+                    text = subLabel,
+                    color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.75f),
+                    fontSize = 8.sp,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                    textAlign = TextAlign.Center
+                )
+            }
         }
     }
 }

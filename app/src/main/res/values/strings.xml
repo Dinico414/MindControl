@@ -47,8 +47,26 @@
     <string name="default_volume_slider">Default volume if slider visible</string>
     <string name="override_screen_off">Override Screen off</string>
     <string name="volume_skip_screen_off">Volume Skip (Screen Off)</string>
-    <string name="controller_style_arrows">Controller-style arrows</string>
-    <string name="controller_style_arrows_desc">Moves focus the way a game controller does, so arrows work in more apps.</string>
+    <string name="controller_start">Start controller</string>
+    <string name="controller_start_desc">Report a controller to the system now, in any app</string>
+    <string name="controller_stop">Stop controller</string>
+    <string name="controller_running_desc">A controller is being reported. Tap to stop.</string>
+    <string name="controller_manual_unavailable">The accessibility service is not running, so the controller cannot be started.</string>
+
+    <!-- Gamepad mode -->
+    <string name="keyboard_mode">Keyboard mode</string>
+    <string name="gamepad_mode">Gamepad mode</string>
+    <string name="gamepad_apps_title">Gamepad keyboard apps</string>
+    <string name="gamepad_pick_action">Choose one controller action for this button. Buttons without an action do nothing.</string>
+    <string name="gamepad_group_face">Face buttons</string>
+    <string name="gamepad_group_dpad">D-pad</string>
+    <string name="gamepad_group_bumpers">Bumpers &amp; triggers</string>
+    <string name="gamepad_group_stick_left">Left stick</string>
+    <string name="gamepad_group_stick_right">Right stick</string>
+    <string name="gamepad_group_system">Start &amp; select</string>
+    <string name="gamepad_channel_name">Gamepad mode</string>
+    <string name="gamepad_notification_title">Controller active</string>
+    <string name="gamepad_notification_text">Reporting an Xbox controller to %1$s</string>
     <string name="device_color">Device color</string>
     <string name="keyboard_color">Keyboard color</string>
     <string name="button_override">Button Override</string>

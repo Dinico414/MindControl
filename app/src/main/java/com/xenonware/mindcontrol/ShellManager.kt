@@ -3,7 +3,9 @@ package com.xenonware.mindcontrol
 import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
+import android.os.Build
 import android.os.ParcelFileDescriptor
+import android.os.SystemClock
 import android.util.Log
 import androidx.core.content.edit
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -20,6 +22,7 @@ import java.io.InputStreamReader
 import java.io.OutputStream
 import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicBoolean
+import java.util.zip.ZipFile
 
 enum class PermissionStatus { UNAVAILABLE, AVAILABLE, DENIED, GRANTED }
 
@@ -78,6 +81,15 @@ object ShellManager {
     private const val PREFS = "shell_permissions"
     private const val KEY_ROOT_RESULT = "root_result" // "granted" | "denied" | absent = never asked
     private const val SHIZUKU_PACKAGE = "moe.shizuku.privileged.api"
+
+    /**
+     * Where the native helper is staged when `nativeLibraryDir` did not get an extracted copy.
+     *
+     * `/data/local/tmp` is the one location the shell uid can both write to (to place the binary)
+     * and execute from (to run it), which is why the staging copy is performed by the shell rather
+     * than by this process. A name unique to the app avoids clashing with anything else on device.
+     */
+    private const val STAGED_HELPER_PATH = "/data/local/tmp/mindcontrol_virtual_dpad"
     const val SHIZUKU_REQUEST_CODE = 4711
 
     @Volatile private var isRunning = false
@@ -339,42 +351,164 @@ object ShellManager {
     /**
      * Resolves the on-disk path of the packaged native helper.
      *
-     * The APK ships it as `lib/<abi>/virtual_dpad.so`. Because the app uses legacy packaging the
-     * file is extracted, but it is not always marked executable, so we chmod it before use.
+     * The APK ships it as `lib/<abi>/virtual_dpad.so`. The first choice is
+     * [android.content.pm.ApplicationInfo.nativeLibraryDir], which is where the installer extracts
+     * it under legacy packaging -- and where a plain chmod works, because the directory is
+     * app-owned.
+     *
+     * That directory is *not* always populated, however. The installer only extracts files it can
+     * treat as loadable JNI libraries, and this helper is a PIE executable that is never passed to
+     * [System.loadLibrary], so on some devices (and for some build variants) it stays compressed
+     * inside the APK and `nativeLibraryDir` ends up with only the real `.so` files.
+     *
+     * When that happens the helper is staged from the APK into [STAGED_HELPER_PATH] first, so the
+     * gamepad is not silently unavailable. The staging location matters: the helper is executed by
+     * the *shell* uid (via Shizuku), which cannot read app-private storage, so [Context.getFilesDir]
+     * is not usable -- it ends up with "Permission denied" and the process never answers. The shell
+     * has to place the binary where that uid can execute it.
      */
     fun nativeHelperPath(): String? {
         val dir = appContext.applicationInfo.nativeLibraryDir ?: return null
-        val file = File(dir, "virtual_dpad.so")
-        if (!file.exists()) return null
-        if (!file.canExecute()) {
-            // The library directory is app-owned, so a plain chmod works without any privilege.
-            runCatching { file.setExecutable(true, false) }
+        val extracted = File(dir, "virtual_dpad.so")
+        if (extracted.exists()) {
+            if (!extracted.canExecute()) {
+                // The library directory is app-owned, so a plain chmod needs no privilege.
+                runCatching { extracted.setExecutable(true, false) }
+            }
+            if (extracted.canExecute()) return extracted.absolutePath
         }
-        return if (file.canExecute()) file.absolutePath else null
+
+        // nativeLibraryDir did not have it, so stage a shell-executable copy from the APK instead.
+        return stageHelperFromApk()
+    }
+
+    /**
+     * Stages `lib/<abi>/virtual_dpad.so` where the shell uid can execute it.
+     *
+     * The APK entry is read by this process (it can read its own APK) and written to a private
+     * cache file, then the *shell* copies that file to [STAGED_HELPER_PATH] and chmods it. Running
+     * the copy through the shell is what makes the result reachable: the shell runs as its own uid,
+     * so it can write to `/data/local/tmp` and later execute what it wrote there. A direct copy to
+     * app-private storage would be unreadable to that uid and every command would time out.
+     *
+     * Cached: the shell-side copy is only redone when the staged file is missing, so the common
+     * path costs one `[ -x ]` round-trip. Returns null when privilege is missing, the APK has no
+     * entry for the device's ABI, or the copy fails.
+     */
+    private fun stageHelperFromApk(): String? {
+        if (!isRootAvailable() && !isShizukuAvailable()) {
+            Log.w(TAG, "uinput: cannot stage helper without root or Shizuku")
+            return null
+        }
+
+        // Already staged and executable? Reuse it without touching the APK again.
+        val ready = runShellCommandBlocking("[ -x $STAGED_HELPER_PATH ] && echo yes || echo no")
+        if (ready.contains("yes")) return STAGED_HELPER_PATH
+
+        val abi = Build.SUPPORTED_ABIS.firstOrNull() ?: return null
+        val sourceDir = appContext.applicationInfo.sourceDir ?: return null
+
+        return try {
+            // Read the helper out of our own APK, then hand the bytes to the shell.
+            //
+            // The binary is passed as base64 *through the command string* rather than pointed at
+            // with a path. The shell uid cannot read app-private storage (its `cp` of our cache
+            // file fails with "Permission denied", yet the wrapper still reports exit 0), so the
+            // only reliable channel is for this process -- which can read its own APK -- to encode
+            // the bytes and let the shell decode them into a file it owns.
+            val bytes = ZipFile(sourceDir).use { zip ->
+                val entry = zip.getEntry("lib/$abi/virtual_dpad.so") ?: return@use null
+                zip.getInputStream(entry).use { it.readBytes() }
+            } ?: run {
+                Log.w(TAG, "uinput: no lib/$abi/virtual_dpad.so entry in the APK")
+                return null
+            }
+
+            val b64 = android.util.Base64.encodeToString(bytes, android.util.Base64.NO_WRAP)
+            val staged = runShellCommandBlocking(
+                "echo '$b64' | base64 -d > $STAGED_HELPER_PATH && " +
+                    "chmod 755 $STAGED_HELPER_PATH && " +
+                    "[ -x $STAGED_HELPER_PATH ] && echo yes || echo no",
+            )
+            if (!staged.contains("yes")) {
+                Log.w(TAG, "uinput: staging the helper failed: '${staged.trim()}'")
+                return null
+            }
+            Log.i(TAG, "uinput: staged helper at $STAGED_HELPER_PATH")
+            STAGED_HELPER_PATH
+        } catch (e: Exception) {
+            Log.w(TAG, "Could not stage virtual_dpad helper from the APK", e)
+            null
+        }
     }
 
     /**
      * True when the helper is present *and* the shell uid may open /dev/uinput.
      *
-     * The uinput node is owned by uhid:uhid and the shell uid is in the uhid group, so this
-     * normally succeeds, but OEM policies vary, so the result is probed rather than assumed.
-     * The answer is cached because probing costs a shell round-trip.
+     * The node's owner varies by OEM and Android version. It is commonly `uhid:uhid` -- and the
+     * shell uid is in the uhid group -- but e.g. on Pixel-class devices it is `system:net_bt_admin`
+     * (`u:object_r:uhid_device:s0`), which the shell uid reaches via its `net_bt_admin` membership
+     * instead. Because the group is not fixed, the result is probed rather than assumed.
+     *
+     * Only a *successful* probe is cached. A failure is deliberately not cached, because the
+     * usual reason for one is that the check ran too early -- at boot, before Shizuku's binder has
+     * been registered. Caching that failure meant the controller never started on its own for the
+     * rest of the session, even once Shizuku was up and everything was in fact available.
      */
     private var uinputProbeResult: Boolean? = null
 
+    /**
+     * When the last probe failed, and how many have failed in a row.
+     *
+     * Probing costs a blocking shell round-trip, and callers poll this on a timer. Backing off
+     * after a failure keeps a device without the capability from being probed forever.
+     */
+    @Volatile private var lastProbeFailureAt = 0L
+    @Volatile private var consecutiveProbeFailures = 0
+
     fun isUinputAvailable(): Boolean {
-        uinputProbeResult?.let { return it }
-        if (nativeHelperPath() == null) {
-            uinputProbeResult = false
+        // A known-good result never changes, so it is safe to keep.
+        if (uinputProbeResult == true) return true
+
+        val helper = nativeHelperPath()
+        if (helper == null) {
+            Log.w(TAG, "uinput: helper missing for abi=${Build.SUPPORTED_ABIS.firstOrNull()}")
             return false
         }
+
+        // Privilege is the one gate that can recover *without* a probe failing: Shizuku may still
+        // be coming up, or its permission may not have been granted yet. Do not let those states
+        // feed the failure backoff, or a permission granted a moment later would wait out the
+        // whole window (up to 30 s) before the watchdog could start the controller. Return here
+        // without touching the failure counters so the very next tick retries.
         if (!isRootAvailable() && !isShizukuAvailable()) {
-            uinputProbeResult = false
+            Log.w(
+                TAG,
+                "uinput: no privilege yet (root=${isRootAvailable()} shizuku=${isShizukuAvailable()})",
+            )
             return false
         }
+
+        // Back off after repeated failures: 1s, 2s, 4s … capped at 30s. The first call always
+        // probes, so a device that does support this is never delayed.
+        val backoff = (1000L shl consecutiveProbeFailures.coerceAtMost(5)).coerceAtMost(30_000L)
+        if (consecutiveProbeFailures > 0 &&
+            SystemClock.uptimeMillis() - lastProbeFailureAt < backoff
+        ) {
+            return false
+        }
+
         val writable = runShellCommandBlocking("[ -w /dev/uinput ] && echo yes || echo no")
-        uinputProbeResult = writable.contains("yes")
-        return uinputProbeResult == true
+        val available = writable.contains("yes")
+        Log.i(TAG, "uinput: probe reply='${writable.trim()}' available=$available")
+        if (available) {
+            uinputProbeResult = true
+            consecutiveProbeFailures = 0
+        } else {
+            lastProbeFailureAt = SystemClock.uptimeMillis()
+            consecutiveProbeFailures++
+        }
+        return available
     }
 
     /** Starts the helper if needed. Returns the running process, or null when it cannot start. */
@@ -385,12 +519,16 @@ object ShellManager {
         if (!isAvailable()) return null
 
         return try {
+            // Spawned through `sh -c` rather than as a bare executable. Running the helper directly
+            // leaves its stdin unusable in some Shizuku versions, so commands are never answered
+            // and every request fails. The shell wrapper keeps the pipe usable, which is the same
+            // shape that works when the helper is driven by hand.
             val process: IRemoteProcess = if (isRootAvailable()) {
                 LocalRemoteProcess(Runtime.getRuntime().exec(arrayOf("su", "-c", path)))
             } else {
                 val binder = Shizuku.getBinder() ?: return null
                 if (!binder.pingBinder()) return null
-                IShizukuService.Stub.asInterface(binder).newProcess(arrayOf(path), null, null)
+                IShizukuService.Stub.asInterface(binder).newProcess(arrayOf("sh", "-c", path), null, null)
             }
             dpadProcess = process
             dpadStdin = ParcelFileDescriptor.AutoCloseOutputStream(process.outputStream)
@@ -459,6 +597,112 @@ object ShellManager {
         return dpadCommand(direction)?.contains("OK") == true
     }
 
+    // ---------------------------------------------------------------------
+    // Resident gamepad (gamepad mode)
+    // ---------------------------------------------------------------------
+
+    /**
+     * Whether the resident gamepad device is currently live.
+     *
+     * Deliberately a separate flag from [dpadDeviceCreated]: the two devices are independent, and
+     * the arrow path must never be affected by whether a controller is being advertised.
+     */
+    private var gamepadDeviceCreated = false
+
+    /**
+     * Reports a controller as connected, for as long as gamepad mode is active in a chosen app.
+     *
+     * This creates the *second*, axes-bearing device. The phone therefore believes an Xbox pad is
+     * plugged in, which is what makes controller testers and games see it. The D-pad device used
+     * for arrow navigation is a different device and is not touched here.
+     *
+     * Safe to call repeatedly: a live device is reused.
+     */
+    fun startGamepad(): Boolean {
+        if (gamepadDeviceCreated) return true
+        if (!isUinputAvailable()) {
+            Log.w(TAG, "Gamepad: uinput not available (helper path or /dev/uinput denied)")
+            return false
+        }
+        val helper = nativeHelperPath()
+        Log.i(TAG, "Gamepad: helper=$helper")
+        if (ensureDpadProcess() == null) {
+            Log.w(TAG, "Gamepad: could not start the helper process")
+            return false
+        }
+
+        val created = dpadCommand("PAD_CREATE", timeoutMs = 1500)
+        Log.i(TAG, "Gamepad: PAD_CREATE reply=$created")
+        if (created?.contains("CREATED") != true) {
+            Log.w(TAG, "Gamepad PAD_CREATE rejected: $created")
+            return false
+        }
+        gamepadDeviceCreated = true
+        // Let InputReader register the device before anything is sent to it.
+        Thread.sleep(60)
+        Log.i(TAG, "Resident gamepad device created")
+        return true
+    }
+
+    /**
+     * Presses or releases a controller button on the resident pad.
+     *
+     * [hidCode] is the linux HID usage (BTN_A, BTN_TL …), converted by the caller from the
+     * Android key code. Sent through the gamepad device rather than injected as a key event, so
+     * the app receives it as genuine controller input.
+     */
+    fun sendPadButton(hidCode: Int, isDown: Boolean): Boolean {
+        if (!gamepadDeviceCreated) return false
+        val command = if (isDown) "PAD_DOWN $hidCode" else "PAD_UP $hidCode"
+        return dpadCommand(command)?.contains("OK") == true
+    }
+
+    /**
+     * Sets both sticks on the resident pad. Values are in the stick range from the native helper.
+     */
+    fun sendPadStick(leftX: Int, leftY: Int, rightX: Int, rightY: Int): Boolean {
+        if (!gamepadDeviceCreated) return false
+        return dpadCommand("PAD_STICK $leftX $leftY $rightX $rightY")?.contains("OK") == true
+    }
+
+    /**
+     * Moves the D-pad. Each axis is -1, 0 or 1.
+     *
+     * The D-pad is carried by the hat axes rather than button codes, which is how the stock Xbox
+     * keylayout reads it; sending key codes for it would be ignored.
+     */
+    fun sendPadDpad(x: Int, y: Int): Boolean {
+        if (!gamepadDeviceCreated) return false
+        return dpadCommand("PAD_DPAD $x $y")?.contains("OK") == true
+    }
+
+    /**
+     * Sets both triggers. 0 = released, 255 = fully pressed.
+     *
+     * Triggers are analog axes on the Xbox layout, so they are set to an absolute value rather
+     * than pressed like buttons. They are driven fully on or fully off.
+     */
+    fun sendPadTrigger(left: Int, right: Int): Boolean {
+        if (!gamepadDeviceCreated) return false
+        return dpadCommand("PAD_TRIGGER $left $right")?.contains("OK") == true
+    }
+
+    /**
+     * True while the resident gamepad device exists, regardless of who created it.
+     *
+     * Used by the service and the settings screen so both agree on whether the controller is
+     * currently being advertised.
+     */
+    fun isGamepadRunning(): Boolean = gamepadDeviceCreated
+
+    /** Removes the resident gamepad so the phone no longer reports a connected controller. */
+    fun stopGamepad() {
+        if (!gamepadDeviceCreated) return
+        gamepadDeviceCreated = false
+        runCatching { dpadCommand("PAD_DESTROY", timeoutMs = 500) }
+        Log.i(TAG, "Resident gamepad device destroyed")
+    }
+
     /** Tears the virtual device down and stops the helper. Safe to call repeatedly. */
     fun stopVirtualDpad() {
         try {
@@ -467,6 +711,8 @@ object ShellManager {
         } catch (_: Exception) {
         } finally {
             dpadDeviceCreated = false
+            // The helper destroys both devices when it exits, so the local flag must match.
+            gamepadDeviceCreated = false
             runCatching { dpadStdin?.close() }
             runCatching { dpadStdout?.close() }
             runCatching { dpadProcess?.destroy() }
