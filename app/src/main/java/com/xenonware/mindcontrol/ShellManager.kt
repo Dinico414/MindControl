@@ -349,6 +349,36 @@ object ShellManager {
     private var dpadDeviceCreated = false
 
     /**
+     * Receives rumble requests forwarded by the helper.
+     *
+     * Called with `(magnitude, durationMs)` on the thread that is polling the helper, because
+     * [dpadCommand] is the only reader of its stdout. Magnitude 0 means "stop now". The service
+     * subscribes so it can play the request on the phone's real vibrator; when nothing is
+     * subscribed, rumble requests are simply dropped.
+     */
+    @Volatile
+    private var rumbleListener: ((Int, Long) -> Unit)? = null
+
+    /** Registers (or clears, with null) the callback for forwarded rumble requests. */
+    fun setRumbleListener(listener: ((Int, Long) -> Unit)?) {
+        rumbleListener = listener
+    }
+
+    /**
+     * Serialises access to [dpadStdout].
+     *
+     * Two readers share the helper's stdout: [dpadCommand] (while waiting for a reply) and
+     * [dpadDrainThread] (so unsolicited rumble events are noticed promptly while no command is in
+     * flight). Without this lock they could interleave `readLine` calls and steal each other's
+     * lines, which would desync the reply protocol.
+     */
+    private val dpadReaderLock = Any()
+
+    /** Background drain so rumble events are serviced even when no command is pending. */
+    private var dpadDrainThread: Thread? = null
+    @Volatile private var dpadDrainRunning = false
+
+    /**
      * Resolves the on-disk path of the packaged native helper.
      *
      * The APK ships it as `lib/<abi>/virtual_dpad.so`. The first choice is
@@ -391,39 +421,63 @@ object ShellManager {
      * so it can write to `/data/local/tmp` and later execute what it wrote there. A direct copy to
      * app-private storage would be unreadable to that uid and every command would time out.
      *
-     * Cached: the shell-side copy is only redone when the staged file is missing, so the common
-     * path costs one `[ -x ]` round-trip. Returns null when privilege is missing, the APK has no
-     * entry for the device's ABI, or the copy fails.
+     * Cached, but tied to the helper's *size*: the staged copy is only reused while its size still
+     * matches the one in this build's APK. Reusing purely on existence (the old behaviour) meant a
+     * helper staged by an earlier build was never replaced, so a rebuilt binary -- and every fix in
+     * it -- silently never reached the device. Returns null when privilege is missing, the APK has
+     * no entry for the device's ABI, or the copy fails.
      */
+    /**
+     * When staging the helper was last attempted, to rate-limit repeated failures.
+     *
+     * Only consulted on the failure path; a successful or already-staged check returns before it.
+     */
+    @Volatile private var lastStageAttemptAt = 0L
+
     private fun stageHelperFromApk(): String? {
         if (!isRootAvailable() && !isShizukuAvailable()) {
             Log.w(TAG, "uinput: cannot stage helper without root or Shizuku")
             return null
         }
 
-        // Already staged and executable? Reuse it without touching the APK again.
-        val ready = runShellCommandBlocking("[ -x $STAGED_HELPER_PATH ] && echo yes || echo no")
-        if (ready.contains("yes")) return STAGED_HELPER_PATH
-
         val abi = Build.SUPPORTED_ABIS.firstOrNull() ?: return null
         val sourceDir = appContext.applicationInfo.sourceDir ?: return null
 
-        return try {
-            // Read the helper out of our own APK, then hand the bytes to the shell.
-            //
-            // The binary is passed as base64 *through the command string* rather than pointed at
-            // with a path. The shell uid cannot read app-private storage (its `cp` of our cache
-            // file fails with "Permission denied", yet the wrapper still reports exit 0), so the
-            // only reliable channel is for this process -- which can read its own APK -- to encode
-            // the bytes and let the shell decode them into a file it owns.
-            val bytes = ZipFile(sourceDir).use { zip ->
+        // Read the current build's helper first, so both the version check and the staging use one
+        // in-memory copy rather than reading the APK twice.
+        val bytes = try {
+            ZipFile(sourceDir).use { zip ->
                 val entry = zip.getEntry("lib/$abi/virtual_dpad.so") ?: return@use null
                 zip.getInputStream(entry).use { it.readBytes() }
-            } ?: run {
-                Log.w(TAG, "uinput: no lib/$abi/virtual_dpad.so entry in the APK")
-                return null
             }
+        } catch (e: Exception) {
+            Log.w(TAG, "uinput: could not read the helper from the APK", e)
+            null
+        } ?: run {
+            Log.w(TAG, "uinput: no lib/$abi/virtual_dpad.so entry in the APK")
+            return null
+        }
 
+        // Reuse the staged copy only when it is present, executable and byte-identical to this
+        // build's helper. `stat -c %s` is used rather than a checksum: it is one cheap shell round
+        // trip, and a changed helper is what actually breaks the "stale binary" case.
+        val stagedSize = runShellCommandBlocking(
+            "[ -x $STAGED_HELPER_PATH ] && stat -c %s $STAGED_HELPER_PATH || echo none",
+        ).trim()
+        if (stagedSize == bytes.size.toString()) {
+            return STAGED_HELPER_PATH
+        }
+
+        // A failed staging (e.g. /data/local/tmp not writable yet) would otherwise be retried on
+        // every watchdog tick, piping the whole binary through the shell each time. Back off so a
+        // persistent failure costs one attempt per window rather than a burst of traffic.
+        if (SystemClock.uptimeMillis() - lastStageAttemptAt < 30_000L) {
+            return null
+        }
+        lastStageAttemptAt = SystemClock.uptimeMillis()
+
+        return try {
+            // `bytes` was read above and already holds this build's helper.
             val b64 = android.util.Base64.encodeToString(bytes, android.util.Base64.NO_WRAP)
             val staged = runShellCommandBlocking(
                 "echo '$b64' | base64 -d > $STAGED_HELPER_PATH && " +
@@ -536,6 +590,9 @@ object ShellManager {
                 InputStreamReader(ParcelFileDescriptor.AutoCloseInputStream(process.inputStream))
             )
             dpadDeviceCreated = false
+            // Unsolicited rumble events must be read even while no command is in flight, so the
+            // drain loop runs for as long as the helper does.
+            startDpadDrain()
             process
         } catch (e: Exception) {
             Log.e(TAG, "Failed to start virtual D-pad helper", e)
@@ -549,21 +606,33 @@ object ShellManager {
      *
      * Kept deliberately synchronous: the helper answers every command, so a reply means the kernel
      * accepted the event. [timeoutMs] guards against a wedged helper.
+     *
+     * Rumble requests arrive on the same stdout but are *unsolicited* -- the helper prints `FFEVT`
+     * lines whenever the active app rumbles, without any command pending. They are therefore routed
+     * to [rumbleListener] here and skipped, so they can never be mistaken for the reply to the
+     * command being waited on (which would desync the request/reply protocol and make every later
+     * command read a stale line).
      */
     private fun dpadCommand(command: String, timeoutMs: Long = 500): String? {
         val stdin = dpadStdin ?: return null
         val stdout = dpadStdout ?: return null
         return try {
-            stdin.write((command + "\n").toByteArray())
-            stdin.flush()
+            // The write and the read must be one critical section against the drain thread. If the
+            // write happened first and the lock were only taken for the read, the drain could win
+            // the race, read this command's reply and discard it as "stale" before we ever saw it.
+            synchronized(dpadReaderLock) {
+                stdin.write((command + "\n").toByteArray())
+                stdin.flush()
 
-            val deadline = System.currentTimeMillis() + timeoutMs
-            while (System.currentTimeMillis() < deadline) {
-                if (stdout.ready()) {
-                    val line = stdout.readLine() ?: break
-                    if (line.isNotBlank()) return line
-                } else {
-                    Thread.sleep(2)
+                val deadline = System.currentTimeMillis() + timeoutMs
+                while (System.currentTimeMillis() < deadline) {
+                    if (stdout.ready()) {
+                        val line = stdout.readLine() ?: break
+                        if (handleRumbleLine(line)) continue
+                        if (line.isNotBlank()) return line
+                    } else {
+                        Thread.sleep(2)
+                    }
                 }
             }
             null
@@ -571,6 +640,74 @@ object ShellManager {
             Log.w(TAG, "D-pad command '$command' failed", e)
             null
         }
+    }
+
+    /**
+     * Reads any already-buffered helper output, routing rumble events to [rumbleListener].
+     *
+     * Used by the background drain thread. Only complete, *ready* lines are consumed, so this never
+     * blocks: a command's reply is left in the buffer for [dpadCommand] to read. Non-rumble lines
+     * that are ready here are a stale reply from an earlier timed-out command, and are discarded so
+     * they cannot be mistaken for the next reply.
+     */
+    private fun drainRumbleEvents() {
+        val stdout = dpadStdout ?: return
+        synchronized(dpadReaderLock) {
+            while (stdout.ready()) {
+                val line = stdout.readLine() ?: return
+                if (!handleRumbleLine(line) && line.isNotBlank()) {
+                    Log.w(TAG, "D-pad drain discarded a stale line: $line")
+                }
+            }
+        }
+    }
+
+    /**
+     * Starts the low-frequency drain loop, if it is not already running.
+     *
+     * 50 ms is short enough that rumble feels instant when triggered by a button press that itself
+     * produced a command reply, and cheap because the loop is a single `ready()` check per tick
+     * when nothing is waiting.
+     */
+    private fun startDpadDrain() {
+        if (dpadDrainRunning) return
+        dpadDrainRunning = true
+        val thread = Thread {
+            while (dpadDrainRunning) {
+                runCatching { drainRumbleEvents() }
+                runCatching { Thread.sleep(50) }
+            }
+        }
+        thread.isDaemon = true
+        thread.name = "dpad-rumble-drain"
+        dpadDrainThread = thread
+        thread.start()
+    }
+
+    private fun stopDpadDrain() {
+        dpadDrainRunning = false
+        dpadDrainThread = null
+    }
+
+    /**
+     * Dispatches an `FFEVT <magnitude> <durationMs>` line to [rumbleListener].
+     *
+     * Returns true when the line was a rumble event (and therefore consumed), false for an ordinary
+     * command reply. Malformed lines are treated as consumed but ignored, so a garbled event cannot
+     * be mistaken for a reply either.
+     */
+    private fun handleRumbleLine(line: String): Boolean {
+        if (!line.startsWith("FFEVT")) return false
+
+        val parts = line.split(' ')
+        if (parts.size >= 3) {
+            val magnitude = parts[1].toIntOrNull()
+            val duration = parts[2].toLongOrNull()
+            if (magnitude != null && duration != null) {
+                rumbleListener?.invoke(magnitude, duration)
+            }
+        }
+        return true
     }
 
     /**
@@ -640,6 +777,11 @@ object ShellManager {
         gamepadDeviceCreated = true
         // Let InputReader register the device before anything is sent to it.
         Thread.sleep(60)
+        // Report what the device actually advertises for force feedback. This is the same
+        // EVIOCGBIT source Android's VibratorInputMapper consults, so it tells us whether the
+        // phone will treat this controller as rumble-capable. Strictly best-effort: a slow or
+        // silent helper must not affect whether the controller is considered started.
+        runCatching { Log.i(TAG, "Gamepad FF caps: " + dpadCommand("PAD_FFINFO", timeoutMs = 300)) }
         Log.i(TAG, "Resident gamepad device created")
         return true
     }
@@ -710,6 +852,9 @@ object ShellManager {
             dpadCommand("QUIT", timeoutMs = 200)
         } catch (_: Exception) {
         } finally {
+            // Stop the drain before closing the stream it reads from, so it can never observe a
+            // half-closed pipe.
+            stopDpadDrain()
             dpadDeviceCreated = false
             // The helper destroys both devices when it exits, so the local flag must match.
             gamepadDeviceCreated = false

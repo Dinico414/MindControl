@@ -66,7 +66,7 @@ class ButtonMapperService : AccessibilityService() {
         fun startControllerManually(): Boolean {
             val service = instance ?: return false
             service.manualGamepadRequested = true
-            service.handler.post { service.syncGamepadForForegroundApp() }
+            service.gamepadHandler.post { service.syncGamepadForForegroundApp() }
             return true
         }
 
@@ -74,7 +74,7 @@ class ButtonMapperService : AccessibilityService() {
         fun stopControllerManually(): Boolean {
             val service = instance ?: return false
             service.manualGamepadRequested = false
-            service.handler.post { service.syncGamepadForForegroundApp() }
+            service.gamepadHandler.post { service.syncGamepadForForegroundApp() }
             return true
         }
 
@@ -316,13 +316,13 @@ class ButtonMapperService : AccessibilityService() {
             } catch (e: Exception) {
                 Log.w(tag, "Gamepad watchdog failed", e)
             }
-            handler.postDelayed(this, GAMEPAD_WATCHDOG_INTERVAL_MS)
+            gamepadHandler.postDelayed(this, GAMEPAD_WATCHDOG_INTERVAL_MS)
         }
     }
 
     private fun startGamepadWatchdog() {
-        handler.removeCallbacks(gamepadWatchdog)
-        handler.post(gamepadWatchdog)
+        gamepadHandler.removeCallbacks(gamepadWatchdog)
+        gamepadHandler.post(gamepadWatchdog)
     }
 
     private fun createNotificationChannel() {
@@ -442,7 +442,9 @@ class ButtonMapperService : AccessibilityService() {
                         lastPackageName = pkg
                         Log.d(tag, "App Track: Current=$lastPackageName, Previous=$previousPackageName")
                         // Enter or leave gamepad mode for the app that just came to the front.
-                        syncGamepadForForegroundApp()
+                        // Posted off the main thread: creating or tearing down the controller does
+                        // blocking shell work, which must not run on the looper dispatching events.
+                        gamepadHandler.post { syncGamepadForForegroundApp() }
                     }
                 }
 
@@ -486,6 +488,19 @@ class ButtonMapperService : AccessibilityService() {
     override fun onInterrupt() {}
 
     private val handler = Handler(Looper.getMainLooper())
+
+    /**
+     * Dedicated background thread for the resident-controller work.
+     *
+     * Creating or tearing down the gamepad involves blocking shell round-trips: staging the native
+     * helper (which can pipe the whole binary through the shell) and waiting on the helper's
+     * replies, each with its own timeout. Running that on [handler] -- which is the *main* looper --
+     * blocked the UI, and because the watchdog re-runs it on a timer the app could be stuck long
+     * enough to trigger "Input dispatching timed out". Everything that talks to [ShellManager]'s
+     * gamepad path is posted here instead.
+     */
+    private val gamepadThread = android.os.HandlerThread("gamepad-sync").apply { start() }
+    private val gamepadHandler = Handler(gamepadThread.looper)
     private val longPressRunnables = mutableMapOf<Int, Runnable>()
     private val downClickCounts = mutableMapOf<Int, Int>()
     private val keyClearTasks = mutableMapOf<Int, Runnable>()
@@ -1408,6 +1423,44 @@ class ButtonMapperService : AccessibilityService() {
         }
     }
 
+    /**
+     * Registers the gamepad's rumble listener with [ShellManager].
+     *
+     * The virtual controller advertises force feedback, so a game will send rumble requests to it.
+     * Those are read back by the helper and forwarded here, where they are played on the phone's
+     * real motor. Idempotent: re-registering the same listener is harmless, so both start paths can
+     * call it without tracking whether it was set already.
+     */
+    private fun attachRumbleListener() {
+        ShellManager.setRumbleListener { magnitude, durationMs ->
+            vibrateRumble(magnitude, durationMs)
+        }
+    }
+
+    /**
+     * Plays a rumble request forwarded from the virtual controller.
+     *
+     * [magnitude] is 0..255 (0 meaning "stop"), and [durationMs] is how long to buzz. Android's
+     * [VibrationEffect.createOneShot] takes a 1..255 amplitude, so the magnitude maps directly.
+     */
+    private fun vibrateRumble(magnitude: Int, durationMs: Long) {
+        try {
+            val vibrator = (getSystemService(VIBRATOR_MANAGER_SERVICE) as VibratorManager).defaultVibrator
+            if (!vibrator.hasVibrator()) return
+
+            // Magnitude 0 is the game asking to stop: cancel any buzz still running.
+            if (magnitude <= 0 || durationMs <= 0L) {
+                vibrator.cancel()
+                return
+            }
+
+            val amplitude = magnitude.coerceIn(1, 255)
+            vibrator.vibrate(VibrationEffect.createOneShot(durationMs, amplitude))
+        } catch (e: Exception) {
+            Log.w(tag, "Gamepad rumble failed", e)
+        }
+    }
+
     private fun toggleShiftHold() {
         isShiftHoldActive = !isShiftHoldActive
         vibrate(VibrationEffect.EFFECT_CLICK)
@@ -1655,6 +1708,7 @@ class ButtonMapperService : AccessibilityService() {
             if (!gamepadActive) {
                 if (ShellManager.startGamepad()) {
                     gamepadActive = true
+                    attachRumbleListener()
                     showGamepadNotification(foreground)
                     Log.i(tag, "Gamepad started manually")
                 } else {
@@ -1683,6 +1737,7 @@ class ButtonMapperService : AccessibilityService() {
             shouldBeActive && !gamepadActive -> {
                 if (ShellManager.startGamepad()) {
                     gamepadActive = true
+                    attachRumbleListener()
                     showGamepadNotification(foreground)
                     Log.i(tag, "Gamepad mode active for $foreground")
                 } else {
@@ -2888,12 +2943,16 @@ class ButtonMapperService : AccessibilityService() {
         Shizuku.removeRequestPermissionResultListener(permissionListener)
         if (instance === this) instance = null
         ShellManager.stopMonitoring()
-        handler.removeCallbacks(gamepadWatchdog)
+        gamepadHandler.removeCallbacks(gamepadWatchdog)
         // Drop the resident controller first, then the helper: otherwise the phone would keep
         // reporting a connected gamepad after the service is gone.
         ShellManager.stopGamepad()
         gamepadActive = false
+        // Clear the rumble routing too, so a late event cannot buzz after the service is gone.
+        ShellManager.setRumbleListener(null)
         hideGamepadNotification()
         ShellManager.stopVirtualDpad()
+        // Nothing else will post to it now, so the dedicated thread can be released.
+        gamepadThread.quitSafely()
     }
 }
