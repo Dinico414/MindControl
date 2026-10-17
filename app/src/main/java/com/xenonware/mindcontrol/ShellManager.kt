@@ -232,6 +232,21 @@ object ShellManager {
         }
     }
 
+    fun isShizukuInstalled(context: Context): Boolean = try {
+        context.packageManager.getPackageInfo(SHIZUKU_PACKAGE, PackageManager.PackageInfoFlags.of(0))
+        true
+    } catch (_: Exception) {
+        false
+    }
+
+    fun openShizukuStorePage(context: Context) {
+        try {
+            context.startActivity(Intent(Intent.ACTION_VIEW, android.net.Uri.parse("market://details?id=$SHIZUKU_PACKAGE")).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
+        } catch (_: Exception) {
+            context.startActivity(Intent(Intent.ACTION_VIEW, android.net.Uri.parse("https://play.google.com/store/apps/details?id=$SHIZUKU_PACKAGE")).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
+        }
+    }
+
     /**
      * Requests Shizuku permission. If Shizuku isn't running, or the user chose
      * "deny and don't ask again", the dialog can't be shown, so open the Shizuku app instead.

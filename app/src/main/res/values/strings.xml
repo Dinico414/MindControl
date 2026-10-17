@@ -173,6 +173,12 @@
     <string name="requires_shell">Requires Shizuku or Root</string>
     <string name="volume_shell_msg">To customize Volume buttons for Screen Off, please authorize Shizuku or Root, or use the \'Volume Skip\' toggle in Settings.</string>
     <string name="non_volume_shell_msg">Configuring non-volume buttons for Screen Off requires Shizuku or Root permission.</string>
+    <string name="permission_required_title">Permission Required</string>
+    <string name="permission_required_desc">The action \"%1$s\" requires Shizuku or Root permission to function, but it is currently not active on your device.</string>
+    <string name="grant_root">Grant Root</string>
+    <string name="install_shizuku">Install Shizuku</string>
+    <string name="enable_shizuku">Enable Shizuku</string>
+    <string name="change_action">Change Action</string>
 
     <!-- Actions -->
     <string name="action_none">None</string>

@@ -109,14 +109,19 @@ val SHELL_REQUIRED_ACTIONS = setOf(
     SettingsManager.ACTION_CUSTOM_DENSITY_TOGGLE,
     SettingsManager.ACTION_TAB,
     SettingsManager.ACTION_REVERSE_TAB,
-) + SettingsManager.ARROW_ACTIONS
+    SettingsManager.ACTION_OPEN_EMOJI_KEYBOARD,
+)
 
 fun isActionDisabled(action: String, shellReady: Boolean): Boolean {
-    return !shellReady && action in SHELL_REQUIRED_ACTIONS
+    if (shellReady) return false
+    if (action in SHELL_REQUIRED_ACTIONS) return true
+    val spec = KeyInput.decode(action)
+    if (spec != null && (spec.ctrl || spec.alt)) return true
+    return false
 }
 
 fun disabledReasonFor(action: String, shellReady: Boolean): Int? = when {
-    !shellReady && action in SHELL_REQUIRED_ACTIONS -> R.string.requires_shell
+    isActionDisabled(action, shellReady) -> R.string.requires_shell
     else -> null
 }
 

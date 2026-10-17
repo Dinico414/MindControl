@@ -283,11 +283,6 @@ fun KeyboardTab(
         SettingsManager.ACTION_TAB,
         SettingsManager.ACTION_REVERSE_TAB,
         SettingsManager.ACTION_OPEN_EMOJI_KEYBOARD,
-        // Profile switching is a normal, user-assignable action: there is no hardcoded key.
-        // These three select the controller profile and only do anything in gamepad mode.
-        SettingsManager.ACTION_PROFILE_1,
-        SettingsManager.ACTION_PROFILE_2,
-        SettingsManager.ACTION_PROFILE_3,
     )
     ActionList(actions, config, onActionSelected, shellReady, contentPadding)
 }

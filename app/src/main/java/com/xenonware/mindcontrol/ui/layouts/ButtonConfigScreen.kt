@@ -17,6 +17,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.rounded.Lock
+import androidx.compose.material.icons.rounded.WarningAmber
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Icon
@@ -26,6 +27,7 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -33,6 +35,7 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextAlign
@@ -43,11 +46,14 @@ import com.xenon.mylibrary.ActivityScreen
 import com.xenon.mylibrary.res.XenonDialog
 import com.xenon.mylibrary.values.ExtraLargerCornerRadius
 import com.xenon.mylibrary.values.SmallestCornerRadius
+import com.xenonware.mindcontrol.PermissionStatus
 import com.xenonware.mindcontrol.R
 import com.xenonware.mindcontrol.SettingsManager
+import com.xenonware.mindcontrol.ShellManager
 import com.xenonware.mindcontrol.ui.res.ActionIcon
 import com.xenonware.mindcontrol.ui.res.getActionDisplayName
 import com.xenonware.mindcontrol.ui.res.getTypeDisplayName
+import com.xenonware.mindcontrol.ui.res.isActionDisabled
 import com.xenonware.mindcontrol.ui.res.topFadingEdge
 import com.xenonware.mindcontrol.ui.theme.BlueTheme
 import com.xenonware.mindcontrol.ui.theme.GreenTheme
@@ -446,7 +452,7 @@ fun ButtonConfigScreen(
                                 shape = shape,
                                 modifier = Modifier.fillMaxWidth()
                             ) {
-                                MindControlActionSelector(keyCode, stateStr, type, onSelectAction, locked = betterShift)
+                                MindControlActionSelector(keyCode, stateStr, type, onSelectAction, locked = betterShift, shellPermission = shellPermission)
                             }
                         }
 
@@ -478,7 +484,7 @@ fun ButtonConfigScreen(
                                     shape = shape,
                                     modifier = Modifier.fillMaxWidth()
                                 ) {
-                                    MindControlActionSelector(keyCode, stateStr, type, onSelectAction, locked = betterShift)
+                                    MindControlActionSelector(keyCode, stateStr, type, onSelectAction, locked = betterShift, shellPermission = shellPermission)
                                 }
                             }
                         }
@@ -489,20 +495,32 @@ fun ButtonConfigScreen(
     }
 }
 
+private val YellowContainer = Color(0xFFFFF8E1)
+private val YellowContent = Color(0xFF9A6B00)
+
 @Composable
 fun MindControlActionSelector(
     keyCode: Int,
     state: String,
     type: String,
     onSelectAction: (Int, String, String) -> Unit,
-    locked: Boolean = false
+    locked: Boolean = false,
+    shellPermission: Boolean = true
 ) {
     val context = LocalContext.current
+    var showWarningDialog by remember { mutableStateOf(false) }
+
+    val rootStatus by ShellManager.rootStatus.collectAsState()
+    val shizukuInstalled = remember(context) { ShellManager.isShizukuInstalled(context) }
+
     // Locked (Better Shift): show the fixed action that really runs, not what's stored
     val action = remember(keyCode, state, type, locked) {
         if (locked) SettingsManager.getEffectiveAction(context, keyCode, state, type)
         else SettingsManager.getAction(context, keyCode, state, type)
     }
+
+    val requiresShell = remember(action) { isActionDisabled(action, shellReady = false) }
+    val isWarning = !shellPermission && requiresShell
 
     val shortcutLabel = stringResource(R.string.tab_shortcuts)
     val speedDialLabel = stringResource(R.string.speed_dial)
@@ -535,6 +553,43 @@ fun MindControlActionSelector(
 
     val displayType = getTypeDisplayName(type)
 
+    if (showWarningDialog) {
+        val (fixButtonText, onFixClick) = when {
+            rootStatus != PermissionStatus.UNAVAILABLE && rootStatus != PermissionStatus.GRANTED -> {
+                stringResource(R.string.grant_root) to { ShellManager.requestRoot() }
+            }
+            !shizukuInstalled -> {
+                stringResource(R.string.install_shizuku) to { ShellManager.openShizukuStorePage(context) }
+            }
+            else -> {
+                stringResource(R.string.enable_shizuku) to { ShellManager.requestShizuku(context) }
+            }
+        }
+
+        XenonDialog(
+            properties = DialogProperties(usePlatformDefaultWidth = true),
+            onDismissRequest = { showWarningDialog = false },
+            title = stringResource(R.string.permission_required_title),
+            confirmButtonText = fixButtonText,
+            onConfirmButtonClick = {
+                showWarningDialog = false
+                onFixClick()
+            },
+            actionButton1Text = stringResource(R.string.change_action),
+            onActionButton1Click = {
+                showWarningDialog = false
+                onSelectAction(keyCode, state, type)
+            },
+            content = {
+                Text(
+                    text = stringResource(R.string.permission_required_desc, displayAction),
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurface
+                )
+            }
+        )
+    }
+
     Row(
         verticalAlignment = Alignment.CenterVertically,
         modifier = Modifier
@@ -553,17 +608,27 @@ fun MindControlActionSelector(
         )
         Spacer(modifier = Modifier.width(8.dp))
         OutlinedButton(
-            onClick = { onSelectAction(keyCode, state, type) },
+            onClick = {
+                if (isWarning) {
+                    showWarningDialog = true
+                } else {
+                    onSelectAction(keyCode, state, type)
+                }
+            },
             enabled = !locked,
             border = BorderStroke(
                 1.dp,
-                if (locked) MaterialTheme.colorScheme.outline.copy(alpha = 0.38f) else MaterialTheme.colorScheme.outline
+                when {
+                    isWarning -> YellowContent
+                    locked -> MaterialTheme.colorScheme.outline.copy(alpha = 0.38f)
+                    else -> MaterialTheme.colorScheme.outline
+                }
             ),
             colors = ButtonDefaults.outlinedButtonColors(
-                containerColor = MaterialTheme.colorScheme.surface,
-                contentColor = MaterialTheme.colorScheme.primary,
-                disabledContainerColor = MaterialTheme.colorScheme.surface,
-                disabledContentColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.7f)
+                containerColor = if (isWarning) YellowContainer else MaterialTheme.colorScheme.surface,
+                contentColor = if (isWarning) YellowContent else MaterialTheme.colorScheme.primary,
+                disabledContainerColor = if (isWarning) YellowContainer else MaterialTheme.colorScheme.surface,
+                disabledContentColor = if (isWarning) YellowContent else MaterialTheme.colorScheme.primary.copy(alpha = 0.7f)
             ),
             modifier = Modifier
                 .weight(1f)
@@ -574,8 +639,11 @@ fun MindControlActionSelector(
                 verticalAlignment = Alignment.CenterVertically,
                 modifier = Modifier.fillMaxWidth()
             ) {
-                val tint = if (locked) MaterialTheme.colorScheme.primary.copy(alpha = 0.7f)
-                else MaterialTheme.colorScheme.primary
+                val tint = when {
+                    isWarning -> YellowContent
+                    locked -> MaterialTheme.colorScheme.primary.copy(alpha = 0.7f)
+                    else -> MaterialTheme.colorScheme.primary
+                }
                 Text(
                     text = displayAction,
                     color = tint,
@@ -583,13 +651,24 @@ fun MindControlActionSelector(
                     overflow = TextOverflow.Ellipsis,
                     modifier = Modifier.weight(1f)
                 )
-                ActionIcon(
-                    action = action,
-                    modifier = Modifier
-                        .size(24.dp)
-                        .padding(start = 4.dp),
-                    tint = tint
-                )
+                if (isWarning) {
+                    Icon(
+                        imageVector = Icons.Rounded.WarningAmber,
+                        contentDescription = null,
+                        tint = YellowContent,
+                        modifier = Modifier
+                            .size(24.dp)
+                            .padding(start = 4.dp)
+                    )
+                } else {
+                    ActionIcon(
+                        action = action,
+                        modifier = Modifier
+                            .size(24.dp)
+                            .padding(start = 4.dp),
+                        tint = tint
+                    )
+                }
                 if (locked) {
                     Icon(
                         imageVector = Icons.Rounded.Lock,

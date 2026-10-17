@@ -173,6 +173,12 @@
     <string name="requires_shell">Erfordert Shizuku oder Root</string>
     <string name="volume_shell_msg">Um die Lautstärketasten für „Bildschirm aus“ anzupassen, autorisieren Sie bitte Shizuku oder Root, oder nutzen Sie den Schalter „Lautstärke-Sprung“ in den Einstellungen.</string>
     <string name="non_volume_shell_msg">Das Konfigurieren von Nicht-Lautstärketasten für „Bildschirm aus“ erfordert Shizuku- oder Root-Berechtigung.</string>
+    <string name="permission_required_title">Berechtigung erforderlich</string>
+    <string name="permission_required_desc">Die Aktion „%1$s“ benötigt Shizuku- oder Root-Berechtigung, die derzeit auf Ihrem Gerät nicht aktiv ist.</string>
+    <string name="grant_root">Root gewähren</string>
+    <string name="install_shizuku">Shizuku installieren</string>
+    <string name="enable_shizuku">Shizuku aktivieren</string>
+    <string name="change_action">Aktion ändern</string>
 
     <!-- Actions -->
     <string name="action_none">Keine</string>
