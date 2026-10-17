@@ -1,3 +1,5 @@
+@file:Suppress("PrivatePropertyName")
+
 package com.xenonware.mindcontrol
 
 import android.accessibilityservice.AccessibilityService
@@ -54,9 +56,6 @@ class ButtonMapperService : AccessibilityService() {
         @Volatile
         private var instance: ButtonMapperService? = null
 
-        /** True when the accessibility service is connected and can act on requests. */
-        fun isConnected(): Boolean = instance != null
-
         /**
          * Starts advertising a controller, regardless of which app is in front.
          *
@@ -70,7 +69,7 @@ class ButtonMapperService : AccessibilityService() {
             return true
         }
 
-        /** Stops a manually started controller and returns to automatic per-app behaviour. */
+        /** Stops a manually started controller and returns to automatic per-app behavior. */
         fun stopControllerManually(): Boolean {
             val service = instance ?: return false
             service.manualGamepadRequested = false
@@ -443,7 +442,7 @@ class ButtonMapperService : AccessibilityService() {
                         Log.d(tag, "App Track: Current=$lastPackageName, Previous=$previousPackageName")
                         // Enter or leave gamepad mode for the app that just came to the front.
                         // Posted off the main thread: creating or tearing down the controller does
-                        // blocking shell work, which must not run on the looper dispatching events.
+                        // block shell work, which must not run on the looper dispatching events.
                         gamepadHandler.post { syncGamepadForForegroundApp() }
                     }
                 }
@@ -1861,7 +1860,7 @@ class ButtonMapperService : AccessibilityService() {
      * One stick's axis value.
      *
      * Held directions are summed and clamped to full deflection, so up + right gives a diagonal
-     * at full value on both axes, while opposing directions cancel back to centre.
+     * at full value on both axes, while opposing directions cancel back to center.
      */
     private fun stickAxis(isLeft: Boolean, axis: Int): Int {
         val held = heldStickDirections[isLeft].orEmpty()
@@ -2353,7 +2352,9 @@ class ButtonMapperService : AccessibilityService() {
 
     private fun wakeUpScreenAndDismissAod() {
         try {
-            sendBroadcast(Intent("com.xenonware.mindcontrol.ACTION_DISMISS_AOD"))
+            sendBroadcast(
+                Intent("com.xenonware.mindcontrol.ACTION_DISMISS_AOD").setPackage(packageName)
+            )
 
             if (!powerManager.isInteractive && ShellManager.isAvailable()) {
                 Thread { ShellManager.runShellCommand("input keyevent ${KeyEvent.KEYCODE_WAKEUP}") }.start()

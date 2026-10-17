@@ -112,7 +112,9 @@ class ShortcutOverlayActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
 
         // Dismiss AOD if running
-        sendBroadcast(Intent("com.xenonware.mindcontrol.ACTION_DISMISS_AOD"))
+        sendBroadcast(
+            Intent("com.xenonware.mindcontrol.ACTION_DISMISS_AOD").setPackage(packageName)
+        )
 
         // A newer trigger replaces one that is still waiting, so a shortcut never fires twice.
         activeInstance?.get()?.takeIf { it !== this && !it.isFinishing }?.finish()
