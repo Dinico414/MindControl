@@ -28,7 +28,7 @@
 ## 🚀 Key Features
 
 ### 1. Dual Privileged Engine (Shizuku & Root)
-MindControl v2.0 introduces native support for both **Shizuku** and **Root** (KernelSU, Magisk, APatch, and standard `su`):
+MindControl v3.0 introduces native support for both **Shizuku** and **Root** (KernelSU, Magisk, APatch, and standard `su`):
 *   **Zero UI Blocking:** Permission detection runs reactively via background Kotlin Coroutines / StateFlows, preventing any frame drops or ANRs.
 *   **Screen-Off Remapping via Kernel Monitor:** When the screen is off, standard accessibility services cannot intercept input. MindControl spawns a privileged low-level kernel event monitor (`getevent -l`) that translates raw hardware scancodes (volume rocker, power, camera shutter, two-stage focus sensor, AI buttons) in real time.
 *   **Secured System Controls:** Execute system-level tasks without cumbersome permission hoops, such as changing aspect ratios, display density, airplane/mobile data, location, and brightness.
