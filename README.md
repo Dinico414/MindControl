@@ -11,7 +11,7 @@
 [![Root](https://img.shields.io/badge/Power-Root%20%2F%20KernelSU%20%2F%20Magisk-crimson)](https://github.com/tiann/KernelSU)
 [![Buy Me A Coffee](https://img.shields.io/badge/Buy%20Me%20A%20Coffee-Donate-yellow?logo=buy-me-a-coffee)](https://www.buymeacoffee.com/xenonware)
 
-**MindControl** is a deep-integration hardware customization toolkit, physical-keyboard / gamepad mapper, and Always-On Display (AOD) engine designed for Android devices and specifically optimized for the iKKO MindOne. It allows you to intercept and remap physical buttons and keys, run a full Xbox-style controller layer, handle screen-off hardware events via privileged shell access (Shizuku or Root), dynamically adjust display aspects and DPI, and enjoy a rich, modular AOD experience.
+**MindControl** is a deep-integration hardware customization toolkit, physical-keyboard / gamepad mapper, and Always-On Display (AOD) engine designed for Android devices and specifically optimized for the iKKO MindOne. It allows you to intercept and remap physical buttons and keys, run a full XBOX-Style controller layer, handle screen-off hardware events via privileged shell access (Shizuku or Root), dynamically adjust display aspects and DPI, and enjoy a rich, modular AOD experience.
 
 ---
 
@@ -41,14 +41,14 @@ MindControl v3.0 introduces native support for both **Shizuku** and **Root** (Ke
 *   **Contextual States:** Assign distinct behaviors depending on whether the screen is **On** or **Off**.
 *   **Per-Button Override Toggle:** Enable or disable the custom remapping of each individual button, so an unbound button simply keeps its stock behavior.
 
-### 3. Gamepad Mode (Xbox Controller Layer)
-MindControl can present a **virtual Xbox controller** to the system, built on a native `uinput` helper — no game needs to know the physical keyboard exists:
+### 3. Gamepad Mode (XBOX Controller Layer)
+MindControl can present a **virtual XBOX controller** to the system, built on a native `uinput` helper — no game needs to know the physical keyboard exists:
 *   **Per-App Activation:** Choose the apps whose keyboard switches to the gamepad layout in `Gamepad keyboard apps`; everywhere else the phone stays in normal keyboard mode.
 *   **Manual Toggle:** Start or stop the controller on demand from the dashboard, in any app.
 *   **Full Controller Layout:** Face buttons (`A / B / X / Y`), D-pad, bumpers, `L3` / `R3`, `Start` / `Menu` / `Select`, and analog stick directions.
 *   **Three Switchable Profiles:** Keep three independent controller mappings and switch between them at runtime — either from the action picker (`Profile 1 / 2 / 3`) or with the preset `c` / `v` / `b` keys on the home row. Profile 1 ships a ready-to-use preset.
 *   **Rumble Feedback:** The controller advertises force-feedback; the game's rumble requests are read back from the helper and played on the phone's real vibrator.
-*   **Virtual D-pad for Navigation:** Arrow actions are routed through a synthetic gamepad device tagged `SOURCE_GAMEPAD`, so Android's Focus Navigation Engine moves focus exactly like a physical Xbox controller instead of the app swallowing the key.
+*   **Virtual D-pad for Navigation:** Arrow actions are routed through a synthetic gamepad device tagged `SOURCE_GAMEPAD`, so Android's Focus Navigation Engine moves focus exactly like a physical XBOX controller instead of the app swallowing the key.
 
 ### 4. Continuum: Continuous Fluid Execution
 MindControl includes a **Continuum Engine** for fluid system interactions:
@@ -138,7 +138,7 @@ A dedicated overlay activity lets a button trigger launch an app or shortcut dir
 
 1.  **Accessibility Key Filtering:** Intercepts key events using `AccessibilityService.FLAG_REQUEST_FILTER_KEY_EVENTS` when the screen is active.
 2.  **Kernel Event Monitoring:** When the screen turns off, MindControl falls back to reading raw scancodes via `/system/bin/getevent -l` through Shizuku or Root, ensuring reliable triggers even under aggressive OEM sleep states.
-3.  **Native `uinput` Gamepad Helper:** A small NDK-built executable (`virtual_dpad.c`) stages an executable copy to disk via privileged shell, then creates synthetic input devices through `/dev/uinput` — a D-pad device tagged `SOURCE_GAMEPAD` for Focus Navigation, and a resident rumble-capable Xbox-identified pad with axes. It speaks a line-based stdin/stdout protocol and reports back the app's force-feedback requests.
+3.  **Native `uinput` Gamepad Helper:** A small NDK-built executable (`virtual_dpad.c`) stages an executable copy to disk via privileged shell, then creates synthetic input devices through `/dev/uinput` — a D-pad device tagged `SOURCE_GAMEPAD` for Focus Navigation, and a resident rumble-capable XBOX-identified pad with axes. It speaks a line-based stdin/stdout protocol and reports back the app's force-feedback requests.
 4.  **Device-Protected Storage (`Direct Boot`):** User configurations and root statuses are kept in encrypted device-protected storage (`createDeviceProtectedStorageContext()`), allowing MindControl to initialize and function immediately upon boot before the first user unlock.
 5.  **Shortcut Overlay Handoff:** A dedicated `ShortcutOverlayActivity` wakes the screen, dismisses the keyguard and holds a black frame across the transition, finishing only once the launched app's window fully covers the screen — never flashing the launcher.
 6.  **Local & Reactive Architecture:** State is driven by Kotlin Coroutines `StateFlow` and Jetpack Compose without polling loops or blocking threads.
